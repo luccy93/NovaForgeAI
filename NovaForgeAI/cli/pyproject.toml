@@ -1,0 +1,14 @@
+[project]
+name = "novaforge-cli"
+version = "0.1.0"
+description = "NovaForge AI CLI - Code analysis and AI assistant from your terminal"
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.1.0",
+    "httpx>=0.28.0",
+    "rich>=13.9.0",
+    "pyyaml>=6.0.2",
+]
+
+[project.scripts]
+novaforge = "novaforge_cli:cli"

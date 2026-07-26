@@ -1,0 +1,58 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "title": "NovaForge AI — Backend Performance",
+  "version": 1,
+  "panels": [
+    {
+      "title": "API Request Rate",
+      "type": "graph",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {"expr": "rate(fastapi_requests_total[1m])", "legendFormat": "{{method}} {{path}}"}
+      ]
+    },
+    {
+      "title": "API Latency (p50/p95/p99)",
+      "type": "graph",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum(rate(fastapi_request_duration_seconds_bucket[1m])) by (le))", "legendFormat": "p50"},
+        {"expr": "histogram_quantile(0.95, sum(rate(fastapi_request_duration_seconds_bucket[1m])) by (le))", "legendFormat": "p95"},
+        {"expr": "histogram_quantile(0.99, sum(rate(fastapi_request_duration_seconds_bucket[1m])) by (le))", "legendFormat": "p99"}
+      ]
+    },
+    {
+      "title": "Database Connections",
+      "type": "graph",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [
+        {"expr": "pg_stat_database_numbackends", "legendFormat": "{{datname}}"}
+      ]
+    },
+    {
+      "title": "Redis Operations",
+      "type": "graph",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [
+        {"expr": "rate(redis_commands_total[1m])", "legendFormat": "{{cmd}}"}
+      ]
+    },
+    {
+      "title": "LLM Usage",
+      "type": "graph",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "targets": [
+        {"expr": "novaforge_llm_tokens_total", "legendFormat": "{{provider}} {{model}}"}
+      ]
+    },
+    {
+      "title": "Queue Length",
+      "type": "stat",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "targets": [
+        {"expr": "novaforge_queue_depth", "legendFormat": "Queue Depth"}
+      ]
+    }
+  ]
+}

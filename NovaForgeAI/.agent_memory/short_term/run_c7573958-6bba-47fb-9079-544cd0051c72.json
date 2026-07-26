@@ -1,0 +1,18 @@
+{
+  "key": "run:c7573958-6bba-47fb-9079-544cd0051c72",
+  "scope": "short_term",
+  "value": {
+    "agent": "tester",
+    "input": "Implement login feature",
+    "output": "",
+    "status": "failed",
+    "duration_ms": 312,
+    "tokens_used": 0,
+    "error": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-place**lder. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}, 'status': 401}",
+    "decision": null,
+    "organization_id": "None",
+    "repository_id": "None"
+  },
+  "timestamp": "2026-07-19T11:14:47.849438+00:00",
+  "id": "b7662976-b980-421f-857f-97d0ce5ef6ce"
+}

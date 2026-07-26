@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: novaforge
+  labels:
+    app: novaforge
+    tier: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: novaforge
+      tier: worker
+  template:
+    metadata:
+      labels:
+        app: novaforge
+        tier: worker
+    spec:
+      containers:
+        - name: worker
+          image: novaforge/worker:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: novaforge-config
+            - secretRef:
+                name: novaforge-secrets
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "4"
+              memory: "4Gi"
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import celery; print('ok')"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "import celery; print('ok')"]
+            initialDelaySeconds: 15
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker
+  namespace: novaforge
+  labels:
+    app: novaforge
+    tier: worker
+spec:
+  selector:
+    app: novaforge
+    tier: worker
+  ports:
+    - port: 8001
+      targetPort: 8001
+      name: metrics
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: worker-hpa
+  namespace: novaforge
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: worker
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

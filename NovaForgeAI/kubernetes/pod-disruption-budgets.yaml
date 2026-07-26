@@ -1,0 +1,35 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend-pdb
+  namespace: novaforge
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: novaforge
+      tier: backend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  namespace: novaforge
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: novaforge
+      tier: frontend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: worker-pdb
+  namespace: novaforge
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: novaforge
+      tier: worker

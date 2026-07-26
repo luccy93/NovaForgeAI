@@ -1,0 +1,105 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: neo4j-secret
+  namespace: novaforge
+type: Opaque
+stringData:
+  NEO4J_PASSWORD: password
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: neo4j
+  namespace: novaforge
+  labels:
+    app: novaforge
+    tier: database
+    component: neo4j
+spec:
+  serviceName: neo4j
+  replicas: 1
+  selector:
+    matchLabels:
+      app: novaforge
+      component: neo4j
+  template:
+    metadata:
+      labels:
+        app: novaforge
+        component: neo4j
+    spec:
+      containers:
+        - name: neo4j
+          image: neo4j:5
+          ports:
+            - containerPort: 7687
+              name: bolt
+            - containerPort: 7474
+              name: http
+          env:
+            - name: NEO4J_AUTH
+              value: "neo4j/password"
+            - name: NEO4J_PLUGINS
+              value: '["apoc"]'
+            - name: NEO4J_dbms_security_procedures_unrestricted
+              value: "apoc.*"
+            - name: NEO4J_dbms_memory_heap_max__size
+              value: "2G"
+          volumeMounts:
+            - name: neo4j-data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          livenessProbe:
+            tcpSocket:
+              port: 7687
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            exec:
+              command:
+                - cypher-shell
+                - "-u"
+                - neo4j
+                - "-p"
+                - password
+                - "RETURN 1"
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: neo4j-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neo4j
+  namespace: novaforge
+  labels:
+    app: novaforge
+    component: neo4j
+spec:
+  selector:
+    app: novaforge
+    component: neo4j
+  ports:
+    - port: 7687
+      targetPort: 7687
+      name: bolt
+    - port: 7474
+      targetPort: 7474
+      name: http
+  clusterIP: None

@@ -1,0 +1,37 @@
+# Stage 1: Build
+FROM node:20-alpine AS builder
+
+WORKDIR /build
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --frozen-lockfile
+
+COPY frontend/ .
+RUN npm run build
+
+# Stage 2: Runtime
+FROM node:20-alpine AS runtime
+
+WORKDIR /app
+
+RUN addgroup -S novaforge && \
+    adduser -S -G novaforge novaforge && \
+    chown -R novaforge:novaforge /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+COPY --from=builder /build/package.json /build/package-lock.json ./
+COPY --from=builder /build/.next ./.next
+COPY --from=builder /build/public ./public
+COPY --from=builder /build/node_modules ./node_modules
+COPY --from=builder /build/next.config.ts ./next.config.ts
+
+USER novaforge
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
+
+CMD ["npm", "start"]

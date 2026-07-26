@@ -1,0 +1,13 @@
+# Frontend .dockerignore
+.git
+node_modules
+.next
+.env
+.env.local
+*.md
+.gitignore
+Dockerfile
+.dockerignore
+coverage
+__pycache__
+*.pyc

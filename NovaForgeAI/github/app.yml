@@ -1,0 +1,20 @@
+name: NovaForge AI
+description: AI-powered code assistant with 3D code visualization
+url: https://novaforge.ai
+hook_attributes:
+  url: https://api.novaforge.ai/webhooks/github
+public: true
+default_permissions:
+  contents: read
+  metadata: read
+  pull_requests: write
+  checks: write
+  issues: write
+  statuses: write
+default_events:
+  - push
+  - pull_request
+  - pull_request_review
+  - issues
+  - check_run
+  - code_scanning_alert

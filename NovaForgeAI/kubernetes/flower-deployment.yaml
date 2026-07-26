@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flower
+  namespace: novaforge
+  labels:
+    app: novaforge
+    tier: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: novaforge
+      tier: flower
+  template:
+    metadata:
+      labels:
+        app: novaforge
+        tier: flower
+    spec:
+      containers:
+        - name: flower
+          image: mher/flower:2.0
+          ports:
+            - containerPort: 5555
+              name: http
+          env:
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: novaforge-secrets
+                  key: redis_url
+            - name: FLOWER_PORT
+              value: "5555"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flower
+  namespace: novaforge
+  labels:
+    app: novaforge
+    tier: monitoring
+spec:
+  selector:
+    app: novaforge
+    tier: flower
+  ports:
+    - port: 5555
+      targetPort: 5555
+      name: http
+  type: ClusterIP

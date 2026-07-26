@@ -1,0 +1,18 @@
+{
+  "key": "run:15221039-3e4b-4c07-98f7-32c6914d3866",
+  "scope": "short_term",
+  "value": {
+    "agent": "tester",
+    "input": "Write a test for main.py",
+    "output": "",
+    "status": "failed",
+    "duration_ms": 2609,
+    "tokens_used": 0,
+    "error": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-place**lder. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}, 'status': 401}",
+    "decision": null,
+    "organization_id": "annotation=Union[str, NoneType] required=False default=None alias='organization_id' json_schema_extra={}",
+    "repository_id": "annotation=Union[str, NoneType] required=False default=None alias='repository_id' json_schema_extra={}"
+  },
+  "timestamp": "2026-07-19T11:01:36.470703+00:00",
+  "id": "6aadf6db-1da5-40cc-bffe-ee876882ca98"
+}

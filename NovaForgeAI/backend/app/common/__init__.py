@@ -1,0 +1,1 @@
+"""NovaForge Common - shared infrastructure, storage backends, patterns, utilities."""

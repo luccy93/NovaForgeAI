@@ -1,0 +1,37 @@
+{
+  "name": "novaforge-ai",
+  "displayName": "NovaForge AI",
+  "description": "AI-powered code assistant with 3D code visualization",
+  "version": "0.1.0",
+  "publisher": "novaforge",
+  "engines": { "vscode": "^1.95.0" },
+  "categories": ["Programming Languages", "Visualization", "Linters"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./src/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "novaforge.explainCode", "title": "NovaForge: Explain Code" },
+      { "command": "novaforge.reviewCode", "title": "NovaForge: Review Code" },
+      { "command": "novaforge.open3DView", "title": "NovaForge: Open 3D Code View" },
+      { "command": "novaforge.askQuestion", "title": "NovaForge: Ask AI" },
+      { "command": "novaforge.generateTests", "title": "NovaForge: Generate Tests" }
+    ],
+    "keybindings": [
+      { "command": "novaforge.explainCode", "key": "ctrl+shift+e", "mac": "cmd+shift+e" },
+      { "command": "novaforge.askQuestion", "key": "ctrl+shift+a", "mac": "cmd+shift+a" }
+    ],
+    "menus": {
+      "editor/context": [
+        { "command": "novaforge.explainCode", "group": "novaforge" },
+        { "command": "novaforge.reviewCode", "group": "novaforge" }
+      ]
+    },
+    "configuration": {
+      "title": "NovaForge AI",
+      "properties": {
+        "novaforge.apiUrl": { "type": "string", "default": "http://localhost:8000/api/v1", "description": "NovaForge API URL" },
+        "novaforge.apiKey": { "type": "string", "default": "", "description": "API Key" }
+      }
+    }
+  }
+}
