@@ -1,0 +1,1 @@
+"""NovaForge Data Lakehouse - Volume 31. Enterprise data platform for engineering intelligence."""

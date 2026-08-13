@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 
 try:
     from fastapi import APIRouter, HTTPException, Query
+    from fastapi import UploadFile, File
+    from fastapi import Request
     from pydantic import BaseModel
     HAS_FASTAPI = True
 except ImportError:
@@ -145,3 +147,144 @@ if HAS_FASTAPI:
         svc = registry.get("enterprise_platform")
         if not svc: raise HTTPException(404, "Enterprise Platform not available")
         return await svc.get_global_dashboard(org_id)
+
+    # ─── Data Lakehouse & Analytics (Volume 31) ───
+    @router.post("/lakehouse/events")
+    async def ingest_event(org_id: str = Query(...), event_type: str = Query(...),
+                           payload: Optional[str] = Query(None)):
+        svc = registry.get("lakehouse")
+        if not svc: raise HTTPException(404, "Lakehouse not available")
+        import json
+        return await svc.ingest_event(org_id, event_type, json.loads(payload) if payload else None)
+
+    @router.post("/lakehouse/events/batch")
+    async def ingest_batch(org_id: str = Query(...), events: str = Query(...)):
+        svc = registry.get("lakehouse")
+        if not svc: raise HTTPException(404, "Lakehouse not available")
+        import json
+        return await svc.ingest_batch(org_id, json.loads(events))
+
+    @router.post("/lakehouse/metrics")
+    async def push_metric(org_id: str = Query(...), name: str = Query(...), value: float = Query(...)):
+        svc = registry.get("lakehouse")
+        if not svc: raise HTTPException(404, "Lakehouse not available")
+        return await svc.push_metric(org_id, name, value)
+
+    @router.post("/lakehouse/batch")
+    async def run_batch(org_id: str = Query(...), job: str = "daily"):
+        svc = registry.get("lakehouse")
+        if not svc: raise HTTPException(404, "Lakehouse not available")
+        return await svc.run_batch(org_id, job)
+
+    @router.post("/lakehouse/tables")
+    async def create_table(org_id: str = Query(...), name: str = Query(...),
+                           columns: str = Query(...), partition_cols: str = ""):
+        svc = registry.get("lakehouse")
+        if not svc: raise HTTPException(404, "Lakehouse not available")
+        import json
+        return await svc.create_table(org_id, name, json.loads(columns),
+                                      json.loads(partition_cols) if partition_cols else None)
+
+    @router.get("/lakehouse/query")
+    async def query_analytics(org_id: str = Query(...), table: str = Query(...),
+                              group_by: str = "", agg: str = "count",
+                              filters: str = "", limit: int = 100):
+        svc = registry.get("lakehouse")
+        if not svc: raise HTTPException(404, "Lakehouse not available")
+        import json
+        return await svc.query(org_id, table, group_by, agg,
+                               json.loads(filters) if filters else None, limit)
+
+    @router.get("/lakehouse/analytics/{kind}")
+    async def analytics(org_id: str = Query(...), kind: str = ""):
+        svc = registry.get("lakehouse")
+        if not svc: raise HTTPException(404, "Lakehouse not available")
+        handlers = {
+            "ecommerce": svc.ecommerce,
+            "ai": svc.ai_usage,
+            "rag": svc.rag_metrics,
+            "agents": svc.agent_performance,
+            "finops": svc.finops_overview,
+        }
+        handler = handlers.get(kind)
+        if not handler: raise HTTPException(404, f"unknown analytics kind: {kind}")
+        return await handler(org_id)
+
+    @router.get("/lakehouse/retention")
+    async def retention_status():
+        svc = registry.get("lakehouse")
+        if not svc: raise HTTPException(404, "Lakehouse not available")
+        return svc.retention_report()
+
+    # ─── Multimodal AI & Computer Vision (Volume 32) ───
+    @router.post("/multimodal/ingest")
+    async def multimodal_ingest(request: Request, org_id: str = Query(...),
+                                file_name: str = Query(...),
+                                declared_mime: str = "",
+                                source: str = "upload",
+                                async_: bool = False):
+        """Raw-bytes upload (body = file content)."""
+        svc = registry.get("multimodal")
+        if not svc: raise HTTPException(404, "Multimodal not available")
+        data = await request.body()
+        return await svc.ingest(org_id, file_name, data,
+                                declared_mime=declared_mime, source=source,
+                                async_=async_)
+
+    @router.post("/multimodal/upload")
+    async def multimodal_upload(org_id: str = Query(...), source: str = "upload",
+                                declared_mime: str = "", async_: bool = False,
+                                file: UploadFile = File(...)):
+        """Multipart file upload."""
+        svc = registry.get("multimodal")
+        if not svc: raise HTTPException(404, "Multimodal not available")
+        data = await file.read()
+        return await svc.ingest(org_id, file.filename or "upload.bin", data,
+                                declared_mime=declared_mime, source=source,
+                                async_=async_)
+
+    @router.get("/multimodal/ingest/{job_id}")
+    async def multimodal_job(org_id: str = Query(...), job_id: str = ""):
+        svc = registry.get("multimodal")
+        if not svc: raise HTTPException(404, "Multimodal not available")
+        return await svc.job(org_id, job_id)
+
+    @router.get("/multimodal/assets")
+    async def multimodal_assets(org_id: str = Query(...), modality: str = "",
+                                limit: int = 100):
+        svc = registry.get("multimodal")
+        if not svc: raise HTTPException(404, "Multimodal not available")
+        return await svc.list_assets(org_id, modality, limit)
+
+    @router.delete("/multimodal/assets/{asset_id}")
+    async def multimodal_delete(org_id: str = Query(...), asset_id: str = ""):
+        svc = registry.get("multimodal")
+        if not svc: raise HTTPException(404, "Multimodal not available")
+        return await svc.delete_asset(org_id, asset_id)
+
+    @router.get("/multimodal/search")
+    async def multimodal_search(org_id: str = Query(...), query: str = Query(...),
+                                limit: int = 8, modalities: str = ""):
+        svc = registry.get("multimodal")
+        if not svc: raise HTTPException(404, "Multimodal not available")
+        return await svc.search(org_id, query, limit, modalities)
+
+    @router.get("/multimodal/answer")
+    async def multimodal_answer(org_id: str = Query(...), query: str = Query(...),
+                                limit: int = 8, modalities: str = "",
+                                generate: bool = True):
+        svc = registry.get("multimodal")
+        if not svc: raise HTTPException(404, "Multimodal not available")
+        return await svc.answer(org_id, query, limit, modalities, generate)
+
+    @router.get("/multimodal/usage")
+    async def multimodal_usage(org_id: str = Query(...)):
+        svc = registry.get("multimodal")
+        if not svc: raise HTTPException(404, "Multimodal not available")
+        return await svc.usage(org_id)
+
+    @router.get("/multimodal/health")
+    async def multimodal_health():
+        svc = registry.get("multimodal")
+        if not svc: raise HTTPException(404, "Multimodal not available")
+        return svc.health_check()

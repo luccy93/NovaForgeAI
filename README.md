@@ -118,3 +118,83 @@ NovaForgeAI/
 - [API Reference](https://docs.novaforge.ai/api)
 - [Architecture Guide](https://docs.novaforge.ai/architecture)
 - [Deployment Guide](https://docs.novaforge.ai/deployment)
+
+## Volume 32 - Multimodal AI & Computer Vision
+
+A multimodal ingestion, analysis and retrieval platform for text, documents (PDF),
+images, architecture diagrams, video and audio.
+
+### Components (`backend/app/multimodal/`)
+
+| Module | Purpose |
+|--------|---------|
+| `security.py` | Upload validation (magic bytes, size, zip-bomb), SSRF guard, processing sandbox, prompt-injection scanner |
+| `ocr.py` | Pluggable OCR chain (Tesseract / PaddleOCR / Cloud Vision) with caching |
+| `pdf_parser.py` | Stream-based PDF text extraction (no xref traversal) - Tj/TJ ops, Flate/ASCIIHex |
+| `images.py` | Image stats, OCR, diagram parsing (box + directed-arrow detection), visual-regression compare |
+| `docs.py` | Heading-anchored semantic chunking, table extraction (PDF grid / openpyxl / CSV) |
+| `video.py` | ffmpeg frame sampling, HSV scene-change detection, OCR on scene frames |
+| `audio.py` | Transcription (whisper / OpenAI / Google), topic + decision extraction |
+| `index_store.py` | Embedding registry, Qdrant vector index with in-memory fallback + JSON persistence |
+| `rag.py` | Cross-modal retrieval with citation-grounded answers; Neo4j knowledge-graph interlink |
+| `pipeline.py` | Asset lifecycle orchestrator (validate -> sandbox -> extract -> index -> KG) |
+| `service.py` | `multimodal` service registered in the volume registry |
+
+### CLI
+
+```bash
+python -m app.novaforge_cli health
+python -m app.novaforge_cli multimodal ingest org-demo path/to/file.png
+python -m app.novaforge_cli multimodal search org-demo "my query"
+python -m app.novaforge_cli multimodal answer org-demo "my question"
+python -m app.novaforge_cli multimodal assets org-demo
+python -m app.novaforge_cli multimodal jobs org-demo
+python -m app.novaforge_cli multimodal usage
+python -m app.novaforge_cli multimodal vision path/to/image.png
+```
+
+### HTTP API (flat `app/api.py` router, same convention as Lakehouse)
+
+```
+POST   /multimodal/ingest                    raw bytes body
+POST   /multimodal/upload                    multipart file
+GET    /multimodal/ingest/{job_id}           job status
+GET    /multimodal/assets                    list assets (?organization_id=&modality=)
+DELETE /multimodal/assets/{asset_id}
+GET    /multimodal/search                    ?organization_id=&q=
+GET    /multimodal/answer                    ?organization_id=&q=
+GET    /multimodal/usage
+GET    /multimodal/health
+```
+
+### Behavior
+
+- Every asset and search is tenant-scoped (`organization_id`).
+- All capability degradations are honest: captions only from non-heuristic
+  providers, video/audio report `available: false` with a reason when binaries
+  or models are missing, and a down Qdrant/Neo4j never breaks ingestion
+  (in-memory fallback + `written: false` KG reports).
+- Executables, spoofed MIME types, oversized uploads, zip-bombs and prompt
+  injection are rejected at the pipeline boundary.
+- Memory index persists to `data/multimodal/index.json` so one-shot CLI
+  processes share state with the API server.
+
+### Schema migration
+
+```bash
+cd backend
+alembic upgrade head    # creates the 18 multimodal_* tables (see alembic/versions/0001_multimodal.py)
+```
+
+### Tests
+
+```bash
+cd backend
+python -m pytest ../tests/backend/test_multimodal.py --confcutdir=../tests/backend
+```
+
+Note: `tests/backend/test_api.py`, `test_backend_features.py`,
+`test_platform.py` and the PostgreSQL/Redis/Neo4j/Qdrant integration tests fail
+when the external services or the `create_app` app factory are unavailable -
+these predate Volume 32.
+

@@ -16,6 +16,9 @@ Thumbs.db
 *.log
 data/
 .pytest_cache/
+.agent_memory/
+test_mem/
+backend/test_mem/
 docker-compose.override.yml
 *.vsix
 *.whl
