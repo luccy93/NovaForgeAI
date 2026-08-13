@@ -150,7 +150,7 @@ class NovaForgeCLI:
         svc = registry.get("multimodal")
         if not svc: print("multimodal volume not loaded"); return
         if not args:
-            print("Usage: multimodal <sub> ...  (subs: ingest, search, answer, assets, jobs, usage, vision)")
+            print("Usage: multimodal <sub> ...  (subs: ingest, search, answer, assets, jobs, usage, vision, screenshot, compare, ledger)")
             return
         sub = args[0]
         rest = args[1:]
@@ -201,6 +201,23 @@ class NovaForgeCLI:
                 data = fh.read()
             self._print("Vision",
                         await svc.vision(org, prompt, data))
+        elif sub == "screenshot":
+            if len(rest) < 2:
+                print("Usage: multimodal screenshot <organization_id> <url> [viewport WxH]")
+                return
+            self._print("Screenshot",
+                        await svc.capture_screenshot(
+                            rest[0], rest[1],
+                            viewport=rest[2] if len(rest) > 2 else ""))
+        elif sub == "compare":
+            if len(rest) < 3:
+                print("Usage: multimodal compare <organization_id> <baseline_id> <candidate_id>")
+                return
+            self._print("Visual Compare",
+                        await svc.compare_screenshots(rest[0], rest[1], rest[2]))
+        elif sub == "ledger":
+            self._print("Cost Ledger",
+                        await svc.ledger(rest[0] if rest else "", 100))
         else:
             print(f"Unknown multimodal sub-command: {sub}")
 

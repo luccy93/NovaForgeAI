@@ -4,11 +4,11 @@ from ..common.services import AsyncService, registry
 from ..common.base import Validator
 from ..common.storage import JsonFileStorage
 
-from .assets import AssetStore, MultimodalIngestion
+from .assets import AssetStore, MultimodalIngestion, sha256_of
 from .jobs import JobManager
 from .security import (
     UploadSecurity, SSRFGuard, ProcessingSandbox, PromptInjectionScanner)
-from .vision_gateway import VisionModelGateway
+from .vision_gateway import VisionModelGateway, VisionRequest
 from .ocr import OCRDetector
 from .docs import DocumentPipeline
 from .images import ImageIntelService
@@ -18,6 +18,7 @@ from .index_store import VectorIndex
 from .rag import MultimodalRAG, SynthGraph
 from .memory import MultimodalMemory
 from .pipeline import MultimodalPipeline
+from .screenshots import ScreenshotCapture, ScreenshotStore, ComparisonStore
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,11 @@ class MultimodalService(AsyncService):
         self.index = VectorIndex(persist_path="data/multimodal/index.json")
         self.rag = MultimodalRAG(self.index)
         self.graph = SynthGraph()
-        self.memory = MultimodalMemory()
+        self.memory = MultimodalMemory(
+            storage=JsonFileStorage("data/multimodal/cost_ledger.json"))
+        self.screenshots = ScreenshotCapture(store=ScreenshotStore(),
+                                             guard=self.ssrf)
+        self.comparisons = ComparisonStore()
         self.pipeline = MultimodalPipeline(
             ingestion=self.ingestion, security=self.security, sandbox=self.sandbox,
             docs=self.docs, images=self.images, video=self.video,
@@ -103,6 +108,10 @@ class MultimodalService(AsyncService):
             VisionRequest(prompt=prompt, image_data=image_data,
                           image_mime=image_mime), task=task, organization_id=organization_id)
         self.memory.record(organization_id, vision_calls=1, cost_usd=result.cost_usd)
+        if result.cost_usd > 0:
+            self.memory.record_cost(
+                organization_id, "vision", cost_usd=result.cost_usd,
+                provider=result.provider, model=result.model)
         return result.to_dict()
 
     async def ocr(self, organization_id: str, image_data: bytes,
@@ -110,6 +119,12 @@ class MultimodalService(AsyncService):
         Validator.non_empty(organization_id, "organization_id")
         result = self.ocr.ocr(image_data, organization_id, asset_id)
         self.memory.record(organization_id, ocr_calls=1)
+        if getattr(result, "provider_cost_usd", 0.0) or getattr(result, "cost_usd", 0.0):
+            self.memory.record_cost(
+                organization_id, "ocr",
+                cost_usd=getattr(result, "cost_usd", 0.0) or
+                getattr(result, "provider_cost_usd", 0.0),
+                provider=result.engine, model=result.engine)
         return result.to_dict()
 
     async def analyze_image(self, organization_id: str, asset_id: str) -> dict:
@@ -125,7 +140,48 @@ class MultimodalService(AsyncService):
     async def compare_images(self, organization_id: str, baseline: bytes,
                              candidate: bytes) -> dict:
         Validator.non_empty(organization_id, "organization_id")
-        return self.images.compare(baseline, candidate)
+        baseline_id = f"inline:{sha256_of(baseline)[:16]}"
+        candidate_id = f"inline:{sha256_of(candidate)[:16]}"
+        verdict = self.images.compare(baseline, candidate)
+        record = self.comparisons.record(
+            organization_id, baseline_id, candidate_id, verdict)
+        verdict["recorded"] = record
+        return verdict
+
+    # ------------------------------------------------------------ screenshots
+    async def capture_screenshot(self, organization_id: str, url: str,
+                                 viewport: str = "") -> dict:
+        """Capture a URL screenshot for visual regression testing.
+
+        Results are honest: no browser automation -> `available: False` with
+        a reason. URLs pass the SSRF guard first.
+        """
+        Validator.non_empty(organization_id, "organization_id")
+        vp = tuple(int(x) for x in viewport.split("x")) if viewport else (1280, 800)
+        record = self.screenshots.capture(url, organization_id, vp)
+        return record.to_dict()
+
+    async def compare_screenshots(self, organization_id: str, baseline_id: str,
+                                  candidate_id: str) -> dict:
+        Validator.non_empty(organization_id, "organization_id")
+        baseline = self.screenshots.store.get(baseline_id, organization_id)
+        candidate = self.screenshots.store.get(candidate_id, organization_id)
+        if baseline is None or not baseline.available:
+            raise KeyError(f"screenshot not found: {baseline_id}")
+        if candidate is None or not candidate.available:
+            raise KeyError(f"screenshot not found: {candidate_id}")
+        import os as _os
+        for shot, other in ((baseline, candidate), (candidate, baseline)):
+            if not shot.file_path or not _os.path.exists(shot.file_path):
+                raise FileNotFoundError(f"screenshot bytes missing: {shot.id}")
+        with open(baseline.file_path, "rb") as fh:
+            baseline_bytes = fh.read()
+        with open(candidate.file_path, "rb") as fh:
+            candidate_bytes = fh.read()
+        verdict = self.images.compare(baseline_bytes, candidate_bytes)
+        record = self.comparisons.record(
+            organization_id, baseline_id, candidate_id, verdict)
+        return {**verdict, "recorded": record}
 
     # ------------------------------------------------------------------ rag
     async def search(self, organization_id: str, query: str, limit: int = 8,
@@ -145,6 +201,10 @@ class MultimodalService(AsyncService):
                                  modalities=mods, generate=generate)
         self.memory.record(organization_id, rag_searches=1,
                            llm_calls=1 if result.synthesized else 0)
+        if result.synthesized and result.latency_ms:
+            self.memory.record_cost(
+                organization_id, "answer", provider=result.model,
+                model=result.model or "openai", cost_usd=getattr(result, "cost_usd", 0.0))
         return result.to_dict()
 
     # ---------------------------------------------------------------- jobs
@@ -166,6 +226,14 @@ class MultimodalService(AsyncService):
     async def usage_totals(self) -> dict:
         return self.memory.totals()
 
+    async def ledger(self, organization_id: str = "", limit: int = 100) -> dict:
+        """Append-only cost ledger (mirrors multimodal_cost_ledger)."""
+        return {"entries": self.memory.ledger(organization_id, limit),
+                "totals": self.memory.cost_totals()}
+
+    async def comparisons(self, organization_id: str = "", limit: int = 100) -> dict:
+        return {"comparisons": self.comparisons.list(organization_id, limit)}
+
     async def health_check(self) -> dict:
         return self.health()
 
@@ -177,6 +245,8 @@ class MultimodalService(AsyncService):
         h["index"] = self.index.health()
         h["jobs"] = self.jobs.health()
         h["memory"] = self.memory.health()
+        h["screenshots"] = self.screenshots.health()
+        h["comparisons"] = {"stored": self.comparisons.count()}
         return h
 
 

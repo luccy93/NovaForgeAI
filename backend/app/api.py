@@ -283,6 +283,40 @@ if HAS_FASTAPI:
         if not svc: raise HTTPException(404, "Multimodal not available")
         return await svc.usage(org_id)
 
+    @router.get("/multimodal/ledger")
+    async def multimodal_ledger(org_id: str = "", limit: int = 100):
+        svc = registry.get("multimodal")
+        if not svc: raise HTTPException(404, "Multimodal not available")
+        return await svc.ledger(org_id, limit)
+
+    @router.post("/multimodal/screenshot")
+    async def multimodal_screenshot(org_id: str = Query(...),
+                                    url: str = Query(...),
+                                    viewport: str = ""):
+        svc = registry.get("multimodal")
+        if not svc: raise HTTPException(404, "Multimodal not available")
+        return await svc.capture_screenshot(org_id, url, viewport)
+
+    @router.get("/multimodal/screenshots")
+    async def multimodal_screenshots(org_id: str = "", limit: int = 100):
+        svc = registry.get("multimodal")
+        if not svc: raise HTTPException(404, "Multimodal not available")
+        return {"screenshots": svc.screenshots.store.list(org_id, limit)}
+
+    @router.get("/multimodal/comparisons")
+    async def multimodal_comparisons(org_id: str = "", limit: int = 100):
+        svc = registry.get("multimodal")
+        if not svc: raise HTTPException(404, "Multimodal not available")
+        return await svc.comparisons(org_id, limit)
+
+    @router.get("/multimodal/compare/{baseline_id}/{candidate_id}")
+    async def multimodal_compare(org_id: str = Query(...),
+                                 baseline_id: str = "",
+                                 candidate_id: str = ""):
+        svc = registry.get("multimodal")
+        if not svc: raise HTTPException(404, "Multimodal not available")
+        return await svc.compare_screenshots(org_id, baseline_id, candidate_id)
+
     @router.get("/multimodal/health")
     async def multimodal_health():
         svc = registry.get("multimodal")

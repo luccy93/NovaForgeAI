@@ -137,6 +137,7 @@ images, architecture diagrams, video and audio.
 | `audio.py` | Transcription (whisper / OpenAI / Google), topic + decision extraction |
 | `index_store.py` | Embedding registry, Qdrant vector index with in-memory fallback + JSON persistence |
 | `rag.py` | Cross-modal retrieval with citation-grounded answers; Neo4j knowledge-graph interlink |
+| `screenshots.py` | URL screenshot capture (Playwright/Selenium, honest unavailability), SSRF-guarded; visual-comparison persistence (VRT verdicts) |
 | `pipeline.py` | Asset lifecycle orchestrator (validate -> sandbox -> extract -> index -> KG) |
 | `service.py` | `multimodal` service registered in the volume registry |
 
@@ -151,6 +152,9 @@ python -m app.novaforge_cli multimodal assets org-demo
 python -m app.novaforge_cli multimodal jobs org-demo
 python -m app.novaforge_cli multimodal usage
 python -m app.novaforge_cli multimodal vision path/to/image.png
+python -m app.novaforge_cli multimodal screenshot org-demo https://example.com 1280x800
+python -m app.novaforge_cli multimodal compare org-demo <baseline_id> <candidate_id>
+python -m app.novaforge_cli multimodal ledger [org-demo]
 ```
 
 ### HTTP API (flat `app/api.py` router, same convention as Lakehouse)
@@ -164,6 +168,11 @@ DELETE /multimodal/assets/{asset_id}
 GET    /multimodal/search                    ?organization_id=&q=
 GET    /multimodal/answer                    ?organization_id=&q=
 GET    /multimodal/usage
+GET    /multimodal/ledger                cost ledger (?organization_id=&limit=)
+POST   /multimodal/screenshot            ?organization_id=&url=&viewport=
+GET    /multimodal/screenshots           screenshot records
+GET    /multimodal/comparisons           recorded VRT verdicts
+GET    /multimodal/compare/{baseline_id}/{candidate_id}
 GET    /multimodal/health
 ```
 
@@ -176,6 +185,12 @@ GET    /multimodal/health
   (in-memory fallback + `written: false` KG reports).
 - Executables, spoofed MIME types, oversized uploads, zip-bombs and prompt
   injection are rejected at the pipeline boundary.
+- Screenshot URLs pass an SSRF guard before any capture; without a headless
+  browser (Playwright/Selenium) capture reports `available: false` with an
+  explicit reason. Compare verdicts persist to a comparison log.
+- Cost tracking is honest end to end: every paid operation (vision/OCR/LLM)
+  appends to the per-tenant cost ledger; free or local-heuristic paths record
+  `cost_usd: 0.0`.
 - Memory index persists to `data/multimodal/index.json` so one-shot CLI
   processes share state with the API server.
 

@@ -541,6 +541,158 @@ class TestMultimodalMemory:
         assert totals["bytes_ingested"] == 30
 
 
+# ─── Screenshots & visual regression ───────────────────────────────────
+
+class TestScreenshotCapture:
+    def _capture(self):
+        from app.multimodal.screenshots import ScreenshotCapture, ScreenshotStore
+        from app.multimodal.security import SSRFGuard
+        return ScreenshotCapture(store=ScreenshotStore(), guard=SSRFGuard())
+
+    def test_honest_unavailability_without_browser(self):
+        cap = self._capture()
+        result = cap.capture("https://example.com", "org-1")
+        assert "available" in result.to_dict()
+        if not cap.available:
+            assert result.available is False
+            assert result.reason  # explicit, no fabricated pixels
+        else:
+            assert result.available is True
+
+    def test_ssrf_rejects_private_url(self):
+        cap = self._capture()
+        result = cap.capture("http://169.254.169.254/latest/meta-data/", "org-1")
+        assert result.available is False
+        assert "SSRF" in result.reason
+
+    def test_store_tenant_isolation(self):
+        from app.multimodal.screenshots import ScreenshotResult, ScreenshotStore
+        store = ScreenshotStore()
+        store.put(ScreenshotResult(id="s1", organization_id="org-1",
+                                   url="https://a.example"))
+        assert store.get("s1", "org-1") is not None
+        assert store.get("s1", "org-2") is None
+        assert store.count("org-1") == 1
+
+
+class TestComparisonStore:
+    def _store(self, tmp_path=None):
+        from app.multimodal.screenshots import ComparisonStore
+        from app.common.storage import JsonFileStorage
+        if tmp_path is None:
+            return ComparisonStore()
+        return ComparisonStore(
+            storage=JsonFileStorage(str(tmp_path / "comparisons.json")))
+
+    def test_record_and_list(self, tmp_path):
+        store = self._store(tmp_path)
+        verdict = {"supported": True, "mean_delta": 0.25, "diff_ratio": 0.01,
+                   "diff_pixels": 42, "verdict": "similar",
+                   "changed_bbox": [1, 2, 3, 4]}
+        row = store.record("org-1", "base-1", "cand-1", verdict)
+        assert row["verdict"] == "similar"
+        assert row["diff_pixels"] == 42
+        rows = store.list("org-1")
+        assert len(rows) == 1
+        assert rows[0]["baseline_id"] == "base-1"
+
+    def test_tenant_isolation(self, tmp_path):
+        store = self._store(tmp_path)
+        store.record("org-1", "a", "b", {"verdict": "identical"})
+        store.record("org-2", "a", "b", {"verdict": "different"})
+        assert store.count("org-1") == 1
+        assert len(store.list("org-2")) == 1
+
+
+# ─── Cost ledger ────────────────────────────────────────────────────────
+
+class TestCostLedger:
+    def _memory(self):
+        from app.multimodal.memory import MultimodalMemory
+        return MultimodalMemory()  # no persistence: hermetic
+
+    def test_record_and_fold_into_usage(self):
+        mem = self._memory()
+        mem.record_cost("org-1", "vision", cost_usd=0.0005,
+                        provider="openai", model="gpt-4o-mini")
+        assert mem.snapshot("org-1")["cost_usd"] == 0.0005
+        entries = mem.ledger("org-1")
+        assert len(entries) == 1
+        assert entries[0]["operation"] == "vision"
+        assert entries[0]["provider"] == "openai"
+
+    def test_tenant_isolation(self):
+        mem = self._memory()
+        mem.record_cost("org-1", "vision", cost_usd=0.001)
+        mem.record_cost("org-2", "ocr", cost_usd=0.002)
+        assert len(mem.ledger("org-1")) == 1
+        assert len(mem.ledger("org-2")) == 1
+
+    def test_cost_totals(self):
+        mem = self._memory()
+        mem.record_cost("org-1", "vision", cost_usd=0.001)
+        mem.record_cost("org-1", "vision", cost_usd=0.003)
+        totals = mem.cost_totals()
+        assert totals["org-1"]["cost_usd"] == 0.004
+        assert totals["org-1"]["operations"]["vision"]["count"] == 2
+
+    def test_zero_cost_paths_honest(self):
+        mem = self._memory()
+        mem.record_cost("org-1", "embed", cost_usd=0.0, provider="local-heuristic")
+        assert mem.ledger("org-1")[0]["cost_usd"] == 0.0
+
+
+# ─── Service wiring ─────────────────────────────────────────────────────
+
+class TestServiceWiring:
+    def test_vision_works(self):
+        import asyncio
+
+        async def run():
+            from app.multimodal.service import svc
+            return await svc.vision("org-1", "describe", b"fake")
+
+        result = asyncio.run(run())
+        assert result["provider"]  # no NameError regression for VisionRequest
+        assert "cost_usd" in result
+
+    def test_compare_images_records_comparison(self):
+        import asyncio
+
+        async def run():
+            from app.multimodal.service import svc
+            return await svc.compare_images("org-1", _synthetic_diagram(),
+                                            _synthetic_diagram())
+
+        result = asyncio.run(run())
+        assert result["verdict"] == "identical"
+        assert result["recorded"]["organization_id"] == "org-1"
+
+    def test_ledger_service(self):
+        import asyncio
+
+        async def run():
+            from app.multimodal.service import svc
+            svc.memory.record_cost("org-ledger", "ocr", cost_usd=0.0)
+            return await svc.ledger("org-ledger", limit=10)
+
+        result = asyncio.run(run())
+        assert len(result["entries"]) >= 1
+        assert "totals" in result
+
+    def test_screenshot_service_blocks_ssrf(self):
+        import asyncio
+
+        async def run():
+            from app.multimodal.service import svc
+            return await svc.capture_screenshot(
+                "org-1", "http://127.0.0.1/secret")
+
+        result = asyncio.run(run())
+        assert result["available"] is False
+        assert "SSRF" in result["reason"]
+
+
 # ─── Pipeline integration ───────────────────────────────────────────────
 
 class TestPipeline:
