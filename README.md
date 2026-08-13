@@ -213,3 +213,121 @@ Note: `tests/backend/test_api.py`, `test_backend_features.py`,
 when the external services or the `create_app` app factory are unavailable -
 these predate Volume 32.
 
+## Volume 33 - Automation, RPA & Intelligent Automation
+
+A secure enterprise automation platform: declarative, versioned workflows
+with a typed DSL, DAG validation, an execution engine with retries,
+checkpoints, compensation and human approvals, plus policy-gated tools,
+schedulers, webhooks, an event bus, artifacts, cost controls and an honest
+AI-generation pipeline. Registered as the `automation` volume (10th service).
+
+### Components (`backend/app/automation/`)
+
+| Module | Purpose |
+|--------|---------|
+| `workflow.py` | `WorkflowSpec`/`WorkflowStep`/`RetryPolicy` models, lifecycle (draft -> published -> paused/deprecated/archived), tenant-scoped `WorkflowStore` with versioning + rollback |
+| `dsl.py` | Strongly typed workflow DSL (dict/JSON -> `WorkflowSpec`) + `WorkflowValidator` (schema, trigger, policy surface) |
+| `dag.py` | DAG build/validation: cycles, unknown deps, duplicates, execution order (Kahn) |
+| `engine.py` | `WorkflowEngine`: gates -> approvals -> ordered step execution with retries/timeouts -> checkpoints -> compensation on failure |
+| `retry.py` | Capped exponential backoff, transient-error classification |
+| `checkpoint.py` | Persisted per-step checkpoints + resume plans |
+| `compensation.py` | Rollback plans (reverse order) + execution, operator-review fallback |
+| `approvals.py` | Pending/approved/rejected/expired/auto-approved records (HMAC-free, tenant-scoped JSON) |
+| `executions.py` | Persisted execution records + lifecycle tracker |
+| `automation_policy.py` | Risk classification (dangerous actions always escalate to high), action/domain allowlists, lockdown mode, trigger blocking |
+| `dryrun.py` | Dry-run gate: DAG + policy + approval + cost estimates, `executed: false` |
+| `simulator.py` | Step-by-step simulation report (no side effects) |
+| `triggers.py` | Trigger parsing (manual/schedule/webhook/event/github/gitlab/metric) + `DispatchHub` |
+| `scheduler.py` | 5-field cron parser + due-rule tick |
+| `events.py` | Typed pub/sub event bus with persistent log |
+| `webhooks.py` | HMAC-SHA256 signed webhook receiver (timestamp + signature verify) |
+| `tools.py` | `ToolRegistry` + built-ins (read/search/http/parse/log/report/preview); SSRF-guarded HTTP |
+| `terminal.py` | Sandboxed terminal: never runs on host without a remote runner; risk engine + approval |
+| `browser.py` | Remote-browser agent (navigate/click/fill/screenshot); honest unavailability |
+| `infra.py` | Plan/apply backends; apply requires approved human approval |
+| `cicd.py` | Check/merge/release via platform client; mutations require approval |
+| `artifacts.py` | Content-addressed (sha256) artifact store |
+| `cost.py` | Per-org budgets, per-run/per-step cost attribution |
+| `knowledge.py` | Runbook/troubleshooting knowledge store |
+| `templates.py` | 6 curated templates (CI, deploy, incident, security, data, test) |
+| `marketplace.py` | Publish/import validated workflows |
+| `ai_steps.py` | AI workflow generation: dry-run gated, never exposes secrets, honest unavailable without an LLM |
+| `gateway.py` | `AutomationGateway`: single facade wiring engine + policy + cost + triggers + bus |
+| `workers.py` | Thread-pool worker queue for run requests |
+| `service.py` | `automation` service registered in the volume registry |
+
+### CLI
+
+```bash
+python -m app.novaforge_cli automation templates
+python -m app.novaforge_cli automation define org-demo definition.json
+python -m app.novaforge_cli automation list org-demo
+python -m app.novaforge_cli automation dryrun org-demo wf_ci
+python -m app.novaforge_cli automation publish org-demo wf_ci
+python -m app.novaforge_cli automation run org-demo wf_ci '{"inputs":{}}'
+python -m app.novaforge_cli automation execs org-demo
+python -m app.novaforge_cli automation approve org-demo wf_ci step_id approve
+python -m app.novaforge_cli automation tick
+python -m app.novaforge_cli automation ai "deploy the release"
+```
+
+### HTTP API (flat `app/api.py` router, same convention)
+
+```
+POST   /automation/workflows                    define (JSON body, ?org_id=)
+GET    /automation/workflows                    list (?org_id=)
+GET    /automation/workflows/{id}/dry-run       dry-run gate (?org_id=)
+POST   /automation/workflows/{id}/publish       (?org_id=)
+POST   /automation/workflows/{id}/run           execute (?org_id=, inputs)
+GET    /automation/executions                   (?org_id=&limit=)
+GET    /automation/executions/{execution_id}    (?org_id=)
+POST   /automation/approvals/{workflow}/{step}  ?decision=approved|rejected
+POST   /automation/ai/generate                  ?prompt=&org_id=
+POST   /automation/webhook/{path}               HMAC-signed (?timestamp=&signature=)
+POST   /automation/tick
+GET    /automation/health
+```
+
+### Behavior
+
+- Every workflow, execution, approval, checkpoint, artifact and cost entry is
+  tenant-scoped (`organization_id`); store reads refuse cross-tenant access.
+- Nothing ever executes untrusted commands on the host: terminal/browser tools
+  report `available: false` with a reason unless a remote sandbox backend is
+  configured, and `http`/screenshot URLs pass an SSRF guard.
+- High-risk actions (terminal, browser, infra, deploy, cicd and any action on
+  the policy denylist) always require an approved human (or policy
+  auto-approved) request before the engine runs them; runs blocked on
+  approvals persist as `awaiting_approval` and create the pending requests.
+- AI-generated workflows pass the same pipeline as hand-written ones: DSL
+  parse -> DAG validation -> policy dry run -> approval -> execution, and are
+  rejected by the dry-run gate when invalid; without an LLM callback, AI
+  generation reports `available: false` honestly.
+- Dry runs and simulations never execute; every execution gets an
+  `execution_id` and a persisted record with per-step results, timing and
+  audit trail; failures trigger compensation plans in reverse order.
+- Schedules tick on cron expressions; webhooks require a valid HMAC-SHA256
+  signature within the timestamp tolerance window.
+- All JSON stores live under `data/automation/` so one-shot CLI processes
+  share state with the API server.
+
+### Schema migration
+
+```bash
+cd backend
+alembic upgrade head    # adds the 13 automation_* tables (see alembic/versions/0002_automation.py)
+```
+
+### Tests
+
+```bash
+cd backend
+python -m pytest ../tests/backend/test_automation.py --confcutdir=../tests/backend
+```
+
+66 tests cover the DSL, DAG, store versioning, retries, checkpoints,
+compensation, approvals, engine gates, policy, dry run, scheduler, triggers,
+webhooks (HMAC), cost budgets, tool honesty (terminal/HTTP/SSRF), gateway
+end-to-end flow and the registered service. Combined with Volume 32:
+`python -m pytest ../tests/backend/test_multimodal.py ../tests/backend/test_automation.py --confcutdir=../tests/backend` (137 passing).
+

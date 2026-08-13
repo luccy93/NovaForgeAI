@@ -322,3 +322,101 @@ if HAS_FASTAPI:
         svc = registry.get("multimodal")
         if not svc: raise HTTPException(404, "Multimodal not available")
         return svc.health_check()
+
+    # ─── Automation (Volume 33) ───
+    def _automation():
+        svc = registry.get("automation")
+        if not svc: raise HTTPException(404, "Automation not available")
+        return svc.gateway
+
+    @router.post("/automation/workflows")
+    async def automation_define(org_id: str = Query(...), definition: dict = None):
+        gw = _automation()
+        try:
+            spec = gw.define(definition or {}, organization_id=org_id)
+            return {"workflow_id": spec.workflow_id, "status": spec.status,
+                    "version": spec.version}
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+
+    @router.get("/automation/workflows")
+    async def automation_list(org_id: str = ""):
+        return {"workflows": _automation().list_workflows(org_id)}
+
+    @router.get("/automation/workflows/{workflow_id}/dry-run")
+    async def automation_dry_run(org_id: str = Query(...), workflow_id: str = ""):
+        gw = _automation()
+        try:
+            return gw.dry_run(workflow_id, org_id)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc))
+
+    @router.post("/automation/workflows/{workflow_id}/publish")
+    async def automation_publish(org_id: str = Query(...), workflow_id: str = ""):
+        gw = _automation()
+        try:
+            return gw.publish(workflow_id, org_id)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc))
+
+    @router.post("/automation/workflows/{workflow_id}/run")
+    async def automation_run(org_id: str = Query(...), workflow_id: str = "",
+                             inputs: dict = None):
+        gw = _automation()
+        try:
+            return gw.run(workflow_id, org_id, inputs=inputs or {})
+        except KeyError as exc:
+            raise HTTPException(404, str(exc))
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+
+    @router.get("/automation/executions")
+    async def automation_executions(org_id: str = "", limit: int = 50):
+        return {"executions": _automation().executions(org_id, limit)}
+
+    @router.get("/automation/executions/{execution_id}")
+    async def automation_execution(org_id: str = Query(...),
+                                   execution_id: str = ""):
+        gw = _automation()
+        rec = gw.execution(execution_id, org_id)
+        if rec is None:
+            raise HTTPException(404, f"execution '{execution_id}' not found")
+        return rec
+
+    @router.post("/automation/approvals/{workflow_id}/{step_id}")
+    async def automation_approve(org_id: str = Query(...),
+                                 workflow_id: str = "",
+                                 step_id: str = "",
+                                 decision: str = Query("approved"),
+                                 actor: str = "api_operator"):
+        gw = _automation()
+        if decision not in ("approved", "rejected"):
+            raise HTTPException(400, "decision must be approved|rejected")
+        req = gw.engine.approvals.decide(workflow_id, step_id, decision,
+                                         actor=actor, organization_id=org_id)
+        if req is None:
+            raise HTTPException(404, "approval request not found")
+        return req.to_dict()
+
+    @router.post("/automation/ai/generate")
+    async def automation_ai(prompt: str = Query(...), org_id: str = ""):
+        return _automation().run_ai_generated(prompt, org_id)
+
+    @router.post("/automation/webhook/{path:path}")
+    async def automation_webhook(path: str, request: Request,
+                                 timestamp: str = Query(...),
+                                 signature: str = Query(...)):
+        gw = _automation()
+        body = await request.body()
+        try:
+            return gw.receive_webhook("/" + path, body, timestamp, signature)
+        except Exception as exc:
+            raise HTTPException(401, str(exc))
+
+    @router.post("/automation/tick")
+    async def automation_tick():
+        return {"due": _automation().tick()}
+
+    @router.get("/automation/health")
+    async def automation_health():
+        return _automation().health()

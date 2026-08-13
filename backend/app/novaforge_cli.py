@@ -40,6 +40,9 @@ except Exception as e: logger.debug("lakehouse: %s", e)
 try:
     from app.multimodal import service as _
 except Exception as e: logger.debug("multimodal: %s", e)
+try:
+    from app.automation import service as _
+except Exception as e: logger.debug("automation: %s", e)
 
 
 class NovaForgeCLI:
@@ -84,7 +87,7 @@ class NovaForgeCLI:
     async def run_cmd(self, args: list[str]):
         if not args:
             print("Usage: novafoge <command> [args...]")
-            print("Commands: health, telemetry, status, ingest, query, analytics")
+            print("Commands: health, telemetry, status, ingest, query, analytics, multimodal, automation")
             return
         cmd = args[0]
         rest = args[1:] if len(args) > 1 else []
@@ -102,6 +105,8 @@ class NovaForgeCLI:
             await self.cmd_analytics(rest)
         elif cmd == "multimodal":
             await self.cmd_multimodal(rest)
+        elif cmd == "automation":
+            await self.cmd_automation(rest)
         else:
             print(f"Unknown command: {cmd}")
 
@@ -220,6 +225,71 @@ class NovaForgeCLI:
                         await svc.ledger(rest[0] if rest else "", 100))
         else:
             print(f"Unknown multimodal sub-command: {sub}")
+
+    async def cmd_automation(self, args: list[str]):
+        svc = registry.get("automation")
+        if not svc: print("automation volume not loaded"); return
+        if not args:
+            print("Usage: automation <sub> ...")
+            print("  subs: define, list, dryrun, publish, run, execs, approve, tick, templates, ai")
+            return
+        sub = args[0]
+        rest = args[1:]
+        gw = svc.gateway
+        if sub == "define":
+            if len(rest) < 2:
+                print("Usage: automation define <organization_id> <definition.json>")
+                return
+            with open(rest[1], "r", encoding="utf-8") as fh:
+                definition = json.load(fh)
+            result = gw.define(definition, organization_id=rest[0])
+            self._print("Workflow Defined", {"workflow_id": result.workflow_id,
+                                             "status": result.status,
+                                             "version": result.version})
+        elif sub == "list":
+            self._print("Workflows", gw.list_workflows(rest[0] if rest else ""))
+        elif sub == "dryrun":
+            if len(rest) < 2:
+                print("Usage: automation dryrun <organization_id> <workflow_id>")
+                return
+            self._print("Dry Run", gw.dry_run(rest[1], rest[0]))
+        elif sub == "publish":
+            if len(rest) < 2:
+                print("Usage: automation publish <organization_id> <workflow_id>")
+                return
+            self._print("Publish", gw.publish(rest[1], rest[0]))
+        elif sub == "run":
+            if len(rest) < 2:
+                print("Usage: automation run <organization_id> <workflow_id> [inputs_json]")
+                return
+            inputs = json.loads(rest[2]) if len(rest) > 2 else None
+            self._print("Execution",
+                        gw.run(rest[1], rest[0], inputs=inputs))
+        elif sub == "execs":
+            self._print("Executions", gw.executions(rest[0] if rest else ""))
+        elif sub == "approve":
+            if len(rest) < 4:
+                print("Usage: automation approve <organization_id> <workflow_id> <step_id> <approve|reject> [actor]")
+                return
+            decision = "approved" if rest[3] == "approve" else "rejected"
+            req = gw.engine.approvals.decide(
+                rest[1], rest[2], decision,
+                actor=rest[4] if len(rest) > 4 else "cli_operator",
+                organization_id=rest[0])
+            self._print("Approval", req.to_dict() if req else {"error": "not found"})
+        elif sub == "tick":
+            self._print("Schedule Tick", gw.tick())
+        elif sub == "templates":
+            self._print("Templates", {
+                "count": len(gw.templates.list()),
+                "templates": gw.templates.list()})
+        elif sub == "ai":
+            if len(rest) < 1:
+                print("Usage: automation ai <prompt...>")
+                return
+            self._print("AI Workflow", gw.run_ai_generated(" ".join(rest), ""))
+        else:
+            print(f"Unknown automation sub-command: {sub}")
 
 
 async def main():
