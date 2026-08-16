@@ -3,7 +3,7 @@ import uuid
 from collections import defaultdict
 from typing import Awaitable, Callable
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -84,6 +84,25 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def novaforge_error_handler(request: Request, exc: NovaForgeError) -> JSONResponse:
         logger.warning("Handled error: %s %s -> %d %s", request.method, request.url.path, exc.status_code, exc.code)
         return JSONResponse(status_code=exc.status_code, content=exc.to_dict())
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+        code = {
+            400: "BAD_REQUEST",
+            401: "UNAUTHORIZED",
+            403: "FORBIDDEN",
+            404: "NOT_FOUND",
+            405: "METHOD_NOT_ALLOWED",
+            409: "CONFLICT",
+            413: "PAYLOAD_TOO_LARGE",
+            422: "VALIDATION_ERROR",
+            429: "RATE_LIMITED",
+        }.get(exc.status_code, "HTTP_ERROR")
+        content = {
+            "error": {"code": code, "message": str(exc.detail), "details": {}},
+            "detail": exc.detail,
+        }
+        return JSONResponse(status_code=exc.status_code, content=content)
 
     @app.exception_handler(Exception)
     async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:

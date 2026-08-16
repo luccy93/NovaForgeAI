@@ -290,7 +290,7 @@ async def revoke_all_sessions(
         current_jti = jwt_service.get_token_jti(token)
     await db.execute(
         text("UPDATE user_sessions SET revoked_at = :now WHERE user_id = :uid AND id != :sid"),
-        {"now": datetime.now(timezone.utc), "uid": current_user.id, "sid": current_jti or ""},
+        {"now": datetime.now(timezone.utc), "uid": current_user.id.hex, "sid": current_jti or ""},
     )
 
 

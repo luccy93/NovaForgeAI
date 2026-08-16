@@ -16,6 +16,7 @@ from app.models.support import (
     SecurityReport,
     Deployment,
 )
+from app.sre import models as sre_models  # noqa: F401  (Volume 35 SRE tables)
 
 __all__ = [
     "User", "UserSession", "ApiKey",

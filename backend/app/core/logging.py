@@ -1,7 +1,56 @@
+import json
 import logging
+import os
 import sys
+import threading
 import uuid
 from datetime import datetime, timezone
+
+STRUCTURED_LOGGING = os.getenv("STRUCTURED_LOGGING", "false").lower() == "true"
+
+
+class JsonFormatter(logging.Formatter):
+    """Emit one JSON object per log line.
+
+    Includes standard fields plus SRE correlation keys when present on the
+    record (request_id, trace_id, organization_id, ...). Never logs secrets:
+    only the message text (already sanitized by callers) is included.
+    """
+
+    _RESERVED = {"message", "asctime", "levelname", "name", "exc_info", "args", "stack_info", "msg", "created", "msecs", "relativeCreated", "levelno", "pathname", "filename", "module", "funcName", "lineno", "thread", "process", "taskName", "processName", "threadName"}
+
+    def format(self, record: logging.LogRecord) -> str:
+        entry: dict = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        for key in ("request_id", "trace_id", "span_id", "organization_id", "workspace_id", "user_id", "operation", "duration_ms", "status", "service", "environment", "region", "instance"):
+            value = getattr(record, key, None)
+            if value is not None:
+                entry[key] = value
+        if record.exc_info:
+            entry["error"] = self.formatException(record.exc_info)
+        return json.dumps(entry, default=str)
+
+
+class JsonFormatterFilter(logging.Filter):
+    """Attach service-level correlation attributes to every record."""
+
+    def __init__(self, service: str, environment: str, region: str, instance: str):
+        super().__init__()
+        self._service = service
+        self._environment = environment
+        self._region = region
+        self._instance = instance
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.service = self._service
+        record.environment = self._environment
+        record.region = self._region
+        record.instance = self._instance
+        return True
 
 
 def configure_logging(level: str = "INFO") -> None:
@@ -14,12 +63,23 @@ def configure_logging(level: str = "INFO") -> None:
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(getattr(logging, level.upper(), logging.INFO))
 
-    formatter = logging.Formatter(
-        fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-        datefmt="%Y-%m-%dT%H:%M:%S%z",
-    )
+    if STRUCTURED_LOGGING:
+        formatter = JsonFormatter()
+    else:
+        formatter = logging.Formatter(
+            fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+            datefmt="%Y-%m-%dT%H:%M:%S%z",
+        )
     handler.setFormatter(formatter)
     logger.addHandler(handler)
+
+    service_filter = JsonFormatterFilter(
+        service=os.getenv("SRE_SERVICE_NAME", "novaforge-backend"),
+        environment=os.getenv("NOVAFORGE_ENV", "development"),
+        region=os.getenv("NOVAFORGE_REGION", "local"),
+        instance=os.getenv("NOVAFORGE_INSTANCE", os.uname().nodename if hasattr(os, "uname") else "local"),
+    )
+    logger.addFilter(service_filter)
 
 
 class RequestIDFilter(logging.Filter):

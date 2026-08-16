@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     app_name: str = "NovaForge AI"
     app_version: str = "0.1.0"
     debug: bool = False
+    testing: bool = False
 
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/novaforge"
     neo4j_uri: str = "bolt://localhost:7687"

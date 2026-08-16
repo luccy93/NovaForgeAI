@@ -28,6 +28,11 @@ class PolicyType(Enum):
     BILLING = "billing"
     DATA_RETENTION = "data_retention"
     COMPLIANCE = "compliance"
+    AI_MODEL = "ai_model"
+    AI_PROMPT = "ai_prompt"
+    AI_AGENT = "ai_agent"
+    AI_TOOL = "ai_tool"
+    AI_POLICY = "ai_policy"
 
 
 class PolicyEffect(Enum):

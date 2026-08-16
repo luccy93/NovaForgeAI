@@ -4,10 +4,9 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
-from sqlalchemy import DateTime, MetaData, event, text
+from sqlalchemy import DateTime, MetaData, Uuid, event, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql.schema import ScalarElementColumnDefault, CallableColumnDefault
 import uuid
 from datetime import datetime, timezone
@@ -63,7 +62,7 @@ class TimestampMixin:
     """Mixin that adds id, created_at, updated_at columns."""
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False

@@ -29,7 +29,8 @@ class ModelMarketplace:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._models.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._models.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def publish(self, org_id: str, name: str, model_type: str, provider: str = "", pricing: float = 0.0) -> MarketplaceModel:
@@ -70,7 +71,8 @@ class WorkflowMarketplace:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._workflows.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._workflows.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def publish(self, org_id: str, name: str, workflow_type: str, steps: list = None, price: float = 0.0) -> MarketplaceWorkflow:
@@ -108,7 +110,8 @@ class TemplateMarketplace:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._templates.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._templates.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def publish(self, org_id: str, name: str, template_type: str, files: list = None, price: float = 0.0) -> MarketplaceTemplate:
@@ -146,7 +149,8 @@ class ConnectorMarketplace:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._connectors.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._connectors.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def publish(self, org_id: str, name: str, target: str, config_schema: dict = None) -> MarketplaceConnector:

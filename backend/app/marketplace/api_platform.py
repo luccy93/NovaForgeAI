@@ -28,7 +28,8 @@ class APIPlatform:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._endpoints.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._endpoints.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def register(self, org_id: str, name: str, path: str, method: str = "GET") -> APIEndpoint:
@@ -66,7 +67,8 @@ class EnterpriseMarketplace:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._marketplaces.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._marketplaces.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def create(self, org_id: str, name: str) -> PrivateMarketplace:

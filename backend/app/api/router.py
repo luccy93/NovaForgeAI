@@ -17,6 +17,9 @@ from app.api.agents_v2 import router as agents_v2_router
 from app.api.webhooks import router as webhooks_router
 from app.api.marketplace import router as marketplace_router
 from app.api.platform import router as platform_router
+from app.api.sre import router as sre_router
+from app.api.ai_governance import router as ai_governance_router
+from app.api.kernel import router as kernel_router
 
 api_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_router.include_router(repos_router, prefix="/repositories", tags=["Repositories"])
@@ -33,3 +36,7 @@ api_router.include_router(auth_v2_router, prefix="/auth", tags=["Authentication 
 api_router.include_router(webhooks_router, tags=["Webhooks"])
 api_router.include_router(marketplace_router, tags=["Marketplace"])
 api_router.include_router(platform_router, tags=["Platform"])
+api_router.include_router(sre_router, prefix="/sre", tags=["SRE"])
+api_router.include_router(ai_governance_router, prefix="/ai-governance", tags=["AI Governance"])
+api_router.include_router(kernel_router, prefix="/kernel", tags=["Kernel"])
+api_router.include_router(sre_router)

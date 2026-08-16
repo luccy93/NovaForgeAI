@@ -124,7 +124,7 @@ class MetadataSchema:
 class MetadataChange:
     id: str
     entry_id: str
-    field: str = ""
+    field_name: str = ""
     old_value: Any = None
     new_value: Any = None
     changed_by: str = ""

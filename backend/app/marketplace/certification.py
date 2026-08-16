@@ -28,7 +28,8 @@ class CertificationSystem:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._certs.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._certs.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def certify(self, org_id: str, item_id: str, cert_type: str) -> Certification:
@@ -71,7 +72,8 @@ class DeveloperPortal:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._profiles.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._profiles.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def create(self, org_id: str, name: str, email: str = "") -> DeveloperProfile:
@@ -109,7 +111,8 @@ class Monetization:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._plans.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._plans.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def create_plan(self, org_id: str, item_id: str, plan_type: str, price: float = 0.0) -> MonetizationPlan:
@@ -146,7 +149,8 @@ class RatingSystem:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._reviews.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._reviews.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def submit(self, org_id: str, item_id: str, user_id: str, rating: float, review: str = "") -> RatingReview:

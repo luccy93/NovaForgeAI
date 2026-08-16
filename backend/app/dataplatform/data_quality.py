@@ -163,7 +163,7 @@ class QualityAnomaly:
     org_id: str
     rule_id: str
     entity: str = ""
-    field: str = ""
+    field_name: str = ""
     expected_value: Any = None
     actual_value: Any = None
     deviation: float = 0.0

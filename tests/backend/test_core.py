@@ -10,7 +10,8 @@ from fastapi import Request, Response
 
 
 class TestSettings:
-    def test_default_values(self):
+    def test_default_values(self, monkeypatch):
+        monkeypatch.delenv("DATABASE_URL", raising=False)
         from app.core.config import Settings
         s = Settings(_env_file=None)
         assert s.app_name == "NovaForge AI"

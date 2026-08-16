@@ -92,7 +92,7 @@ async def mark_all_read(
 ) -> None:
     await db.execute(
         text("UPDATE notifications SET is_read = true, read_at = :now WHERE user_id = :uid AND is_read = false"),
-        {"now": datetime.now(timezone.utc), "uid": current_user.id},
+        {"now": datetime.now(timezone.utc), "uid": current_user.id.hex},
     )
 
 

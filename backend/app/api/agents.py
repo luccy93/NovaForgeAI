@@ -114,6 +114,8 @@ async def run_agent(
 async def run_pipeline(
     request: PipelineRequest,
 ) -> PipelineResponse:
+    if not request.agents:
+        raise HTTPException(status_code=422, detail="agents must not be empty")
     agent_names = {a.name for a in _AVAILABLE_AGENTS}
     for name in request.agents:
         if name not in agent_names:

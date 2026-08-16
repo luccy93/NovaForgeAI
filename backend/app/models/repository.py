@@ -4,8 +4,8 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, Integer, Index
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, Integer, Index, Uuid
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base, TimestampMixin
@@ -15,10 +15,10 @@ class Repository(Base, TimestampMixin):
     __tablename__ = "repositories"
 
     organization_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
+        Uuid(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
     )
     project_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+        Uuid(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
@@ -44,7 +44,6 @@ class Repository(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_repositories_org_id", "organization_id"),
         Index("ix_repositories_language", "language"),
-        Index("ix_repositories_full_name", "full_name"),
     )
 
 
@@ -52,7 +51,7 @@ class Branch(Base, TimestampMixin):
     __tablename__ = "branches"
 
     repository_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("repositories.id", ondelete="CASCADE"), nullable=False
+        Uuid(as_uuid=True), ForeignKey("repositories.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -71,7 +70,7 @@ class Commit(Base, TimestampMixin):
     __tablename__ = "commits"
 
     repository_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("repositories.id", ondelete="CASCADE"), nullable=False
+        Uuid(as_uuid=True), ForeignKey("repositories.id", ondelete="CASCADE"), nullable=False
     )
     sha: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
     message: Mapped[str] = mapped_column(Text, nullable=False)
@@ -98,7 +97,7 @@ class RepositoryVersion(Base, TimestampMixin):
     __tablename__ = "repository_versions"
 
     repository_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("repositories.id", ondelete="CASCADE"), nullable=False
+        Uuid(as_uuid=True), ForeignKey("repositories.id", ondelete="CASCADE"), nullable=False
     )
     version: Mapped[str] = mapped_column(String(50), nullable=False)
     commit_sha: Mapped[str] = mapped_column(String(40), nullable=False)

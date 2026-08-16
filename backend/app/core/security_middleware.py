@@ -52,9 +52,13 @@ class RateLimiter:
                 import redis as redis_mod
                 from app.core.config import settings as s
                 if hasattr(s, 'redis_url') and s.redis_url:
-                    self._redis = redis_mod.from_url(s.redis_url)
+                    client = redis_mod.from_url(
+                        s.redis_url, socket_connect_timeout=0.5, socket_timeout=0.5
+                    )
+                    client.ping()
+                    self._redis = client
             except Exception:
-                pass
+                self._redis = None
         return self._redis
 
     async def check_ip(self, ip: str, max_requests: int = 200, window: int = 60) -> bool:
@@ -99,7 +103,8 @@ class RateLimiter:
                 client.expire(key, window)
             return current <= max_req
         except Exception:
-            return True
+            self._redis = None
+            return self._check_local(key, max_req, window)
 
     def _check_local(self, key: str, max_req: int, window: int) -> bool:
         now = time.time()

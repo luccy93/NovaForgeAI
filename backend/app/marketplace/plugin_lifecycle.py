@@ -29,7 +29,8 @@ class PluginLifecycle:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._instances.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._instances.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def install(self, plugin_id: str, org_id: str, name: str) -> PluginInstance:
@@ -88,7 +89,8 @@ class PromptMarketplace:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._packs.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._packs.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def publish(self, org_id: str, name: str, prompts: list = None) -> PromptPack:
@@ -127,7 +129,8 @@ class AgentMarketplace:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._agents.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._agents.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def publish(self, org_id: str, name: str, agent_type: str, capabilities: list = None, price: float = 0.0) -> MarketplaceAgent:

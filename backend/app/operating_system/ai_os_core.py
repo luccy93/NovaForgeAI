@@ -85,8 +85,172 @@ class RuntimeMetrics:
     last_health_check: str = ""
 
 
+class TaskStatus(Enum):
+    QUEUED = "queued"
+    STARTING = "starting"
+    RUNNING = "running"
+    WAITING = "waiting"
+    PAUSED = "paused"
+    APPROVAL_REQUIRED = "approval_required"
+    RETRYING = "retrying"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    TIMED_OUT = "timed_out"
+    RECOVERING = "recovering"
+
+
+@dataclass
+class KernelTask:
+    """Kernel task with full lifecycle management."""
+    task_id: str
+    tenant_id: str
+    actor: str  # agent_id or user_id
+    type: str  # agent, model, tool, workflow, event, memory
+    priority: str = "normal"  # critical, high, normal, low, background
+    status: TaskStatus = TaskStatus.QUEUED
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    deadline: Optional[str] = None
+    parent_task_id: Optional[str] = None
+    runtime_version: str = "1.0.0"
+    correlation_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    # Runtime context
+    repository: Optional[str] = None
+    workspace: Optional[str] = None
+    memory_references: list[str] = field(default_factory=list)
+    tool_permissions: list[str] = field(default_factory=list)
+    model_configuration: Optional[str] = None
+    policy_references: list[str] = field(default_factory=list)
+    # Execution state
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    duration_ms: float = 0.0
+    error: Optional[str] = None
+    retry_count: int = 0
+    max_retries: int = 3
+    # Resource tracking
+    cpu_seconds: float = 0.0
+    memory_bytes: int = 0
+    disk_bytes: int = 0
+    network_bytes: int = 0
+    token_count: int = 0
+    model_request_count: int = 0
+    tool_call_count: int = 0
+    cost_cents: float = 0.0
+    # Quota tracking
+    quota_usage: dict[str, float] = field(default_factory=lambda: {
+        "cpu_seconds": 0.0, "memory_bytes": 0, "disk_bytes": 0,
+        "network_bytes": 0, "token_count": 0, "cost_cents": 0.0
+    })
+    # Checkpoint state
+    checkpoint_id: Optional[str] = None
+    checkpoint_data: dict[str, Any] = field(default_factory=dict)
+    # Consensus/approval
+    approval_required: bool = False
+    approved_by: Optional[str] = None
+    approved_at: Optional[str] = None
+    # Lifecycle
+    retired_at: Optional[str] = None
+
+
+def update_resource_usage(self, task_id: str, resource_delta: dict[str, float]) -> bool:
+    """Update resource usage for a task. Returns True if successful."""
+    with self._task_lock:
+        task = self._tasks.get(task_id)
+        if not task:
+            return False
+        # Get current usage
+        current = task.quota_usage
+        # Apply delta
+        for key, delta in resource_delta.items():
+            if key in current:
+                current[key] = max(0, current[key] + delta)
+        task.quota_usage = current
+        # Persist updated task
+        with self._task_lock:
+            self._tasks[task_id] = task
+        return True
+
+def get_resource_usage(self, task_id: str) -> Optional[dict[str, float]]:
+    """Get resource usage for a task."""
+    with self._task_lock:
+        task = self._tasks.get(task_id)
+        if not task:
+            return None
+        return task.quota_usage
+
+def check_quotas(self, task_id: str, quota_limits: dict[str, float]) -> bool:
+    """Check if task resource usage is within quota limits. Returns True if within limits."""
+    with self._task_lock:
+        task = self._tasks.get(task_id)
+        if not task:
+            return True  # No task = no quota violation
+        usage = task.quota_usage
+        for key, limit in quota_limits.items():
+            if usage.get(key, 0) > limit:
+                return False
+        return True
+
+
+# Checkpoint and recovery management
+def create_checkpoint(self, task_id: str, data: dict[str, Any] = None) -> Optional[str]:
+    """Create a checkpoint for a kernel task. Returns the checkpoint_id."""
+    with self._task_lock:
+        task = self._tasks.get(task_id)
+        if not task:
+            return None
+        checkpoint_id = f"cp-{uuid.uuid4().hex[:12]}"
+        task.checkpoint_id = checkpoint_id
+        task.checkpoint_data = data or {}
+        task.checkpoint_data["created_at"] = datetime.now(timezone.utc).isoformat()
+        with self._task_lock:
+            self._tasks[task_id] = task
+        return checkpoint_id
+
+def resume_from_checkpoint(self, task_id: str, checkpoint_id: str) -> bool:
+    """Resume a kernel task from a checkpoint. Returns True if successful."""
+    with self._task_lock:
+        task = self._tasks.get(task_id)
+        if not task or task.checkpoint_id != checkpoint_id:
+            return False
+        # Validate checkpoint data integrity
+        if "completed_at" in task.checkpoint_data:
+            # Task was already completed - don't resume
+            return False
+        # Restore task state from checkpoint
+        task.status = TaskStatus.RUNNING
+        task.started_at = datetime.now(timezone.utc).isoformat()
+        with self._task_lock:
+            self._tasks[task_id] = task
+        return True
+
+def get_checkpoint(self, task_id: str) -> Optional[dict[str, Any]]:
+    """Get checkpoint data for a kernel task."""
+    with self._task_lock:
+        task = self._tasks.get(task_id)
+        if not task:
+            return None
+        return task.checkpoint_data
+
+def check_deadline(self, task_id: str) -> bool:
+    """Check if a task has exceeded its deadline. Returns True if deadline exceeded."""
+    with self._task_lock:
+        task = self._tasks.get(task_id)
+        if not task or not task.deadline:
+            return False
+        deadline_dt = datetime.fromisoformat(task.deadline)
+        if datetime.now(timezone.utc) > deadline_dt:
+            task.status = TaskStatus.TIMED_OUT
+            task.error = "Task exceeded deadline"
+            task.completed_at = datetime.now(timezone.utc).isoformat()
+            with self._task_lock:
+                self._tasks[task_id] = task
+            return True
+        return False
+
+
 class AIOperatingSystem:
-    """Core AI OS — coordinates all runtimes for autonomous engineering operations."""
+    """AI Operating System Core — coordinates all runtimes for autonomous engineering operations."""
 
     def __init__(self, os_id: str = "novaforge-os-1"):
         self.os_id = os_id
@@ -106,16 +270,34 @@ class AIOperatingSystem:
         self.recovery_runtime = RecoveryRuntime(self)
         self.learning_runtime = LearningRuntime(self)
 
+        # Kernel task tracking
+        self._tasks: dict[str, KernelTask] = {}
+        self._task_lock = Lock()
+
         self.status = RuntimeStatus.RUNNING
 
+    def get_task(self, task_id: str) -> Optional[KernelTask]:
+        with self._task_lock:
+            return self._tasks.get(task_id)
+
+    def create_task(self, task: KernelTask) -> str:
+        """Create a new kernel task. Returns the task_id."""
+        with self._task_lock:
+            if task.task_id in self._tasks:
+                raise ValueError(f"Task {task.task_id} already exists.")
+            self._tasks[task.task_id] = task
+        return task.task_id
+
     def get_metrics(self) -> RuntimeMetrics:
+        with self._task_lock:
+            tasks = list(self._tasks.values())
         return RuntimeMetrics(
             agents_active=self.agent_runtime.active_count(),
             agents_idle=self.agent_runtime.idle_count(),
             agents_error=self.agent_runtime.error_count(),
-            tasks_queued=self.execution_runtime.queued_count(),
-            tasks_completed=self.execution_runtime.completed_count(),
-            tasks_failed=self.execution_runtime.failed_count(),
+            tasks_queued=sum(1 for t in tasks if t.status == TaskStatus.QUEUED),
+            tasks_completed=sum(1 for t in tasks if t.status == TaskStatus.COMPLETED),
+            tasks_failed=sum(1 for t in tasks if t.status in (TaskStatus.FAILED, TaskStatus.CANCELLED, TaskStatus.TIMED_OUT)),
             memory_entries=self.memory_runtime.entry_count(),
             uptime_seconds=(datetime.now(timezone.utc) - self._start_time).total_seconds(),
             last_health_check=datetime.now(timezone.utc).isoformat(),
@@ -156,6 +338,12 @@ class AIOperatingSystem:
                    self.scheduling_runtime, self.monitoring_runtime, self.recovery_runtime,
                    self.learning_runtime]:
             rt.status = RuntimeStatus.SHUTDOWN
+        # Stop all kernel tasks
+        with self._task_lock:
+            for task in self._tasks.values():
+                if task.status not in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
+                    task.status = TaskStatus.CANCELLED
+            self._tasks.clear()
 
 
 class AgentRuntime:
@@ -165,13 +353,18 @@ class AgentRuntime:
         self.os = os
         self.status = RuntimeStatus.RUNNING
         self.agents: dict[str, Agent] = {}
+        self._tasks: dict[str, KernelTask] = {}
+        self._task_lock = Lock()
         self._lock = Lock()
 
-    def register_agent(self, name: str, role: str, capabilities: list[str] = None) -> Agent:
+    def register_agent(self, name: str, role: str, capabilities: list[str] = None, 
+                       max_autonomy: str = "medium") -> Agent:
+        """Register a new agent with capabilities and autonomy level."""
         aid = f"agent-{uuid.uuid4().hex[:12]}"
         agent = Agent(
             id=aid, name=name, role=role,
             capabilities=capabilities or [],
+            max_autonomy=max_autonomy,
             created_at=datetime.now(timezone.utc).isoformat(),
             last_active=datetime.now(timezone.utc).isoformat(),
         )
@@ -180,18 +373,32 @@ class AgentRuntime:
         return agent
 
     def assign_task(self, agent_id: str, task_id: str) -> bool:
+        """Assign a task to an agent. Returns True if successful."""
         with self._lock:
             agent = self.agents.get(agent_id)
             if not agent or agent.status != AgentStatus.IDLE:
                 return False
-            agent.status = AgentStatus.BUSY
-            agent.current_task = task_id
+            # Check capability compatibility
+            task = self.os.get_task(task_id)
+            if task:
+                # Verify agent has required capabilities
+                required_caps = set(task.capabilities or [])
+                agent_caps = set(agent.capabilities or [])
+                if required_caps and not required_caps.issubset(agent_caps):
+                    return False
+                agent.status = AgentStatus.BUSY
+                agent.current_task = task_id
+            else:
+                agent.status = AgentStatus.BUSY
+                agent.current_task = task_id
             agent.last_active = datetime.now(timezone.utc).isoformat()
         return True
 
-    def complete_task(self, agent_id: str, success: bool = True):
+    def complete_task(self, agent_id: str, task_id: str, success: bool = True):
+        """Complete a task assigned to an agent."""
         with self._lock:
             agent = self.agents.get(agent_id)
+            task = self.os.get_task(task_id) if hasattr(self.os, 'get_task') else None
             if not agent:
                 return
             agent.status = AgentStatus.IDLE
@@ -200,8 +407,16 @@ class AgentRuntime:
             if not success:
                 agent.success_rate = (agent.success_rate * (agent.task_count - 1)) / max(agent.task_count, 1)
             agent.last_active = datetime.now(timezone.utc).isoformat()
+            # Update task status
+            if task:
+                task.status = TaskStatus.COMPLETED
+                task.completed_at = datetime.now(timezone.utc).isoformat()
+                with self._task_lock:
+                    if task.task_id in self._tasks:
+                        self._tasks[task.task_id] = task
 
     def find_available(self, capability: str = "") -> Optional[Agent]:
+        """Find an available agent with optional capability filter."""
         for agent in self.agents.values():
             if agent.status == AgentStatus.IDLE:
                 if not capability or capability in agent.capabilities:
@@ -209,15 +424,17 @@ class AgentRuntime:
         return None
 
     def find_best(self, task_requirements: list[str]) -> Optional[Agent]:
+        """Find the best agent for given task requirements."""
         best = None
         best_score = -1
-        for agent in self.agents.values():
-            if agent.status != AgentStatus.IDLE:
-                continue
-            score = sum(1 for r in task_requirements if r in agent.capabilities)
-            if score > best_score:
-                best_score = score
-                best = agent
+        with self._lock:
+            for agent in self.agents.values():
+                if agent.status != AgentStatus.IDLE:
+                    continue
+                score = sum(1 for r in task_requirements if r in agent.capabilities)
+                if score > best_score:
+                    best_score = score
+                    best = agent
         return best
 
     def active_count(self) -> int:
@@ -228,6 +445,21 @@ class AgentRuntime:
 
     def error_count(self) -> int:
         return sum(1 for a in self.agents.values() if a.status == AgentStatus.ERROR)
+
+    def get_agent(self, agent_id: str) -> Optional[Agent]:
+        """Get an agent by ID."""
+        with self._lock:
+            return self.agents.get(agent_id)
+
+    def register_task(self, task: KernelTask) -> None:
+        """Register a kernel task for tracking."""
+        with self._task_lock:
+            self._tasks[task.task_id] = task
+
+    def unregister_task(self, task_id: str) -> None:
+        """Unregister a kernel task."""
+        with self._task_lock:
+            self._tasks.pop(task_id, None)
 
 
 class WorkflowRuntime:
@@ -338,40 +570,68 @@ class KnowledgeRuntime:
 
 
 class ExecutionRuntime:
-    """Task queue, execution, and result tracking."""
+    """Task queue, execution, and result tracking integrated with kernel tasks."""
 
     def __init__(self, os: AIOperatingSystem):
         self.os = os
         self.status = RuntimeStatus.RUNNING
-        self.queue: list[dict] = []
-        self.completed: list[dict] = []
-        self.failed: list[dict] = []
+        self.queue: list[KernelTask] = []
+        self.completed: list[KernelTask] = []
+        self.failed: list[KernelTask] = []
         self._lock = Lock()
 
-    def enqueue(self, task: dict) -> str:
-        tid = task.get("id", f"task-{uuid.uuid4().hex[:12]}")
-        task["id"] = tid
-        task["status"] = "queued"
-        task["created_at"] = datetime.now(timezone.utc).isoformat()
+    def enqueue(self, task: KernelTask) -> str:
+        """Enqueue a kernel task. Returns the task_id."""
         with self._lock:
+            task_id = task.task_id
+            task.status = TaskStatus.QUEUED
+            task.created_at = datetime.now(timezone.utc).isoformat()
             self.queue.append(task)
-        return tid
+        return task_id
 
-    def dequeue(self) -> Optional[dict]:
+    def dequeue(self) -> Optional[KernelTask]:
+        """Dequeue the next task. Returns None if queue is empty."""
         with self._lock:
             if not self.queue:
                 return None
             return self.queue.pop(0)
 
     def complete(self, task_id: str, result: Any = None):
+        """Mark a task as completed."""
         with self._lock:
-            self.queue[:] = [t for t in self.queue if t.get("id") != task_id]
-            self.completed.append({"id": task_id, "result": result, "completed_at": datetime.now(timezone.utc).isoformat()})
+            self.queue[:] = [t for t in self.queue if t.task_id != task_id]
+            # Find and update the task
+            for t in self.completed:
+                if t.task_id == task_id:
+                    t.status = TaskStatus.COMPLETED
+                    t.completed_at = datetime.now(timezone.utc).isoformat()
+                    t.duration_ms = (datetime.now(timezone.utc) - 
+                                     datetime.fromisoformat(t.created_at)).total_seconds() * 1000
+                    return
+            # If not found in completed list, add it
+            self.completed.append(KernelTask(
+                task_id=task_id, status=TaskStatus.COMPLETED,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                completed_at=datetime.now(timezone.utc).isoformat(),
+            ))
 
     def fail(self, task_id: str, error: str):
+        """Mark a task as failed."""
         with self._lock:
-            self.queue[:] = [t for t in self.queue if t.get("id") != task_id]
-            self.failed.append({"id": task_id, "error": error, "failed_at": datetime.now(timezone.utc).isoformat()})
+            self.queue[:] = [t for t in self.queue if t.task_id != task_id]
+            # Find and update the task
+            for t in self.failed:
+                if t.task_id == task_id:
+                    t.status = TaskStatus.FAILED
+                    t.error = error
+                    t.completed_at = datetime.now(timezone.utc).isoformat()
+                    return
+            # If not found in failed list, add it
+            self.failed.append(KernelTask(
+                task_id=task_id, status=TaskStatus.FAILED,
+                error=error, created_at=datetime.now(timezone.utc).isoformat(),
+                completed_at=datetime.now(timezone.utc).isoformat(),
+            ))
 
     def queued_count(self) -> int:
         return len(self.queue)
@@ -381,6 +641,14 @@ class ExecutionRuntime:
 
     def failed_count(self) -> int:
         return len(self.failed)
+
+    def get_task(self, task_id: str) -> Optional[KernelTask]:
+        """Get a task by ID from the execution runtime."""
+        with self._lock:
+            for t in self.queue + self.completed + self.failed:
+                if t.task_id == task_id:
+                    return t
+        return None
 
 
 class PlanningRuntime:
@@ -419,32 +687,34 @@ class PlanningRuntime:
 
 
 class SchedulingRuntime:
-    """Time-based and event-based task scheduling."""
+    """Time-based and event-based task scheduling with priority and deadline support."""
 
     def __init__(self, os: AIOperatingSystem):
         self.os = os
         self.status = RuntimeStatus.RUNNING
-        self.tasks: dict[str, ScheduledTask] = {}
+        self.tasks: dict[str, KernelTask] = {}
         self._lock = Lock()
 
-    def schedule(self, name: str, interval_seconds: int, callback: str = "", max_retries: int = 3) -> str:
+    def schedule(self, name: str, interval_seconds: int, priority: str = "normal", 
+                 callback: str = "", max_retries: int = 3, deadline: Optional[str] = None) -> str:
+        """Schedule a kernel task with priority and optional deadline."""
         tid = f"sched-{uuid.uuid4().hex[:12]}"
-        task = ScheduledTask(
-            id=tid, name=name, interval_seconds=interval_seconds,
+        task = KernelTask(
+            id=tid, name=name, priority=priority, interval_seconds=interval_seconds,
             callback=callback, max_retries=max_retries,
+            deadline=deadline,
             next_run=datetime.now(timezone.utc).isoformat(),
         )
         with self._lock:
             self.tasks[tid] = task
         return tid
 
-    def get_due(self) -> list[ScheduledTask]:
+    def get_due(self) -> list[KernelTask]:
+        """Get due tasks sorted by priority (critical > high > normal > low > background)."""
         now = datetime.now(timezone.utc)
         due = []
         with self._lock:
             for task in self.tasks.values():
-                if not task.enabled:
-                    continue
                 if task.next_run is None:
                     due.append(task)
                     continue
@@ -453,18 +723,32 @@ class SchedulingRuntime:
                         due.append(task)
                 except (ValueError, TypeError):
                     due.append(task)
+        # Sort by priority (critical=5, high=4, normal=3, low=2, background=1)
+        priority_order = {"critical": 5, "high": 4, "normal": 3, "low": 2, "background": 1}
+        due.sort(key=lambda t: priority_order.get(t.priority, 0), reverse=True)
         return due
 
     def mark_run(self, task_id: str):
+        """Mark a task as run and advance its next run time."""
         with self._lock:
             task = self.tasks.get(task_id)
             if task:
                 task.last_run = datetime.now(timezone.utc).isoformat()
-                task.next_run = (datetime.now(timezone.utc) + timedelta(seconds=task.interval_seconds)).isoformat()
+                if task.interval_seconds and task.interval_seconds > 0:
+                    task.next_run = (datetime.now(timezone.utc) + 
+                                     timedelta(seconds=task.interval_seconds)).isoformat()
 
     def cancel(self, task_id: str):
+        """Cancel a scheduled task."""
         with self._lock:
             self.tasks.pop(task_id, None)
+
+    def set_deadline(self, task_id: str, deadline: str):
+        """Set a deadline for a scheduled task."""
+        with self._lock:
+            task = self.tasks.get(task_id)
+            if task:
+                task.deadline = deadline
 
 
 class MonitoringRuntime:

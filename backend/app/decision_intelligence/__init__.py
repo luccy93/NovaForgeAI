@@ -1,1 +1,1 @@
-"""NovaForge AI Decision Intelligence & Explainable Engineering — Volume 27.
+"""NovaForge AI Decision Intelligence & Explainable Engineering — Volume 27."""

@@ -39,6 +39,25 @@ class EventType(str, Enum):
     plugin_uninstalled = "plugin.uninstalled"
     plugin_updated = "plugin.updated"
 
+    # SRE events (Volume 35) — idempotent operational events.
+    service_degraded = "sre.service.degraded"
+    service_recovered = "sre.service.recovered"
+    slo_violation = "sre.slo.violation"
+    error_budget_burning = "sre.error_budget.burning"
+    incident_created = "sre.incident.created"
+    incident_updated = "sre.incident.updated"
+    incident_resolved = "sre.incident.resolved"
+    rollback_triggered = "sre.rollback.triggered"
+    dependency_outage = "sre.dependency.outage"
+    region_degraded = "sre.region.degraded"
+    backup_failed = "sre.backup.failed"
+    restore_failed = "sre.restore.failed"
+    capacity_warning = "sre.capacity.warning"
+    certificate_expiring = "sre.certificate.expiring"
+    sre_alert_fired = "sre.alert.fired"
+    remediation_executed = "sre.remediation.executed"
+    canary_aborted = "sre.canary.aborted"
+
 
 class Event:
     def __init__(

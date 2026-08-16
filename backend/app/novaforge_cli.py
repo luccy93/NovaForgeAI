@@ -43,6 +43,9 @@ except Exception as e: logger.debug("multimodal: %s", e)
 try:
     from app.automation import service as _
 except Exception as e: logger.debug("automation: %s", e)
+try:
+    from app.evaluation import service as _
+except Exception as e: logger.debug("evaluation: %s", e)
 
 
 class NovaForgeCLI:
@@ -107,6 +110,8 @@ class NovaForgeCLI:
             await self.cmd_multimodal(rest)
         elif cmd == "automation":
             await self.cmd_automation(rest)
+        elif cmd == "evaluation":
+            await self.cmd_evaluation(rest)
         else:
             print(f"Unknown command: {cmd}")
 
@@ -290,6 +295,113 @@ class NovaForgeCLI:
             self._print("AI Workflow", gw.run_ai_generated(" ".join(rest), ""))
         else:
             print(f"Unknown automation sub-command: {sub}")
+
+    async def cmd_evaluation(self, args: list[str]):
+        svc = registry.get("evaluation")
+        if not svc: print("evaluation volume not loaded"); return
+        if not args:
+            print("Usage: evaluation <sub> ...")
+            print("  subs: health, datasets, dataset, version, publish, clone, diff, lineage,")
+            print("        run, runs, gate, pair, judge, kappa, rag, code, review")
+            return
+        sub = args[0]
+        rest = args[1:]
+        gw = svc.gateway
+        if sub == "health":
+            self._print("Evaluation Health", gw.health())
+        elif sub == "datasets":
+            self._print("Datasets", {"count": len(gw.list_datasets(rest[0] if rest else "")),
+                                     "datasets": gw.list_datasets(rest[0] if rest else "")})
+        elif sub == "dataset":
+            if len(rest) < 2:
+                print("Usage: evaluation dataset <name> <task_type> [org_id]")
+                return
+            self._print("Dataset Created", gw.create_dataset(
+                rest[0], rest[1], organization_id=rest[2] if len(rest) > 2 else ""))
+        elif sub == "version":
+            if len(rest) < 2:
+                print("Usage: evaluation version <dataset_id> <examples.json>")
+                return
+            with open(rest[1], "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            self._print("Version Added", gw.add_version(
+                rest[0], data.get("examples", data)))
+        elif sub == "publish":
+            if len(rest) < 2:
+                print("Usage: evaluation publish <dataset_id> <version>")
+                return
+            self._print("Published", gw.publish_version(rest[0], int(rest[1])))
+        elif sub == "clone":
+            if len(rest) < 2:
+                print("Usage: evaluation clone <dataset_id> <new_name>")
+                return
+            self._print("Cloned", gw.clone_dataset(rest[0], rest[1]))
+        elif sub == "diff":
+            if len(rest) < 3:
+                print("Usage: evaluation diff <dataset_id> <version_a> <version_b>")
+                return
+            self._print("Diff", gw.diff_versions(rest[0], int(rest[1]), int(rest[2])))
+        elif sub == "lineage":
+            if len(rest) < 1:
+                print("Usage: evaluation lineage <dataset_id>")
+                return
+            self._print("Lineage", gw.dataset_lineage(rest[0]))
+        elif sub == "run":
+            if len(rest) < 2:
+                print("Usage: evaluation run <dataset_id> <model> [org_id]")
+                return
+            self._print("Benchmark Run", gw.run_benchmark(
+                rest[0], model=rest[1],
+                organization_id=rest[2] if len(rest) > 2 else ""))
+        elif sub == "runs":
+            self._print("Runs", {"count": len(gw.list_runs(rest[0] if rest else "")),
+                                 "runs": gw.list_runs(rest[0] if rest else "", 10)})
+        elif sub == "pair":
+            if len(rest) < 2:
+                print("Usage: evaluation pair <label_a> <label_b> [examples.json]")
+                return
+            examples = []
+            if len(rest) > 2:
+                with open(rest[2], "r", encoding="utf-8") as fh:
+                    examples = json.load(fh).get("examples", [])
+            self._print("Pairwise", gw.compare_pairwise(rest[0], rest[1], examples))
+        elif sub == "judge":
+            if len(rest) < 2:
+                print("Usage: evaluation judge <prompt> <output> [reference]")
+                return
+            ref = rest[2] if len(rest) > 2 else ""
+            self._print("Judge", gw.judge(rest[0], rest[1], ref))
+        elif sub == "gate":
+            if len(rest) < 2:
+                print("Usage: evaluation gate <baseline_run_id> <candidate_run_id>")
+                return
+            self._print("Quality Gate", gw.gate(rest[0], rest[1]))
+        elif sub == "rag":
+            if len(rest) < 2:
+                print("Usage: evaluation rag <relevant.json> <retrieved.json> [k]")
+                return
+            with open(rest[0], "r", encoding="utf-8") as fh:
+                relevant = json.load(fh)
+            with open(rest[1], "r", encoding="utf-8") as fh:
+                retrieved = json.load(fh)
+            k = int(rest[2]) if len(rest) > 2 else 5
+            self._print("RAG Metrics", gw.rag_metrics(relevant, retrieved, k))
+        elif sub == "code":
+            if len(rest) < 2:
+                print("Usage: evaluation code <expected_code> <actual_code>")
+                return
+            with open(rest[0], "r", encoding="utf-8") as fh:
+                expected = fh.read()
+            with open(rest[1], "r", encoding="utf-8") as fh:
+                actual = fh.read()
+            self._print("Code Eval", gw.code_generation(expected, actual))
+        elif sub == "review":
+            if len(rest) < 1:
+                print("Usage: evaluation review <run_id>")
+                return
+            self._print("Review Report", gw.review_report(rest[0]))
+        else:
+            print(f"Unknown evaluation sub-command: {sub}")
 
 
 async def main():

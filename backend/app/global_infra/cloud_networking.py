@@ -30,7 +30,8 @@ class CloudNetworking:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._networks.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._networks.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def create(self, org_id: str, name: str) -> NetworkConfig:
@@ -68,7 +69,8 @@ class GPUInfrastructure:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._clusters.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._clusters.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def create(self, org_id: str, name: str, gpu_type: str = "A100", count: int = 4) -> GPUCluster:
@@ -107,7 +109,8 @@ class CostOptimization:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._reports.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._reports.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def generate(self, org_id: str, total: float = 0.0, savings: float = 0.0) -> CostReport:
@@ -145,7 +148,8 @@ class GlobalAnalytics:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._analytics.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._analytics.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def generate(self, org_id: str, report_type: str, data: dict = None) -> GlobalAnalytic:

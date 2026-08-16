@@ -93,7 +93,7 @@ async def test_analyze_code_unsupported_language(client: AsyncClient) -> None:
         "/api/v1/code/analyze",
         json={"content": "foo", "language": "brainfuck"},
     )
-    assert response.status_code == 400
+    assert response.status_code == 422
 
 
 async def test_extract_functions(client: AsyncClient) -> None:

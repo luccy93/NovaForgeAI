@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.repository import Repository
 from app.services.graph_store import GraphStoreService
-from app.services.repo_importer import RepoImporter
+from app.services.repo_importer import GitImportError, RepoImporter
 
 router = APIRouter()
 
@@ -185,7 +185,10 @@ async def import_repository(
     await db.refresh(repo)
 
     importer = RepoImporter(db=db)
-    stats = await importer.import_from_url(repo.id, request.git_url, request.default_branch)
+    try:
+        stats = await importer.import_from_url(repo.id, request.git_url, request.default_branch)
+    except GitImportError as exc:
+        raise HTTPException(status_code=502, detail=f"Repository import failed: {exc}")
 
     repo.last_indexed_at = datetime.now(timezone.utc)
     await db.flush()

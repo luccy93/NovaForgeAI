@@ -29,7 +29,8 @@ class ServiceMesh:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._configs.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._configs.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def configure(self, org_id: str, name: str, mesh_type: str = "istio") -> MeshConfig:
@@ -67,7 +68,8 @@ class ContainerPlatform:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._images.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._images.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def register(self, org_id: str, name: str, tag: str = "latest", registry: str = "") -> ContainerImage:
@@ -105,7 +107,8 @@ class GlobalStorage:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._buckets.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._buckets.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def create(self, org_id: str, name: str, storage_type: str, region: str = "") -> StorageBucket:

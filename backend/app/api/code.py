@@ -1,13 +1,15 @@
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.services.code_analysis import CodeAnalysisService
 
 router = APIRouter()
 
+MAX_CONTENT_LENGTH = 200_000
+
 
 class AnalyzeRequest(BaseModel):
-    content: str
+    content: str = Field(..., max_length=MAX_CONTENT_LENGTH)
     language: str
 
 
@@ -23,7 +25,7 @@ class AnalyzeResponse(BaseModel):
 
 
 class FunctionsRequest(BaseModel):
-    content: str
+    content: str = Field(..., max_length=MAX_CONTENT_LENGTH)
     language: str
 
 
@@ -32,7 +34,7 @@ class FunctionsResponse(BaseModel):
 
 
 class ComplexityRequest(BaseModel):
-    content: str
+    content: str = Field(..., max_length=MAX_CONTENT_LENGTH)
     language: str
 
 
@@ -42,7 +44,7 @@ class ComplexityResponse(BaseModel):
 
 
 class DependenciesRequest(BaseModel):
-    content: str
+    content: str = Field(..., max_length=MAX_CONTENT_LENGTH)
     language: str
 
 
@@ -57,14 +59,20 @@ _SUPPORTED_LANGUAGES = {"python", "typescript", "javascript", "go", "rust", "jav
 def _validate_language(language: str) -> None:
     if language.lower() not in _SUPPORTED_LANGUAGES:
         raise HTTPException(
-            status_code=400,
+            status_code=422,
             detail=f"Unsupported language '{language}'. Supported: {sorted(_SUPPORTED_LANGUAGES)}",
         )
+
+
+def _validate_content(content: str) -> None:
+    if not content.strip():
+        raise HTTPException(status_code=422, detail="content must not be empty")
 
 
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze_code(request: AnalyzeRequest) -> AnalyzeResponse:
     _validate_language(request.language)
+    _validate_content(request.content)
     service = CodeAnalysisService()
     result = service.analyze_file(request.content, request.language)
     return AnalyzeResponse(**result)

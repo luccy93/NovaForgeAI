@@ -67,12 +67,12 @@ async def admin_list_organizations(
         member_count = await db.execute(
             select(func.count()).select_from(text("user_organizations")).where(
                 text("organization_id = :oid")
-            ).params(oid=org.id)
+            ).params(oid=org.id.hex)
         )
         repo_count = await db.execute(
             select(func.count()).select_from(text("repositories")).where(
                 text("organization_id = :oid")
-            ).params(oid=org.id)
+            ).params(oid=org.id.hex)
         )
         output.append(AdminOrganizationOut(
             id=str(org.id),

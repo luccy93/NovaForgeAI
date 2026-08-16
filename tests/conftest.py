@@ -1,16 +1,46 @@
 """Global test configuration and fixtures."""
 
 import asyncio
+import os
 from typing import AsyncGenerator, Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
-from fastapi import FastAPI
+# Test-environment configuration (must be set before any app import).
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./test_novaforge.db")
+os.environ.setdefault("TESTING", "true")
 
-from app import create_app
-from app.core.config import settings
+from sqlalchemy.ext.compiler import compiles  # noqa: E402
+from sqlalchemy.dialects.postgresql import JSONB  # noqa: E402
+
+
+@compiles(JSONB, "sqlite")
+def _compile_jsonb_sqlite(element, compiler, **kw):  # noqa: ANN001
+    return "JSON"
+
+
+import pytest  # noqa: E402
+import pytest_asyncio  # noqa: E402
+from httpx import AsyncClient, ASGITransport  # noqa: E402
+from fastapi import FastAPI  # noqa: E402
+
+from app import create_app  # noqa: E402
+from app.core.config import settings  # noqa: E402
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _test_db():
+    """Create all tables on the SQLite test database once per session."""
+    from app.core.database import Base, async_engine
+
+    async def _init() -> None:
+        async with async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    asyncio.run(_init())
+    yield
+    asyncio.run(async_engine.dispose())
+    if os.path.exists("./test_novaforge.db"):
+        os.remove("./test_novaforge.db")
 
 
 # ─── Pytest Configuration ──────────────────────────────────────────

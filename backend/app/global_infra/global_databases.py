@@ -29,7 +29,8 @@ class GlobalDatabases:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._clusters.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._clusters.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def create(self, org_id: str, name: str, db_type: str, region: str = "") -> DatabaseCluster:
@@ -67,7 +68,8 @@ class DistributedCache:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._tiers.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._tiers.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def create(self, org_id: str, name: str, cache_type: str, region: str = "") -> CacheTier:
@@ -106,7 +108,8 @@ class GlobalMessageBus:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._queues.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._queues.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def create(self, org_id: str, name: str, queue_type: str = "kafka", region: str = "") -> MessageQueue:
@@ -145,7 +148,8 @@ class HighAvailability:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._configs.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._configs.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def configure(self, org_id: str, name: str, uptime: float = 99.99) -> HighAvailabilityConfig:
@@ -184,7 +188,8 @@ class GlobalSecurity:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._configs.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._configs.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def configure(self, org_id: str, name: str = "default") -> GlobalSecurityConfig:
@@ -225,7 +230,8 @@ class GlobalObservability:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._metrics.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._metrics.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def record(self, org_id: str, metrics: dict) -> InfraMetric:

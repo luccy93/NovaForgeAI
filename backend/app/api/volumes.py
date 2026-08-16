@@ -15,6 +15,41 @@ except ImportError:
 
 from app.common.services import registry
 
+# Import service modules to register volume services in the global registry
+try:
+    from app.release_engineering import service as _
+except Exception as e: logger.debug("release_engineering: %s", e)
+try:
+    from app.rtc import service as _
+except Exception as e: logger.debug("rtc: %s", e)
+try:
+    from app.aiops import service as _
+except Exception as e: logger.debug("aiops: %s", e)
+try:
+    from app.security_compliance import service as _
+except Exception as e: logger.debug("security_compliance: %s", e)
+try:
+    from app.observability import service as _
+except Exception as e: logger.debug("observability: %s", e)
+try:
+    from app.ai_data_platform import service as _
+except Exception as e: logger.debug("ai_data_platform: %s", e)
+try:
+    from app.enterprise_platform import service as _
+except Exception as e: logger.debug("enterprise_platform: %s", e)
+try:
+    from app.lakehouse import service as _
+except Exception as e: logger.debug("lakehouse: %s", e)
+try:
+    from app.multimodal import service as _
+except Exception as e: logger.debug("multimodal: %s", e)
+try:
+    from app.automation import service as _
+except Exception as e: logger.debug("automation: %s", e)
+try:
+    from app.evaluation import service as _
+except Exception as e: logger.debug("evaluation: %s", e)
+
 logger = logging.getLogger(__name__)
 
 if HAS_FASTAPI:
@@ -214,7 +249,7 @@ if HAS_FASTAPI:
     async def retention_status():
         svc = registry.get("lakehouse")
         if not svc: raise HTTPException(404, "Lakehouse not available")
-        return svc.retention_report()
+        return await svc.retention_report()
 
     # ─── Multimodal AI & Computer Vision (Volume 32) ───
     @router.post("/multimodal/ingest")
@@ -321,7 +356,7 @@ if HAS_FASTAPI:
     async def multimodal_health():
         svc = registry.get("multimodal")
         if not svc: raise HTTPException(404, "Multimodal not available")
-        return svc.health_check()
+        return await svc.health_check()
 
     # ─── Automation (Volume 33) ───
     def _automation():
@@ -420,3 +455,274 @@ if HAS_FASTAPI:
     @router.get("/automation/health")
     async def automation_health():
         return _automation().health()
+
+    # ─── AI Benchmarking & Evaluation (Volume 34) ───
+    def _evaluation():
+        svc = registry.get("evaluation")
+        if not svc: raise HTTPException(404, "Evaluation not available")
+        return svc.gateway
+
+    # datasets
+    @router.post("/evaluation/datasets")
+    async def evaluation_create_dataset(name: str = Query(...),
+                                        task_type: str = Query("qa"),
+                                        description: str = Query(""),
+                                        org_id: str = Query("")):
+        gw = _evaluation()
+        try:
+            return gw.create_dataset(name, task_type, description,
+                                     organization_id=org_id)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+
+    @router.get("/evaluation/datasets")
+    async def evaluation_list_datasets(org_id: str = "", task_type: str = ""):
+        return {"datasets": _evaluation().list_datasets(org_id, task_type)}
+
+    @router.get("/evaluation/datasets/{dataset_id}")
+    async def evaluation_get_dataset(dataset_id: str):
+        gw = _evaluation()
+        try:
+            return gw.get_dataset(dataset_id)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc))
+
+    @router.post("/evaluation/datasets/{dataset_id}/versions")
+    async def evaluation_add_version(dataset_id: str, examples: dict = None,
+                                     notes: str = Query("")):
+        """examples: {examples: [{input, expected_output, ...}]}"""
+        gw = _evaluation()
+        items = (examples or {}).get("examples", [])
+        try:
+            return gw.add_version(dataset_id, items, notes=notes)
+        except (KeyError, ValueError) as exc:
+            raise HTTPException(400, str(exc))
+
+    @router.get("/evaluation/datasets/{dataset_id}/versions")
+    async def evaluation_versions(dataset_id: str):
+        gw = _evaluation()
+        try:
+            return {"versions": gw.datasets.list_versions(dataset_id)}
+        except KeyError as exc:
+            raise HTTPException(404, str(exc))
+
+    @router.get("/evaluation/datasets/{dataset_id}/versions/{version}")
+    async def evaluation_get_version(dataset_id: str, version: int):
+        gw = _evaluation()
+        try:
+            return gw.get_version(dataset_id, version)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc))
+
+    @router.post("/evaluation/datasets/{dataset_id}/publish")
+    async def evaluation_publish(dataset_id: str, version: int = Query(0)):
+        gw = _evaluation()
+        try:
+            return gw.publish_version(dataset_id, version or None)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc))
+
+    @router.post("/evaluation/datasets/{dataset_id}/clone")
+    async def evaluation_clone(dataset_id: str, new_name: str = Query(""),
+                               org_id: str = Query("")):
+        gw = _evaluation()
+        try:
+            return gw.clone_dataset(dataset_id, new_name, org_id)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc))
+
+    @router.post("/evaluation/datasets/{dataset_id}/archive")
+    async def evaluation_archive(dataset_id: str):
+        gw = _evaluation()
+        try:
+            return gw.archive_dataset(dataset_id)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc))
+
+    @router.post("/evaluation/datasets/{dataset_id}/rollback")
+    async def evaluation_rollback(dataset_id: str, version: int = Query(...)):
+        gw = _evaluation()
+        try:
+            return gw.rollback_version(dataset_id, version)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc))
+
+    @router.get("/evaluation/datasets/{dataset_id}/diff")
+    async def evaluation_diff(dataset_id: str, a: int = Query(...),
+                              b: int = Query(...)):
+        gw = _evaluation()
+        try:
+            return gw.diff_versions(dataset_id, a, b)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc))
+
+    @router.get("/evaluation/datasets/{dataset_id}/lineage")
+    async def evaluation_lineage(dataset_id: str, version: int = Query(0)):
+        gw = _evaluation()
+        try:
+            return gw.dataset_lineage(dataset_id, version or None)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc))
+
+    # benchmarks
+    @router.post("/evaluation/runs")
+    async def evaluation_run(dataset_id: str = Query(...),
+                             model: str = Query(""),
+                             dataset_version: int = Query(0),
+                             target_type: str = Query("model"),
+                             org_id: str = Query(""),
+                             prompt_version: str = Query("")):
+        gw = _evaluation()
+        try:
+            return gw.run_benchmark(
+                dataset_id, model=model,
+                dataset_version=dataset_version or None,
+                target_type=target_type, organization_id=org_id,
+                prompt_version=prompt_version)
+        except (KeyError, ValueError) as exc:
+            raise HTTPException(400, str(exc))
+
+    @router.get("/evaluation/runs")
+    async def evaluation_runs(org_id: str = "", limit: int = 50):
+        return {"runs": _evaluation().list_runs(org_id, limit)}
+
+    @router.get("/evaluation/runs/{run_id}")
+    async def evaluation_run_detail(run_id: str):
+        gw = _evaluation()
+        try:
+            return gw.get_run(run_id)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc))
+
+    @router.get("/evaluation/runs/{run_id}/report")
+    async def evaluation_run_report(run_id: str, format: str = Query("json")):
+        gw = _evaluation()
+        try:
+            report = gw.report(run_id)
+            if format == "markdown":
+                return {"markdown": gw.markdown_report(report)}
+            return report
+        except KeyError as exc:
+            raise HTTPException(404, str(exc))
+
+    # pairwise
+    @router.post("/evaluation/pairwise")
+    async def evaluation_pairwise(a_label: str = Query(...),
+                                  b_label: str = Query(...),
+                                  examples: dict = None,
+                                  dataset_id: str = Query("")):
+        gw = _evaluation()
+        items = (examples or {}).get("examples", [])
+        try:
+            return gw.compare_pairwise(a_label, b_label, items,
+                                       dataset_id=dataset_id)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+
+    @router.get("/evaluation/pairwise")
+    async def evaluation_pairwise_list(limit: int = 50):
+        return {"comparisons": _evaluation().list_pairwise(limit)}
+
+    # judges + calibration
+    @router.post("/evaluation/judge")
+    async def evaluation_judge(prompt: str = Query(...),
+                               output: str = Query(...),
+                               reference: str = Query(""),
+                               model: str = Query("")):
+        return _evaluation().judge(prompt, output, reference, model)
+
+    @router.post("/evaluation/calibrate")
+    async def evaluation_calibrate(judge_scores: str = Query(...),
+                                   human_scores: str = Query("")):
+        gw = _evaluation()
+        import json
+        js = json.loads(judge_scores)
+        hs = json.loads(human_scores) if human_scores else None
+        return gw.calibrate(js, hs)
+
+    # human review
+    @router.post("/evaluation/reviews")
+    async def evaluation_add_review(run_id: str = Query(...),
+                                    example_id: str = Query(...),
+                                    reviewer: str = Query(""),
+                                    scores: str = Query(""),
+                                    preference: str = Query("")):
+        gw = _evaluation()
+        import json
+        parsed = json.loads(scores) if scores else None
+        return gw.add_review(run_id, example_id, reviewer, parsed, preference)
+
+    @router.get("/evaluation/reviews")
+    async def evaluation_reviews(run_id: str = "", example_id: str = ""):
+        return {"reviews": _evaluation().list_reviews(run_id, example_id)}
+
+    @router.get("/evaluation/reviews/{run_id}/report")
+    async def evaluation_review_report(run_id: str):
+        return _evaluation().review_report(run_id)
+
+    @router.get("/evaluation/reviews/{run_id}/reliability")
+    async def evaluation_reliability(run_id: str):
+        return _evaluation().reliability(run_id)
+
+    # metrics
+    @router.get("/evaluation/metrics/rag")
+    async def evaluation_rag_metrics(relevant: str = Query(...),
+                                     retrieved: str = Query(...),
+                                     k: int = Query(5)):
+        import json
+        return _evaluation().rag_metrics(json.loads(relevant),
+                                         json.loads(retrieved), k)
+
+    @router.get("/evaluation/metrics/rag-generation")
+    async def evaluation_rag_generation(claims_supported: int = Query(...),
+                                        claims_total: int = Query(...),
+                                        unsupported_claims: int = Query(0),
+                                        useful_sentences: int = Query(0),
+                                        context_sentences: int = Query(0),
+                                        correct_citations: int = Query(0),
+                                        total_citations: int = Query(0),
+                                        cited_claims: int = Query(0)):
+        return _evaluation().rag_generation(
+            claims_supported, claims_total, unsupported_claims,
+            useful_sentences, context_sentences, correct_citations,
+            total_citations, cited_claims)
+
+    @router.post("/evaluation/metrics/code")
+    async def evaluation_code(expected_code: str = Query(...),
+                              actual_code: str = Query(...)):
+        return _evaluation().code_generation(expected_code, actual_code)
+
+    # regression gates
+    @router.post("/evaluation/gates")
+    async def evaluation_gate(baseline_run_id: str = Query(...),
+                              candidate_run_id: str = Query(...)):
+        gw = _evaluation()
+        try:
+            return gw.gate(baseline_run_id, candidate_run_id)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc))
+
+    @router.get("/evaluation/gates")
+    async def evaluation_gates(limit: int = 50):
+        return {"gates": _evaluation().list_gates(limit)}
+
+    @router.get("/evaluation/gates/{gate_id}")
+    async def evaluation_gate_detail(gate_id: str):
+        gw = _evaluation()
+        try:
+            return gw.get_gate(gate_id)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc))
+
+    # integrations + health
+    @router.get("/evaluation/multimodal")
+    async def evaluation_multimodal(org_id: str = Query("")):
+        return _evaluation().multimodal_health()
+
+    @router.get("/evaluation/automation")
+    async def evaluation_automation():
+        return _evaluation().automation_health()
+
+    @router.get("/evaluation/health")
+    async def evaluation_health():
+        return _evaluation().health()

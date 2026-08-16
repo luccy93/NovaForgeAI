@@ -1,1 +1,1 @@
-"""NovaForge Enterprise Knowledge Intelligence & Organizational Learning — Volume 28.
+"""NovaForge Enterprise Knowledge Intelligence & Organizational Learning — Volume 28."""

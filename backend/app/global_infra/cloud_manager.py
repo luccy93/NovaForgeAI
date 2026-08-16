@@ -84,7 +84,8 @@ class RegionManager:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._regions.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._regions.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def register(self, org_id: str, name: str, region_type: str, cloud_provider: str = "") -> Region:
@@ -125,7 +126,8 @@ class ClusterManager:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._clusters.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._clusters.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def register(self, org_id: str, name: str, provider: str = "", region: str = "") -> K8sCluster:
@@ -165,7 +167,8 @@ class InfrastructureManager:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._stacks.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._stacks.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def create(self, org_id: str, name: str, stack_type: str, config: dict = None) -> InfraStack:
@@ -203,7 +206,8 @@ class TrafficManager:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._policies.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._policies.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def create_policy(self, org_id: str, name: str, routing_type: str = "latency") -> TrafficPolicy:

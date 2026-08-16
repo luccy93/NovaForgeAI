@@ -34,7 +34,8 @@ class ScalingEngine:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._policies.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._policies.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def create_policy(self, org_id: str, target: str, min_inst: int = 1, max_inst: int = 10) -> ScalingPolicy:
@@ -72,7 +73,8 @@ class DisasterRecovery:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._plans.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._plans.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def create(self, org_id: str, name: str, primary: str, dr: str) -> DRPlan:
@@ -109,7 +111,8 @@ class EdgeRuntime:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._nodes.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._nodes.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def deploy(self, org_id: str, name: str, location: str, capabilities: list = None) -> EdgeNode:
@@ -146,7 +149,8 @@ class GlobalScheduler:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._schedules.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._schedules.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def schedule(self, org_id: str, task_type: str, target: str, cron: str = "*/5 * * * *", region: str = "") -> GlobalSchedule:

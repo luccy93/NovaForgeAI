@@ -7,6 +7,8 @@ logger = logging.getLogger("novaforge")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from app.api import app as app  # noqa: E402, F401 — ASGI app for `uvicorn app.main:app`
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] in ("health", "telemetry", "status"):
         from app.novaforge_cli import main

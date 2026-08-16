@@ -27,7 +27,8 @@ class DiscoveryEngine:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._results.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._results.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def recommend(self, org_id: str, item_id: str, reason: str, score: float = 0.5) -> DiscoveryResult:
@@ -68,7 +69,8 @@ class PluginSecurity:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._checks.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._checks.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def scan(self, plugin_id: str) -> PluginSecurityCheck:
@@ -112,7 +114,8 @@ class PluginAnalytics:
             except Exception as e: logger.error("Load error: %s", e)
 
     def _save(self) -> None:
-        try: with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._analytics.items()}, f, indent=2, default=str)
+        try:
+            with open(self._path(), "w") as f: json.dump({k: asdict(v) for k, v in self._analytics.items()}, f, indent=2, default=str)
         except Exception as e: logger.error("Save error: %s", e)
 
     def record(self, plugin_id: str, installations: int = 0, active: int = 0) -> PluginAnalytic:
