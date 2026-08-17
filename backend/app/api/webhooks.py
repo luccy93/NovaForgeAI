@@ -39,7 +39,7 @@ async def create_webhook(
         "events": events,
         "secret": secret,
         "description": description or "",
-        "created_by": current_user.get("sub", "unknown"),
+        "created_by": str(getattr(current_user, "id", "unknown")),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "active": True,
     }

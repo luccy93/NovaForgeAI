@@ -22,6 +22,7 @@ from app.api.ai_governance import router as ai_governance_router
 from app.api.kernel import router as kernel_router
 from app.api.evaluation import router as evaluation_router
 from app.api.enterprise import router as enterprise_router
+from app.api.sdk import router as sdk_router
 
 api_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_router.include_router(repos_router, prefix="/repositories", tags=["Repositories"])
@@ -43,4 +44,5 @@ api_router.include_router(ai_governance_router, prefix="/ai-governance", tags=["
 api_router.include_router(kernel_router, prefix="/kernel", tags=["Kernel"])
 api_router.include_router(evaluation_router, prefix="/datasets", tags=["Datasets & Evaluations"])
 api_router.include_router(enterprise_router, prefix="/enterprise", tags=["Enterprise Integrations"])
+api_router.include_router(sdk_router)
 api_router.include_router(sre_router)

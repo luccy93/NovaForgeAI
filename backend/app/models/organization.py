@@ -36,7 +36,7 @@ class Organization(Base, TimestampMixin):
         back_populates="organization", cascade="all, delete-orphan"
     )
 
-    __table_args__ = (Index("ix_organizations_slug", "slug"),)
+    __table_args__ = ()
 
 
 user_organizations = Table(

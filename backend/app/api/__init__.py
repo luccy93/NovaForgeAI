@@ -16,6 +16,9 @@ from app.core.logging import configure_logging
 from app.core.middleware import register_middleware, register_exception_handlers
 from app.core.audit import register_audit_middleware
 from app.core.tenancy import register_tenant_middleware
+from app.core.security_middleware import SecurityHeadersMiddleware, RateLimitMiddleware as SecurityRateLimitMiddleware
+from app.core.csrf import CSRFProtectionMiddleware
+from app.core.api_key_auth import APIKeyAuthMiddleware
 
 logger = logging.getLogger("novaforge")
 
@@ -24,21 +27,32 @@ configure_logging(settings.log_level)
 
 @asynccontextmanager
 async def _lifespan(application: FastAPI):
-    """Startup: health readiness signal, SRE workers, catalog seeding."""
+    """Startup: health readiness signal, SRE workers, catalog seeding, webhook bridge."""
     from app.sre.health import health_checker
     from app.sre.otel import setup_otel
     from app.sre.workers import workers
+    from app.core.webhook_bridge import webhook_bridge
 
     setup_otel()
     health_checker.mark_started()
     if not settings.testing:
         try:
             workers.start()
-        except Exception as exc:  # workers must never block startup
+        except Exception as exc:
             logger.warning("SRE workers failed to start: %s", exc)
+
+    # Start webhook event bridge
+    from app.api.webhooks import _webhooks
+    webhook_bridge.set_webhook_store(_webhooks)
+    try:
+        await webhook_bridge.start()
+    except Exception as exc:
+        logger.warning("Webhook bridge failed to start: %s", exc)
+
     try:
         yield
     finally:
+        await webhook_bridge.stop()
         await workers.stop()
 
 
@@ -111,6 +125,9 @@ def create_app() -> FastAPI:
     register_exception_handlers(application)
     register_audit_middleware(application)
     register_tenant_middleware(application)
+    application.add_middleware(SecurityHeadersMiddleware)
+    application.add_middleware(APIKeyAuthMiddleware)
+    application.add_middleware(CSRFProtectionMiddleware)
     return application
 
 

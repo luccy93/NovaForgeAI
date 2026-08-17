@@ -3,9 +3,9 @@ import secrets
 import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Header, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request, status
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from passlib.context import CryptContext
@@ -131,18 +131,76 @@ async def register(
     return AuthResponse(access_token=access_token, expires_in=expires_in)
 
 
-@router.post("/login", response_model=AuthResponse)
+@router.post("/login")
 async def login(
-    request: LoginRequest,
+    request: Request,
+    login_req: LoginRequest,
     db: AsyncSession = Depends(get_db),
-) -> AuthResponse:
-    result = await db.execute(select(User).where(User.email == request.email))
+):
+    """Login with MFA support — returns MFA challenge if MFA is enabled, else full token."""
+    # Account lockout check
+    result = await db.execute(select(User).where(User.email == login_req.email))
     user = result.scalar_one_or_none()
 
-    if not user or not pwd_context.verify(request.password, user.hashed_password):
+    if user:
+        # Check if account is locked
+        if user.locked_until and user.locked_until > datetime.now(timezone.utc):
+            remaining = (user.locked_until - datetime.now(timezone.utc)).seconds
+            raise HTTPException(
+                status_code=423,
+                detail=f"Account is locked. Try again in {remaining} seconds.",
+            )
+
+    if not user or not pwd_context.verify(login_req.password, user.hashed_password):
+        # Record failed attempt
+        if user:
+            user.failed_login_attempts += 1
+            if user.failed_login_attempts >= settings.account_lockout_attempts:
+                user.locked_until = datetime.now(timezone.utc) + timedelta(
+                    minutes=settings.account_lockout_duration_minutes
+                )
+                user.failed_login_attempts = 0
+        await db.flush()
+
+        # Record auth failure for rate limiting
+        try:
+            from app.core.security_middleware import rate_limiter
+            client_ip = request.client.host if request.client else "unknown"
+            await rate_limiter.record_auth_failure(client_ip, login_req.email)
+        except Exception:
+            pass
+
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
     if not user.is_active:
         raise HTTPException(status_code=401, detail="User account is inactive")
+
+    # Reset failed attempts on successful password verification
+    if user.failed_login_attempts > 0:
+        user.failed_login_attempts = 0
+        user.locked_until = None
+
+    # Check MFA
+    if user.mfa_enabled or settings.mfa_required:
+        # Return challenge token — client must complete MFA
+        challenge_payload = {
+            "sub": str(user.id),
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+            "iat": datetime.now(timezone.utc),
+            "type": "mfa_challenge",
+        }
+        challenge_token = jwt.encode(challenge_payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+        await db.flush()
+        return {
+            "mfa_required": True,
+            "challenge_token": challenge_token,
+            "mfa_methods": ["totp", "backup_code"],
+            "expires_in": 300,
+        }
+
+    # No MFA — issue full token
+    user.last_login_at = datetime.now(timezone.utc)
+    await db.flush()
 
     access_token, expires_in = _create_access_token(str(user.id))
     return AuthResponse(access_token=access_token, expires_in=expires_in)
