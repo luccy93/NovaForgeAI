@@ -468,3 +468,128 @@ class NotificationPreferenceItem(BaseModel):
 
 class NotificationPreferencesOut(BaseModel):
     preferences: list[NotificationPreferenceItem]
+
+
+# ─── Dataset Management (Volume 34) ─────────────────────────────────────
+
+class DatasetID(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    organization_id: str
+    name: str
+    description: str = ""
+    version: str = "1.0"
+    task_type: str = ""
+    modality: str = ""
+    status: str = "active"
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+    owner_id: str = ""
+    organization: str = ""
+    tags: list[str] = []
+    metadata: dict[str, Any] = {}
+
+
+class DatasetExample(BaseModel):
+    input: str = ""
+    context: str = ""
+    expected_output: str = ""
+    reference_answer: str = ""
+    expected_files: list[str] = []
+    expected_code: str = ""
+    expected_citations: list[str] = []
+    expected_actions: list[str] = []
+    metadata: dict[str, Any] = {}
+    difficulty: str = ""
+    tags: list[str] = []
+
+
+class DatasetVersion(BaseModel):
+    version_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    dataset_id: str
+    version_number: str = "1.0"
+    changes: str = ""
+    created_at: datetime = Field(default_factory=datetime.now)
+    created_by: str = ""
+    is_active: bool = True
+
+
+# ─── Dataset Versioning ──────────────────────────────────────────────────
+
+class DatasetClone(BaseModel):
+    source_dataset_id: str
+    target_dataset_id: str
+    description: str = ""
+    preserve_metadata: bool = True
+
+
+class DatasetCompare(BaseModel):
+    dataset_id_1: str
+    dataset_id_2: str
+    comparison_type: str = "full"
+
+
+class DatasetPublish(BaseModel):
+    dataset_id: str
+    approved_by: str
+    published_at: datetime = Field(default_factory=datetime.now)
+
+
+class DatasetArchive(BaseModel):
+    dataset_id: str
+    archived_by: str
+    archived_at: datetime = Field(default_factory=datetime.now)
+    reason: str = ""
+
+
+# ─── Benchmark Run ────────────────────────────────────────────────────────
+
+class BenchmarkRun(BaseModel):
+    run_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    dataset_id: str
+    dataset_version: str
+    model: str = ""
+    provider: str = ""
+    prompt_version: str = ""
+    agent_version: str = ""
+    rag_version: str = ""
+    configuration: dict[str, Any] = Field(default_factory=dict)
+    started_at: datetime = Field(default_factory=datetime.now)
+    completed_at: Optional[datetime] = None
+    status: str = "pending"
+    results: dict[str, Any] = Field(default_factory=dict)
+    scores: dict[str, float] = Field(default_factory=dict)
+    latency: float = 0.0
+    tokens: int = 0
+    cost: float = 0.0
+    errors: list[str] = []
+    traces: dict[str, Any] = Field(default_factory=dict)
+
+
+# ─── Evaluation Metrics ──────────────────────────────────────────────────
+
+class MetricResult(BaseModel):
+    metric: str
+    value: float
+    unit: str = ""
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
+class MetricAggregation(BaseModel):
+    metric: str
+    average: float
+    std_deviation: float
+    min_value: float
+    max_value: float
+    sample_count: int
+
+
+# ─── Judge Calibration ──────────────────────────────────────────────────
+
+class JudgeCalibration(BaseModel):
+    judge_id: str
+    agreements_with_human: int = 0
+    total_evaluations: int = 0
+    agreement_rate: float = 0.0
+    bias_metrics: dict[str, float] = Field(default_factory=dict)
+    consistency_score: float = 1.0
+    last_calibrated: datetime = Field(default_factory=datetime.now)
