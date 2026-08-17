@@ -1,0 +1,185 @@
+<idea-plugin>
+    <id>com.novaforge.ai</id>
+    <name>NovaForge AI</name>
+    <version>1.0.0</version>
+    <vendor email="support@novaforge.ai" url="https://novaforge.ai">NovaForge</vendor>
+
+    <description><![CDATA[
+        AI-powered code assistant. Chat with AI, explain code, fix bugs,
+        refactor, generate tests, review code, search repositories, and run
+        autonomous agents — all from inside your IDE.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.lang</depends>
+    <depends>com.intellij.modules.java</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindowFactory
+                id="NovaForge"
+                factoryClass="com.novaforge.ai.toolwindow.NovaForgeToolWindowFactory"
+                icon="/icons/novaforge.svg"
+                anchor="right"
+                conditionClass="com.novaforge.ai.toolwindow.NovaForgeToolWindowCondition"/>
+
+        <codeInsightActionProvider
+                implementation="com.novaforge.ai.actions.NovaForgeCodeActionProvider"/>
+
+        <editorActionHandler
+                action="NovaForge.Explain"
+                implementationClass="com.novaforge.ai.actions.NovaForgeExplainHandler"/>
+
+        <notificationGroup
+                id="NovaForge"
+                displayType="BALLOON"
+                isLogByDefault="true"/>
+
+        <applicationService
+                serviceImplementation="com.novaforge.ai.settings.NovaForgeSettings"
+                displayName="NovaForge AI Settings"/>
+
+        <applicationService
+                serviceImplementation="com.novaforge.ai.auth.AuthManager"/>
+
+        <applicationService
+                serviceImplementation="com.novaforge.ai.telemetry.TelemetryService"/>
+
+        <projectService
+                serviceImplementation="com.novaforge.ai.context.ContextCollector"/>
+
+        <statusBarWidgetFactory
+                id="NovaForgeStatusWidget"
+                implementation="com.novaforge.ai.status.NovaForgeStatusWidgetFactory"
+                order="first"/>
+
+        <projectConfigurable
+                parentId="tools"
+                instance="com.novaforge.ai.settings.NovaForgeConfigurable"
+                displayName="NovaForge AI"/>
+
+        <localInspection
+                language="JAVA"
+                shortName="NovaForgeReview"
+                displayName="NovaForge AI Code Review"
+                groupName="Code style"
+                enabledByDefault="false"
+                level="WARNING"
+                implementationClass="com.novaforge.ai.review.NovaForgeReviewInspection"/>
+    </extensions>
+
+    <actions>
+        <group id="NovaForge" text="NovaForge AI" popup="true"
+               icon="/icons/novaforge.svg">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </group>
+
+        <action id="NovaForge.Chat"
+                class="com.novaforge.ai.actions.ChatAction"
+                text="Chat with NovaForge"
+                description="Open NovaForge AI chat panel"
+                icon="/icons/novaforge.svg">
+            <add-to-group group-id="NovaForge" anchor="first"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift N"/>
+        </action>
+
+        <action id="NovaForge.Explain"
+                class="com.novaforge.ai.actions.ExplainAction"
+                text="Explain Code"
+                description="Explain the selected code using AI">
+            <add-to-group group-id="NovaForge"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+        </action>
+
+        <action id="NovaForge.Fix"
+                class="com.novaforge.ai.actions.FixAction"
+                text="Fix Code"
+                description="Fix bugs in the selected code using AI">
+            <add-to-group group-id="NovaForge"/>
+            <add-to-group group-id="EditorPopupMenu"/>
+        </action>
+
+        <action id="NovaForge.Refactor"
+                class="com.novaforge.ai.actions.RefactorAction"
+                text="Refactor Code"
+                description="Refactor the selected code using AI">
+            <add-to-group group-id="NovaForge"/>
+            <add-to-group group-id="EditorPopupMenu"/>
+        </action>
+
+        <action id="NovaForge.GenerateTests"
+                class="com.novaforge.ai.actions.GenerateTestsAction"
+                text="Generate Tests"
+                description="Generate unit tests for the selected code">
+            <add-to-group group-id="NovaForge"/>
+        </action>
+
+        <action id="NovaForge.Review"
+                class="com.novaforge.ai.actions.ReviewAction"
+                text="Review Code"
+                description="AI-powered code review">
+            <add-to-group group-id="NovaForge"/>
+            <add-to-group group-id="EditorPopupMenu"/>
+        </action>
+
+        <action id="NovaForge.SecurityScan"
+                class="com.novaforge.ai.actions.SecurityScanAction"
+                text="Security Scan"
+                description="Scan selected code for security vulnerabilities">
+            <add-to-group group-id="NovaForge"/>
+        </action>
+
+        <action id="NovaForge.Search"
+                class="com.novaforge.ai.search.SearchAction"
+                text="Search Repository"
+                description="Search your repository using natural language">
+            <add-to-group group-id="NovaForge"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift F"/>
+        </action>
+
+        <action id="NovaForge.RunAgent"
+                class="com.novaforge.ai.actions.RunAgentAction"
+                text="Run Agent"
+                description="Run an autonomous AI agent">
+            <add-to-group group-id="NovaForge"/>
+        </action>
+
+        <action id="NovaForge.Login"
+                class="com.novaforge.ai.actions.LoginAction"
+                text="Login"
+                description="Login to NovaForge">
+            <add-to-group group-id="NovaForge"/>
+        </action>
+
+        <action id="NovaForge.Logout"
+                class="com.novaforge.ai.actions.LogoutAction"
+                text="Logout"
+                description="Logout from NovaForge">
+            <add-to-group group-id="NovaForge"/>
+        </action>
+
+        <action id="NovaForge.Status"
+                class="com.novaforge.ai.actions.StatusAction"
+                text="Status"
+                description="Check NovaForge connection status">
+            <add-to-group group-id="NovaForge"/>
+        </action>
+
+        <action id="NovaForge.Settings"
+                class="com.novaforge.ai.actions.SettingsAction"
+                text="Settings"
+                description="Open NovaForge settings"
+                icon="AllIcons.Actions.Properties">
+            <add-to-group group-id="NovaForge"/>
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+
+        <action id="NovaForge.OpenDashboard"
+                class="com.novaforge.ai.actions.OpenDashboardAction"
+                text="Open Dashboard"
+                description="Open NovaForge dashboard in browser">
+            <add-to-group group-id="NovaForge"/>
+        </action>
+    </actions>
+</idea-plugin>

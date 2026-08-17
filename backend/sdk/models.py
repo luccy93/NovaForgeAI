@@ -118,3 +118,64 @@ class FeatureFlag:
     name: str
     enabled: bool = False
     config: dict[str, Any] = field(default_factory=dict)
+
+
+# ─── DevTools models ─────────────────────────────────────────────────
+
+
+@dataclass
+class DevSession:
+    session_id: str
+    client_type: str
+    client_version: str = "1.0.0"
+    organization_id: Optional[str] = None
+    repository_id: Optional[str] = None
+    created_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    capabilities: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ContextResult:
+    context_id: str
+    file_context: Optional[dict] = None
+    symbols: list[dict] = field(default_factory=list)
+    rag_results: list[dict] = field(default_factory=list)
+    graph_context: list[dict] = field(default_factory=list)
+    total_tokens_estimate: int = 0
+
+
+@dataclass
+class CodeActionResult:
+    action_id: str
+    action: str
+    file_path: str
+    original_code: str
+    proposed_code: str
+    explanation: str = ""
+    diff: str = ""
+    confidence: float = 0.0
+    citations: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ReviewResult:
+    review_id: str
+    summary: str
+    findings: list[dict] = field(default_factory=list)
+    score: float = 0.0
+    files_reviewed: int = 0
+    lines_reviewed: int = 0
+
+
+@dataclass
+class SearchResultItem:
+    id: str
+    score: float
+    file_path: str
+    line: int
+    content: str
+    symbol_type: str = ""
+    symbol_name: str = ""
+    repository: str = ""

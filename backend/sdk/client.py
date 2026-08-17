@@ -1,5 +1,6 @@
 """NovaForge SDK — synchronous and async API clients."""
 
+import asyncio
 import json
 import time
 from typing import Any, Optional
@@ -11,6 +12,7 @@ from backend.sdk.models import (
     User, Organization, Repository, Conversation, Message,
     Agent, AgentRun, PipelineResult, Notification,
     BillingPlan, Subscription, FeatureFlag,
+    DevSession, ContextResult, CodeActionResult, ReviewResult, SearchResultItem,
 )
 from backend.sdk.exceptions import (
     NovaForgeError, AuthenticationError, NotFoundError,
@@ -161,6 +163,185 @@ class NovaForgeClient(BaseClient):
     def list_notifications(self) -> list[Notification]:
         return [self._parse_notification(n) for n in self.get("/notifications")]
 
+    # ─── DevTools ──────────────────────────────────────────────────────
+
+    def create_devtools_session(
+        self,
+        client_type: str,
+        client_version: str = "1.0.0",
+        org_id: Optional[str] = None,
+        repo_id: Optional[str] = None,
+        workspace_root: Optional[str] = None,
+    ) -> DevSession:
+        payload: dict[str, Any] = {
+            "client_type": client_type,
+            "client_version": client_version,
+        }
+        if org_id is not None:
+            payload["org_id"] = org_id
+        if repo_id is not None:
+            payload["repo_id"] = repo_id
+        if workspace_root is not None:
+            payload["workspace_root"] = workspace_root
+        data = self.post("/devtools/sessions", payload)
+        return DevSession(**{k: v for k, v in data.items() if k in DevSession.__dataclass_fields__})
+
+    def get_devtools_session(self, session_id: str) -> DevSession:
+        data = self.get(f"/devtools/sessions/{session_id}")
+        return DevSession(**{k: v for k, v in data.items() if k in DevSession.__dataclass_fields__})
+
+    def delete_devtools_session(self, session_id: str) -> dict:
+        return self.delete(f"/devtools/sessions/{session_id}")
+
+    def collect_context(
+        self,
+        session_id: str,
+        file_path: Optional[str] = None,
+        language: Optional[str] = None,
+        selection: Optional[str] = None,
+        imports: Optional[list[str]] = None,
+        max_context_tokens: int = 4096,
+    ) -> ContextResult:
+        payload: dict[str, Any] = {
+            "session_id": session_id,
+            "max_context_tokens": max_context_tokens,
+        }
+        if file_path is not None:
+            payload["file_path"] = file_path
+        if language is not None:
+            payload["language"] = language
+        if selection is not None:
+            payload["selection"] = selection
+        if imports is not None:
+            payload["imports"] = imports
+        data = self.post("/devtools/context", payload)
+        return ContextResult(**{k: v for k, v in data.items() if k in ContextResult.__dataclass_fields__})
+
+    def code_action(
+        self,
+        action: str,
+        file_path: str,
+        language: str,
+        code: str,
+        session_id: str,
+        start_line: Optional[int] = None,
+        end_line: Optional[int] = None,
+        stream: bool = False,
+    ) -> CodeActionResult:
+        payload: dict[str, Any] = {
+            "action": action,
+            "file_path": file_path,
+            "language": language,
+            "code": code,
+            "session_id": session_id,
+            "stream": stream,
+        }
+        if start_line is not None:
+            payload["start_line"] = start_line
+        if end_line is not None:
+            payload["end_line"] = end_line
+        data = self.post("/devtools/code-actions", payload)
+        return CodeActionResult(**{k: v for k, v in data.items() if k in CodeActionResult.__dataclass_fields__})
+
+    def review_code(
+        self,
+        session_id: str,
+        file_path: Optional[str] = None,
+        code: Optional[str] = None,
+        pr_number: Optional[int] = None,
+        review_type: str = "standard",
+        stream: bool = False,
+    ) -> ReviewResult:
+        payload: dict[str, Any] = {
+            "session_id": session_id,
+            "review_type": review_type,
+            "stream": stream,
+        }
+        if file_path is not None:
+            payload["file_path"] = file_path
+        if code is not None:
+            payload["code"] = code
+        if pr_number is not None:
+            payload["pr_number"] = pr_number
+        data = self.post("/devtools/review", payload)
+        return ReviewResult(**{k: v for k, v in data.items() if k in ReviewResult.__dataclass_fields__})
+
+    def run_agent_from_ide(
+        self,
+        session_id: str,
+        agent_name: str,
+        task: str,
+        stream: bool = False,
+    ) -> dict:
+        return self.post("/devtools/agents/run", {
+            "session_id": session_id,
+            "agent_name": agent_name,
+            "task": task,
+            "stream": stream,
+        })
+
+    def search_code(
+        self,
+        session_id: str,
+        query: str,
+        search_type: str = "semantic",
+        repository_id: Optional[str] = None,
+        file_pattern: Optional[str] = None,
+        limit: int = 20,
+    ) -> list[SearchResultItem]:
+        payload: dict[str, Any] = {
+            "session_id": session_id,
+            "query": query,
+            "search_type": search_type,
+            "limit": limit,
+        }
+        if repository_id is not None:
+            payload["repository_id"] = repository_id
+        if file_pattern is not None:
+            payload["file_pattern"] = file_pattern
+        data = self.post("/devtools/search", payload)
+        return [
+            SearchResultItem(**{k: v for k, v in item.items() if k in SearchResultItem.__dataclass_fields__})
+            for item in data
+        ]
+
+    def run_workflow_from_ide(
+        self,
+        session_id: str,
+        workflow_id: str,
+        inputs: Optional[dict[str, Any]] = None,
+        stream: bool = False,
+    ) -> dict:
+        payload: dict[str, Any] = {
+            "session_id": session_id,
+            "workflow_id": workflow_id,
+            "stream": stream,
+        }
+        if inputs is not None:
+            payload["inputs"] = inputs
+        return self.post("/devtools/workflows/run", payload)
+
+    def get_capabilities(self, client_type: str) -> dict:
+        return self.get("/devtools/capabilities", params={"client_type": client_type})
+
+    def get_git_status(self) -> dict:
+        return self.get("/devtools/git/status")
+
+    def get_git_diff(self, file_path: Optional[str] = None, staged: bool = False) -> dict:
+        params: dict[str, Any] = {"staged": staged}
+        if file_path is not None:
+            params["file_path"] = file_path
+        return self.get("/devtools/git/diff", params=params)
+
+    def get_git_context(self) -> dict:
+        return self.get("/devtools/git/context")
+
+    def get_diagnostics(self, file_path: Optional[str] = None) -> dict:
+        params: dict[str, Any] = {}
+        if file_path is not None:
+            params["file_path"] = file_path
+        return self.get("/devtools/diagnostics", params=params)
+
 
 class AsyncNovaForgeClient(BaseClient):
     """Async NovaForge API client."""
@@ -211,5 +392,181 @@ class AsyncNovaForgeClient(BaseClient):
     async def run_agent(self, name: str, task: str) -> dict:
         return await self.post(f"/agents/v2/{name}/run", {"input": task})
 
+    # ─── DevTools ──────────────────────────────────────────────────────
 
-import asyncio  # noqa: E402 (needed for async client sleep)
+    async def create_devtools_session(
+        self,
+        client_type: str,
+        client_version: str = "1.0.0",
+        org_id: Optional[str] = None,
+        repo_id: Optional[str] = None,
+        workspace_root: Optional[str] = None,
+    ) -> DevSession:
+        payload: dict[str, Any] = {
+            "client_type": client_type,
+            "client_version": client_version,
+        }
+        if org_id is not None:
+            payload["org_id"] = org_id
+        if repo_id is not None:
+            payload["repo_id"] = repo_id
+        if workspace_root is not None:
+            payload["workspace_root"] = workspace_root
+        data = await self.post("/devtools/sessions", payload)
+        return DevSession(**{k: v for k, v in data.items() if k in DevSession.__dataclass_fields__})
+
+    async def get_devtools_session(self, session_id: str) -> DevSession:
+        data = await self.get(f"/devtools/sessions/{session_id}")
+        return DevSession(**{k: v for k, v in data.items() if k in DevSession.__dataclass_fields__})
+
+    async def delete_devtools_session(self, session_id: str) -> dict:
+        return await self.delete(f"/devtools/sessions/{session_id}")
+
+    async def collect_context(
+        self,
+        session_id: str,
+        file_path: Optional[str] = None,
+        language: Optional[str] = None,
+        selection: Optional[str] = None,
+        imports: Optional[list[str]] = None,
+        max_context_tokens: int = 4096,
+    ) -> ContextResult:
+        payload: dict[str, Any] = {
+            "session_id": session_id,
+            "max_context_tokens": max_context_tokens,
+        }
+        if file_path is not None:
+            payload["file_path"] = file_path
+        if language is not None:
+            payload["language"] = language
+        if selection is not None:
+            payload["selection"] = selection
+        if imports is not None:
+            payload["imports"] = imports
+        data = await self.post("/devtools/context", payload)
+        return ContextResult(**{k: v for k, v in data.items() if k in ContextResult.__dataclass_fields__})
+
+    async def code_action(
+        self,
+        action: str,
+        file_path: str,
+        language: str,
+        code: str,
+        session_id: str,
+        start_line: Optional[int] = None,
+        end_line: Optional[int] = None,
+        stream: bool = False,
+    ) -> CodeActionResult:
+        payload: dict[str, Any] = {
+            "action": action,
+            "file_path": file_path,
+            "language": language,
+            "code": code,
+            "session_id": session_id,
+            "stream": stream,
+        }
+        if start_line is not None:
+            payload["start_line"] = start_line
+        if end_line is not None:
+            payload["end_line"] = end_line
+        data = await self.post("/devtools/code-actions", payload)
+        return CodeActionResult(**{k: v for k, v in data.items() if k in CodeActionResult.__dataclass_fields__})
+
+    async def review_code(
+        self,
+        session_id: str,
+        file_path: Optional[str] = None,
+        code: Optional[str] = None,
+        pr_number: Optional[int] = None,
+        review_type: str = "standard",
+        stream: bool = False,
+    ) -> ReviewResult:
+        payload: dict[str, Any] = {
+            "session_id": session_id,
+            "review_type": review_type,
+            "stream": stream,
+        }
+        if file_path is not None:
+            payload["file_path"] = file_path
+        if code is not None:
+            payload["code"] = code
+        if pr_number is not None:
+            payload["pr_number"] = pr_number
+        data = await self.post("/devtools/review", payload)
+        return ReviewResult(**{k: v for k, v in data.items() if k in ReviewResult.__dataclass_fields__})
+
+    async def run_agent_from_ide(
+        self,
+        session_id: str,
+        agent_name: str,
+        task: str,
+        stream: bool = False,
+    ) -> dict:
+        return await self.post("/devtools/agents/run", {
+            "session_id": session_id,
+            "agent_name": agent_name,
+            "task": task,
+            "stream": stream,
+        })
+
+    async def search_code(
+        self,
+        session_id: str,
+        query: str,
+        search_type: str = "semantic",
+        repository_id: Optional[str] = None,
+        file_pattern: Optional[str] = None,
+        limit: int = 20,
+    ) -> list[SearchResultItem]:
+        payload: dict[str, Any] = {
+            "session_id": session_id,
+            "query": query,
+            "search_type": search_type,
+            "limit": limit,
+        }
+        if repository_id is not None:
+            payload["repository_id"] = repository_id
+        if file_pattern is not None:
+            payload["file_pattern"] = file_pattern
+        data = await self.post("/devtools/search", payload)
+        return [
+            SearchResultItem(**{k: v for k, v in item.items() if k in SearchResultItem.__dataclass_fields__})
+            for item in data
+        ]
+
+    async def run_workflow_from_ide(
+        self,
+        session_id: str,
+        workflow_id: str,
+        inputs: Optional[dict[str, Any]] = None,
+        stream: bool = False,
+    ) -> dict:
+        payload: dict[str, Any] = {
+            "session_id": session_id,
+            "workflow_id": workflow_id,
+            "stream": stream,
+        }
+        if inputs is not None:
+            payload["inputs"] = inputs
+        return await self.post("/devtools/workflows/run", payload)
+
+    async def get_capabilities(self, client_type: str) -> dict:
+        return await self.get("/devtools/capabilities", params={"client_type": client_type})
+
+    async def get_git_status(self) -> dict:
+        return await self.get("/devtools/git/status")
+
+    async def get_git_diff(self, file_path: Optional[str] = None, staged: bool = False) -> dict:
+        params: dict[str, Any] = {"staged": staged}
+        if file_path is not None:
+            params["file_path"] = file_path
+        return await self.get("/devtools/git/diff", params=params)
+
+    async def get_git_context(self) -> dict:
+        return await self.get("/devtools/git/context")
+
+    async def get_diagnostics(self, file_path: Optional[str] = None) -> dict:
+        params: dict[str, Any] = {}
+        if file_path is not None:
+            params["file_path"] = file_path
+        return await self.get("/devtools/diagnostics", params=params)

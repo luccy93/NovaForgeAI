@@ -1,37 +1,96 @@
 {
   "name": "novaforge-ai",
   "displayName": "NovaForge AI",
-  "description": "AI-powered code assistant with 3D code visualization",
-  "version": "0.1.0",
+  "description": "AI-powered code assistant — chat, code actions, review, search, agents, and workflows",
+  "version": "1.0.0",
   "publisher": "novaforge",
   "engines": { "vscode": "^1.95.0" },
-  "categories": ["Programming Languages", "Visualization", "Linters"],
+  "categories": ["Programming Languages", "Linters", "AI"],
   "activationEvents": ["onStartupFinished"],
-  "main": "./src/extension.js",
+  "main": "./out/extension.js",
   "contributes": {
     "commands": [
-      { "command": "novaforge.explainCode", "title": "NovaForge: Explain Code" },
+      { "command": "novaforge.chat", "title": "NovaForge: Chat" },
+      { "command": "novaforge.explain", "title": "NovaForge: Explain Code" },
+      { "command": "novaforge.fix", "title": "NovaForge: Fix Code" },
+      { "command": "novaforge.refactor", "title": "NovaForge: Refactor Code" },
+      { "command": "novaforge.optimize", "title": "NovaForge: Optimize Code" },
+      { "command": "novaforge.generateTests", "title": "NovaForge: Generate Tests" },
+      { "command": "novaforge.generateDocs", "title": "NovaForge: Generate Documentation" },
+      { "command": "novaforge.securityReview", "title": "NovaForge: Security Review" },
       { "command": "novaforge.reviewCode", "title": "NovaForge: Review Code" },
-      { "command": "novaforge.open3DView", "title": "NovaForge: Open 3D Code View" },
-      { "command": "novaforge.askQuestion", "title": "NovaForge: Ask AI" },
-      { "command": "novaforge.generateTests", "title": "NovaForge: Generate Tests" }
+      { "command": "novaforge.searchRepo", "title": "NovaForge: Search Repository" },
+      { "command": "novaforge.searchSymbol", "title": "NovaForge: Search Symbol" },
+      { "command": "novaforge.runAgent", "title": "NovaForge: Run Agent" },
+      { "command": "novaforge.runWorkflow", "title": "NovaForge: Run Workflow" },
+      { "command": "novaforge.login", "title": "NovaForge: Login" },
+      { "command": "novaforge.logout", "title": "NovaForge: Logout" },
+      { "command": "novaforge.status", "title": "NovaForge: Status" },
+      { "command": "novaforge.settings", "title": "NovaForge: Settings" },
+      { "command": "novaforge.openDashboard", "title": "NovaForge: Open Dashboard" },
+      { "command": "novaforge.selectOrg", "title": "NovaForge: Select Organization" },
+      { "command": "novaforge.selectRepo", "title": "NovaForge: Select Repository" }
     ],
     "keybindings": [
-      { "command": "novaforge.explainCode", "key": "ctrl+shift+e", "mac": "cmd+shift+e" },
-      { "command": "novaforge.askQuestion", "key": "ctrl+shift+a", "mac": "cmd+shift+a" }
+      { "command": "novaforge.chat", "key": "ctrl+shift+a", "mac": "cmd+shift+a" },
+      { "command": "novaforge.explain", "key": "ctrl+shift+e", "mac": "cmd+shift+e" },
+      { "command": "novaforge.fix", "key": "ctrl+shift+f", "mac": "cmd+shift+f" },
+      { "command": "novaforge.reviewCode", "key": "ctrl+shift+r", "mac": "cmd+shift+r" }
     ],
     "menus": {
       "editor/context": [
-        { "command": "novaforge.explainCode", "group": "novaforge" },
-        { "command": "novaforge.reviewCode", "group": "novaforge" }
+        { "command": "novaforge.explain", "group": "novaforge@1" },
+        { "command": "novaforge.fix", "group": "novaforge@2" },
+        { "command": "novaforge.refactor", "group": "novaforge@3" },
+        { "command": "novaforge.generateTests", "group": "novaforge@4" },
+        { "command": "novaforge.generateDocs", "group": "novaforge@5" },
+        { "command": "novaforge.securityReview", "group": "novaforge@6" },
+        { "command": "novaforge.reviewCode", "group": "novaforge@7" }
+      ],
+      "editor/title": [
+        { "command": "novaforge.chat", "group": "novaforge" }
       ]
     },
     "configuration": {
       "title": "NovaForge AI",
       "properties": {
-        "novaforge.apiUrl": { "type": "string", "default": "http://localhost:8000/api/v1", "description": "NovaForge API URL" },
-        "novaforge.apiKey": { "type": "string", "default": "", "description": "API Key" }
+        "novaforge.apiUrl": { "type": "string", "default": "http://localhost:8000", "description": "NovaForge server URL" },
+        "novaforge.apiKey": { "type": "string", "default": "", "description": "API key (optional, prefer login)" },
+        "novaforge.defaultOrganization": { "type": "string", "default": "", "description": "Default organization ID" },
+        "novaforge.defaultRepository": { "type": "string", "default": "", "description": "Default repository ID" },
+        "novaforge.streaming": { "type": "boolean", "default": true, "description": "Enable streaming responses" },
+        "novaforge.telemetry": { "type": "boolean", "default": true, "description": "Enable anonymous telemetry" },
+        "novaforge.autoContext": { "type": "boolean", "default": true, "description": "Automatically collect editor context" }
       }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "novaforge", "title": "NovaForge AI", "icon": "$(sparkle)" }
+      ]
+    },
+    "views": {
+      "novaforge": [
+        { "id": "novaforge.chat", "name": "AI Chat", "type": "webview" },
+        { "id": "novaforge.agents", "name": "Agents", "type": "webview" }
+      ]
     }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.95.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@microsoft/fetch-event-source": "^2.0.1"
   }
 }
