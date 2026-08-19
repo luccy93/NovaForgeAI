@@ -10,6 +10,7 @@ from backend.sdk.exceptions import (
     NovaForgeError, AuthenticationError, NotFoundError,
     RateLimitError, ValidationError,
 )
+from backend.sdk.rag import RagMixin, AsyncRagMixin
 
 __all__ = [
     "NovaForgeClient", "AsyncNovaForgeClient",
@@ -18,4 +19,5 @@ __all__ = [
     "BillingPlan", "Subscription", "FeatureFlag",
     "NovaForgeError", "AuthenticationError", "NotFoundError",
     "RateLimitError", "ValidationError",
+    "RagMixin", "AsyncRagMixin",
 ]
