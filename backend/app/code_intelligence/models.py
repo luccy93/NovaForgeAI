@@ -261,6 +261,7 @@ class CodeFile(Base, TimestampMixin):
     is_test_file: Mapped[bool] = mapped_column(Boolean, default=False)
     is_config_file: Mapped[bool] = mapped_column(Boolean, default=False)
     is_documentation: Mapped[bool] = mapped_column(Boolean, default=False)
+    content: Mapped[Optional[str]] = mapped_column(Text)
     chunk_count: Mapped[int] = mapped_column(Integer, default=0)
     symbol_count: Mapped[int] = mapped_column(Integer, default=0)
     indexed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

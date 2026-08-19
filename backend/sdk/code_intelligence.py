@@ -886,3 +886,110 @@ class AsyncCodeIntelligenceMixin:
         """Get index health status for a repository."""
         data = await self.get(f"/code-intelligence/repositories/{repo_id}/health")
         return _parse_index_health(data)
+
+    # ─── Test Intelligence ───────────────────────────────────────────
+
+    async def get_tests(self, repo_id: str) -> dict:
+        """Get test intelligence summary."""
+        return await self.get(f"/code-intelligence/{repo_id}/tests")
+
+    async def get_test_quality(self, repo_id: str) -> list[dict]:
+        """Get test quality metrics per file."""
+        return await self.get(f"/code-intelligence/{repo_id}/tests/quality")
+
+    async def get_test_gaps(self, repo_id: str) -> list[dict]:
+        """Find source symbols without tests."""
+        return await self.get(f"/code-intelligence/{repo_id}/tests/gaps")
+
+    # ─── Ownership ───────────────────────────────────────────────────
+
+    async def get_ownership(self, repo_id: str) -> dict:
+        """Get ownership summary."""
+        return await self.get(f"/code-intelligence/{repo_id}/ownership")
+
+    async def get_contributors(self, repo_id: str) -> list[dict]:
+        """List contributors."""
+        return await self.get(f"/code-intelligence/{repo_id}/ownership/contributors")
+
+    async def get_bus_risk(self, repo_id: str) -> list[dict]:
+        """Get bus risk files."""
+        return await self.get(f"/code-intelligence/{repo_id}/ownership/bus-risk")
+
+    async def get_file_owners(self, repo_id: str, file_path: str) -> list[dict]:
+        """Get owners for a specific file."""
+        return await self.get(f"/code-intelligence/{repo_id}/ownership/{file_path}")
+
+    # ─── Change Intelligence ─────────────────────────────────────────
+
+    async def get_hotspots(self, repo_id: str, top_n: int = 20) -> list[dict]:
+        """Get most frequently changed files."""
+        return await self.get(f"/code-intelligence/{repo_id}/history/hotspots", params={"top_n": top_n})
+
+    async def get_churn(self, repo_id: str) -> dict:
+        """Get churn metrics."""
+        return await self.get(f"/code-intelligence/{repo_id}/history/churn")
+
+    async def get_authors(self, repo_id: str) -> list[dict]:
+        """Get author activity stats."""
+        return await self.get(f"/code-intelligence/{repo_id}/history/authors")
+
+    async def get_change_summary(self, repo_id: str) -> dict:
+        """Get change history summary."""
+        return await self.get(f"/code-intelligence/{repo_id}/history/summary")
+
+    async def get_file_timeline(self, repo_id: str, file_path: str) -> dict:
+        """Get change timeline for a file."""
+        return await self.get(f"/code-intelligence/{repo_id}/history/file/{file_path}")
+
+    # ─── Configuration ───────────────────────────────────────────────
+
+    async def get_config(self, repo_id: str) -> dict:
+        """Get configuration analysis summary."""
+        return await self.get(f"/code-intelligence/{repo_id}/config")
+
+    async def get_dependencies(self, repo_id: str) -> list[dict]:
+        """Get all dependencies."""
+        return await self.get(f"/code-intelligence/{repo_id}/config/dependencies")
+
+    # ─── Documentation ───────────────────────────────────────────────
+
+    async def get_docs(self, repo_id: str) -> dict:
+        """Get documentation summary."""
+        return await self.get(f"/code-intelligence/{repo_id}/docs")
+
+    # ─── Repository Summary ──────────────────────────────────────────
+
+    async def get_summary(self, repo_id: str) -> dict:
+        """Get full repository summary."""
+        return await self.get(f"/code-intelligence/{repo_id}/summary")
+
+    async def get_languages(self, repo_id: str) -> list[dict]:
+        """Get language distribution."""
+        return await self.get(f"/code-intelligence/{repo_id}/summary/languages")
+
+    async def get_entry_points(self, repo_id: str) -> list[dict]:
+        """Get detected entry points."""
+        return await self.get(f"/code-intelligence/{repo_id}/summary/entry-points")
+
+    # ─── Consistency & Events ────────────────────────────────────────
+
+    async def get_consistency(self, repo_id: str) -> dict:
+        """Get consistency health score."""
+        return await self.get(f"/code-intelligence/{repo_id}/consistency")
+
+    async def get_consistency_issues(self, repo_id: str) -> list[dict]:
+        """Get detailed consistency issues."""
+        return await self.get(f"/code-intelligence/{repo_id}/consistency/issues")
+
+    async def get_events(self, repo_id: str, event_type: Optional[str] = None, limit: int = 50) -> list[dict]:
+        """Get recent events for a repository."""
+        params: dict[str, Any] = {"limit": limit}
+        if event_type:
+            params["event_type"] = event_type
+        return await self.get(f"/code-intelligence/{repo_id}/events", params=params)
+
+    # ─── Context Quality ─────────────────────────────────────────────
+
+    async def get_context_quality(self, repo_id: str) -> dict:
+        """Get context quality metrics."""
+        return await self.get(f"/code-intelligence/{repo_id}/context-quality")

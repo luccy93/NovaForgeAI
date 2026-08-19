@@ -191,6 +191,38 @@ class CodeIntelligenceCLICommands:
             _print_error(str(exc))
             return None
 
+    async def _get_and_print(
+        self,
+        path: str,
+        label: str,
+        verbose: bool = False,
+        as_json: bool = False,
+        params: Optional[dict[str, Any]] = None,
+    ) -> Any:
+        """Generic GET + print helper for simple endpoints."""
+        _print_header(label)
+        data = await self._get(path, params=params, verbose=verbose)
+        if data is None:
+            return None
+        if as_json:
+            _print_json(data)
+        elif isinstance(data, list):
+            for item in data:
+                if isinstance(item, dict):
+                    name = item.get("name") or item.get("file_path") or item.get("symbol_name") or item.get("owner_email") or item.get("author_name") or item.get("event_type") or str(item)[:80]
+                    _print_info(f"  {name}")
+                else:
+                    _print_info(f"  {item}")
+            _print_info(f"\nTotal: {len(data)}")
+        elif isinstance(data, dict):
+            for k, v in data.items():
+                if isinstance(v, (list, dict)):
+                    _print_info(f"  {k}: ({type(v).__name__}, {len(v)} items)")
+                else:
+                    _print_info(f"  {k}: {v}")
+        _print_success(f"{label} retrieved successfully")
+        return data
+
     # -- API methods ----------------------------------------------------------
 
     async def index(
@@ -1016,6 +1048,65 @@ def _build_parser() -> argparse.ArgumentParser:
     p_unused = sub.add_parser("unused", help="Find unused symbols")
     p_unused.add_argument("repo_id", help="Repository ID")
 
+    # -- tests --------------------------------------------------------------
+    p_tests = sub.add_parser("tests", help="Show test intelligence summary")
+    p_tests.add_argument("repo_id", help="Repository ID")
+
+    # -- test-quality -------------------------------------------------------
+    p_tq = sub.add_parser("test-quality", help="Show test quality metrics")
+    p_tq.add_argument("repo_id", help="Repository ID")
+
+    # -- test-gaps ----------------------------------------------------------
+    p_tg = sub.add_parser("test-gaps", help="Find untested symbols")
+    p_tg.add_argument("repo_id", help="Repository ID")
+
+    # -- ownership ----------------------------------------------------------
+    p_ownership = sub.add_parser("ownership", help="Show ownership summary")
+    p_ownership.add_argument("repo_id", help="Repository ID")
+
+    # -- contributors -------------------------------------------------------
+    p_contrib = sub.add_parser("contributors", help="List contributors")
+    p_contrib.add_argument("repo_id", help="Repository ID")
+
+    # -- bus-risk -----------------------------------------------------------
+    p_bus = sub.add_parser("bus-risk", help="Find bus risk files")
+    p_bus.add_argument("repo_id", help="Repository ID")
+
+    # -- hotspots -----------------------------------------------------------
+    p_hot = sub.add_parser("hotspots", help="Show change hotspots")
+    p_hot.add_argument("repo_id", help="Repository ID")
+    p_hot.add_argument("--top-n", type=int, default=20, help="Number of hotspots")
+
+    # -- churn --------------------------------------------------------------
+    p_churn = sub.add_parser("churn", help="Show churn metrics")
+    p_churn.add_argument("repo_id", help="Repository ID")
+
+    # -- history ------------------------------------------------------------
+    p_hist = sub.add_parser("history", help="Show change history summary")
+    p_hist.add_argument("repo_id", help="Repository ID")
+
+    # -- config -------------------------------------------------------------
+    p_config = sub.add_parser("config", help="Show configuration analysis")
+    p_config.add_argument("repo_id", help="Repository ID")
+
+    # -- docs ---------------------------------------------------------------
+    p_docs = sub.add_parser("docs", help="Show documentation summary")
+    p_docs.add_argument("repo_id", help="Repository ID")
+
+    # -- summary ------------------------------------------------------------
+    p_summary = sub.add_parser("summary", help="Show repository summary")
+    p_summary.add_argument("repo_id", help="Repository ID")
+
+    # -- consistency --------------------------------------------------------
+    p_consist = sub.add_parser("consistency", help="Show consistency health")
+    p_consist.add_argument("repo_id", help="Repository ID")
+
+    # -- events -------------------------------------------------------------
+    p_events = sub.add_parser("events", help="Show recent events")
+    p_events.add_argument("repo_id", help="Repository ID")
+    p_events.add_argument("--type", default=None, dest="event_type", help="Event type filter")
+    p_events.add_argument("--limit", type=int, default=50, help="Max results")
+
     return parser
 
 
@@ -1179,6 +1270,118 @@ async def _dispatch(args: argparse.Namespace) -> Any:
     if args.command == "unused":
         return await cmds.unused(
             repo_id=args.repo_id,
+            verbose=args.verbose,
+            as_json=args.as_json,
+        )
+
+    if args.command == "tests":
+        return await cmds._get_and_print(
+            f"/code-intelligence/{args.repo_id}/tests",
+            label="Test Intelligence Summary",
+            verbose=args.verbose,
+            as_json=args.as_json,
+        )
+
+    if args.command == "test-quality":
+        return await cmds._get_and_print(
+            f"/code-intelligence/{args.repo_id}/tests/quality",
+            label="Test Quality",
+            verbose=args.verbose,
+            as_json=args.as_json,
+        )
+
+    if args.command == "test-gaps":
+        return await cmds._get_and_print(
+            f"/code-intelligence/{args.repo_id}/tests/gaps",
+            label="Test Gaps",
+            verbose=args.verbose,
+            as_json=args.as_json,
+        )
+
+    if args.command == "ownership":
+        return await cmds._get_and_print(
+            f"/code-intelligence/{args.repo_id}/ownership",
+            label="Ownership Summary",
+            verbose=args.verbose,
+            as_json=args.as_json,
+        )
+
+    if args.command == "contributors":
+        return await cmds._get_and_print(
+            f"/code-intelligence/{args.repo_id}/ownership/contributors",
+            label="Contributors",
+            verbose=args.verbose,
+            as_json=args.as_json,
+        )
+
+    if args.command == "bus-risk":
+        return await cmds._get_and_print(
+            f"/code-intelligence/{args.repo_id}/ownership/bus-risk",
+            label="Bus Risk Files",
+            verbose=args.verbose,
+            as_json=args.as_json,
+        )
+
+    if args.command == "hotspots":
+        return await cmds._get_and_print(
+            f"/code-intelligence/{args.repo_id}/history/hotspots",
+            label="Change Hotspots",
+            verbose=args.verbose,
+            as_json=args.as_json,
+        )
+
+    if args.command == "churn":
+        return await cmds._get_and_print(
+            f"/code-intelligence/{args.repo_id}/history/churn",
+            label="Churn Metrics",
+            verbose=args.verbose,
+            as_json=args.as_json,
+        )
+
+    if args.command == "history":
+        return await cmds._get_and_print(
+            f"/code-intelligence/{args.repo_id}/history/summary",
+            label="Change History Summary",
+            verbose=args.verbose,
+            as_json=args.as_json,
+        )
+
+    if args.command == "config":
+        return await cmds._get_and_print(
+            f"/code-intelligence/{args.repo_id}/config",
+            label="Configuration Analysis",
+            verbose=args.verbose,
+            as_json=args.as_json,
+        )
+
+    if args.command == "docs":
+        return await cmds._get_and_print(
+            f"/code-intelligence/{args.repo_id}/docs",
+            label="Documentation Summary",
+            verbose=args.verbose,
+            as_json=args.as_json,
+        )
+
+    if args.command == "summary":
+        return await cmds._get_and_print(
+            f"/code-intelligence/{args.repo_id}/summary",
+            label="Repository Summary",
+            verbose=args.verbose,
+            as_json=args.as_json,
+        )
+
+    if args.command == "consistency":
+        return await cmds._get_and_print(
+            f"/code-intelligence/{args.repo_id}/consistency",
+            label="Consistency Health",
+            verbose=args.verbose,
+            as_json=args.as_json,
+        )
+
+    if args.command == "events":
+        return await cmds._get_and_print(
+            f"/code-intelligence/{args.repo_id}/events",
+            label="Recent Events",
             verbose=args.verbose,
             as_json=args.as_json,
         )

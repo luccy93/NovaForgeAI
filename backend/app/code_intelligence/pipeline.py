@@ -292,6 +292,7 @@ class IndexingPipeline:
             file_hash=file_hash,
             size_bytes=len(content.encode("utf-8")),
             line_count=line_count,
+            content=content,
             status=FileStatus.PARSING.value,
         )
         self.db.add(code_file)

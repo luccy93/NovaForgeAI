@@ -78,6 +78,7 @@ def upgrade() -> None:
         sa.Column("version", sa.Integer(), server_default="1", nullable=False),
         sa.Column("file_path", sa.Text(), nullable=False),
         sa.Column("file_name", sa.String(256), nullable=False),
+        sa.Column("content", sa.Text(), nullable=True),
         sa.Column("file_ext", sa.String(16), nullable=True),
         sa.Column("language", sa.String(32), nullable=True),
         sa.Column("size_bytes", sa.Integer(), server_default="0", nullable=False),

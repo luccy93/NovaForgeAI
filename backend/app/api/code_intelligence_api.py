@@ -41,6 +41,15 @@ from app.code_intelligence.smells import SmellDetector
 from app.code_intelligence.security import SecurityScanner
 from app.code_intelligence.architecture import ArchitectureDiscovery, ArchitectureResult, RepositorySummary
 from app.code_intelligence.incremental import IncrementalIndexer
+from app.code_intelligence.test_intelligence import TestDetector
+from app.code_intelligence.ownership import OwnershipAnalyzer
+from app.code_intelligence.change_intelligence import ChangeAnalyzer
+from app.code_intelligence.configuration import ConfigurationAnalyzer
+from app.code_intelligence.documentation import DocumentationExtractor
+from app.code_intelligence.events import EventEmitter, InMemoryEventBus
+from app.code_intelligence.consistency import ConsistencyValidator
+from app.code_intelligence.context_quality import ContextQualityTracker
+from app.code_intelligence.repository_summary import RepositorySummarizer
 
 router = APIRouter(tags=["Code Intelligence"])
 
@@ -1792,6 +1801,760 @@ async def repair_index(
         repairs_performed=repairs,
         issues_fixed=issues_fixed,
         issues_remaining=issues_remaining,
+    )
+
+
+# ─── 12. Test Intelligence ─────────────────────────────────────────────────
+
+class TestInfoOut(BaseModel):
+    test_name: str = ""
+    test_type: str = ""
+    file_path: str = ""
+    source_symbol: Optional[str] = None
+    framework: Optional[str] = None
+    is_async: bool = False
+
+class TestCoverageOut(BaseModel):
+    total_test_files: int = 0
+    total_test_functions: int = 0
+    frameworks_used: list[str] = []
+    coverage_summary: dict = {}
+
+class TestQualityOut(BaseModel):
+    file_path: str = ""
+    test_count: int = 0
+    assert_density: float = 0.0
+    mock_ratio: float = 0.0
+    quality_score: float = 0.0
+
+class TestGapOut(BaseModel):
+    symbol_name: str = ""
+    symbol_type: str = ""
+    file_path: str = ""
+    has_tests: bool = False
+
+@router.get("/{repository_id}/tests", response_model=TestCoverageOut)
+async def list_tests(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get test intelligence summary for a repository."""
+    await _get_repo_access(repository_id, user, db)
+    detector = TestDetector()
+    try:
+        coverage = await detector.get_test_coverage(repository_id=repository_id, db=db)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return TestCoverageOut(
+        total_test_files=coverage.total_test_files if hasattr(coverage, "total_test_files") else 0,
+        total_test_functions=coverage.total_test_functions if hasattr(coverage, "total_test_functions") else 0,
+        frameworks_used=coverage.frameworks_used if hasattr(coverage, "frameworks_used") else [],
+        coverage_summary=coverage.coverage_summary if hasattr(coverage, "coverage_summary") else {},
+    )
+
+
+@router.get("/{repository_id}/tests/quality", response_model=list[TestQualityOut])
+async def test_quality(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get test quality metrics per test file."""
+    await _get_repo_access(repository_id, user, db)
+    detector = TestDetector()
+    try:
+        qualities = await detector.get_test_quality(repository_id=repository_id, db=db)
+    except Exception:
+        qualities = []
+    return [
+        TestQualityOut(
+            file_path=q.file_path if hasattr(q, "file_path") else "",
+            test_count=q.test_count if hasattr(q, "test_count") else 0,
+            assert_density=q.assert_density if hasattr(q, "assert_density") else 0.0,
+            mock_ratio=q.mock_ratio if hasattr(q, "mock_ratio") else 0.0,
+            quality_score=q.quality_score if hasattr(q, "quality_score") else 0.0,
+        )
+        for q in qualities
+    ]
+
+
+@router.get("/{repository_id}/tests/gaps", response_model=list[TestGapOut])
+async def test_gaps(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Find source symbols without test coverage."""
+    await _get_repo_access(repository_id, user, db)
+    detector = TestDetector()
+    try:
+        gaps = await detector.analyze_test_gaps(repository_id=repository_id, db=db)
+    except Exception:
+        gaps = []
+    return [
+        TestGapOut(
+            symbol_name=g.symbol_name if hasattr(g, "symbol_name") else "",
+            symbol_type=g.symbol_type if hasattr(g, "symbol_type") else "",
+            file_path=g.file_path if hasattr(g, "file_path") else "",
+            has_tests=g.has_tests if hasattr(g, "has_tests") else False,
+        )
+        for g in gaps
+    ]
+
+
+# ─── 13. Code Ownership ────────────────────────────────────────────────────
+
+class OwnerOut(BaseModel):
+    owner_email: str = ""
+    owner_name: Optional[str] = None
+    ownership_score: float = 0.0
+    commits_count: int = 0
+    lines_changed: int = 0
+    role: Optional[str] = None
+
+class BusRiskOut(BaseModel):
+    file_path: str = ""
+    owner_count: int = 0
+    risk_level: str = "low"
+    primary_owner: Optional[str] = None
+
+class ContributorStatsOut(BaseModel):
+    email: str = ""
+    name: Optional[str] = None
+    commits: int = 0
+    files_changed: int = 0
+    lines_added: int = 0
+    lines_deleted: int = 0
+
+class OwnershipSummaryOut(BaseModel):
+    total_files: int = 0
+    owned_files: int = 0
+    ownership_coverage: float = 0.0
+    total_contributors: int = 0
+    bus_risk_files: int = 0
+    unowned_files: int = 0
+
+@router.get("/{repository_id}/ownership", response_model=OwnershipSummaryOut)
+async def get_ownership_summary(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get ownership summary for a repository."""
+    await _get_repo_access(repository_id, user, db)
+    analyzer = OwnershipAnalyzer()
+    try:
+        summary = await analyzer.get_ownership_summary(repository_id=repository_id, db=db)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return OwnershipSummaryOut(
+        total_files=summary.total_files if hasattr(summary, "total_files") else 0,
+        owned_files=summary.owned_files if hasattr(summary, "owned_files") else 0,
+        ownership_coverage=summary.ownership_coverage if hasattr(summary, "ownership_coverage") else 0.0,
+        total_contributors=summary.total_contributors if hasattr(summary, "total_contributors") else 0,
+        bus_risk_files=summary.bus_risk_files if hasattr(summary, "bus_risk_files") else 0,
+        unowned_files=summary.unowned_files if hasattr(summary, "unowned_files") else 0,
+    )
+
+
+@router.get("/{repository_id}/ownership/contributors", response_model=list[ContributorStatsOut])
+async def list_contributors(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List contributors for a repository."""
+    await _get_repo_access(repository_id, user, db)
+    analyzer = OwnershipAnalyzer()
+    try:
+        contributors = await analyzer.get_contributor_stats(repository_id=repository_id, db=db)
+    except Exception:
+        contributors = []
+    return [
+        ContributorStatsOut(
+            email=c.email if hasattr(c, "email") else "",
+            name=c.name if hasattr(c, "name") else None,
+            commits=c.commits if hasattr(c, "commits") else 0,
+            files_changed=c.files_changed if hasattr(c, "files_changed") else 0,
+            lines_added=c.lines_added if hasattr(c, "lines_added") else 0,
+            lines_deleted=c.lines_deleted if hasattr(c, "lines_deleted") else 0,
+        )
+        for c in contributors
+    ]
+
+
+@router.get("/{repository_id}/ownership/bus-risk", response_model=list[BusRiskOut])
+async def bus_risk(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Identify files with single-owner bus risk."""
+    await _get_repo_access(repository_id, user, db)
+    analyzer = OwnershipAnalyzer()
+    try:
+        risks = await analyzer.identify_bus_risk(repository_id=repository_id, db=db)
+    except Exception:
+        risks = []
+    return [
+        BusRiskOut(
+            file_path=r.file_path if hasattr(r, "file_path") else "",
+            owner_count=r.owner_count if hasattr(r, "owner_count") else 0,
+            risk_level=r.risk_level if hasattr(r, "risk_level") else "low",
+            primary_owner=r.primary_owner if hasattr(r, "primary_owner") else None,
+        )
+        for r in risks
+    ]
+
+
+@router.get("/{repository_id}/ownership/{file_path:path}", response_model=list[OwnerOut])
+async def file_owners(
+    repository_id: uuid.UUID,
+    file_path: str,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get owners for a specific file."""
+    await _get_repo_access(repository_id, user, db)
+    analyzer = OwnershipAnalyzer()
+    try:
+        owners = await analyzer.get_file_owners(repository_id=repository_id, file_path=file_path, db=db)
+    except Exception:
+        owners = []
+    return [
+        OwnerOut(
+            owner_email=o.owner_email if hasattr(o, "owner_email") else "",
+            owner_name=o.owner_name if hasattr(o, "owner_name") else None,
+            ownership_score=o.ownership_score if hasattr(o, "ownership_score") else 0.0,
+            commits_count=o.commits_count if hasattr(o, "commits_count") else 0,
+            lines_changed=o.lines_changed if hasattr(o, "lines_changed") else 0,
+            role=o.role if hasattr(o, "role") else None,
+        )
+        for o in owners
+    ]
+
+
+# ─── 14. Change Intelligence ───────────────────────────────────────────────
+
+class HotspotOut(BaseModel):
+    file_path: str = ""
+    change_count: int = 0
+    contributor_count: int = 0
+    risk_score: float = 0.0
+
+class ChurnMetricsOut(BaseModel):
+    total_lines_added: int = 0
+    total_lines_deleted: int = 0
+    churn_ratio: float = 0.0
+    avg_daily_changes: float = 0.0
+
+class AuthorActivityOut(BaseModel):
+    author_name: str = ""
+    author_email: str = ""
+    commits: int = 0
+    files_changed: int = 0
+    active_days: int = 0
+
+class ChangeSummaryOut(BaseModel):
+    total_commits: int = 0
+    total_files_changed: int = 0
+    total_authors: int = 0
+    date_range_days: int = 0
+    avg_commits_per_day: float = 0.0
+
+class FileTimelineOut(BaseModel):
+    file_path: str = ""
+    commits: list[dict] = []
+
+@router.get("/{repository_id}/history/hotspots", response_model=list[HotspotOut])
+async def get_hotspots(
+    repository_id: uuid.UUID,
+    top_n: int = Query(20, ge=1, le=100),
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get most frequently changed files (hotspots)."""
+    await _get_repo_access(repository_id, user, db)
+    analyzer = ChangeAnalyzer(db_session=db)
+    try:
+        hotspots = await analyzer.detect_hotspots(repository_id=repository_id, top_n=top_n, db=db)
+    except Exception:
+        hotspots = []
+    return [
+        HotspotOut(
+            file_path=h.file_path if hasattr(h, "file_path") else "",
+            change_count=h.change_count if hasattr(h, "change_count") else 0,
+            contributor_count=h.contributor_count if hasattr(h, "contributor_count") else 0,
+            risk_score=h.risk_score if hasattr(h, "risk_score") else 0.0,
+        )
+        for h in hotspots
+    ]
+
+
+@router.get("/{repository_id}/history/churn", response_model=ChurnMetricsOut)
+async def get_churn(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get churn metrics for the repository."""
+    await _get_repo_access(repository_id, user, db)
+    analyzer = ChangeAnalyzer(db_session=db)
+    try:
+        churn = await analyzer.compute_churn_metrics(repository_id=repository_id, db=db)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return ChurnMetricsOut(
+        total_lines_added=churn.total_lines_added if hasattr(churn, "total_lines_added") else 0,
+        total_lines_deleted=churn.total_lines_deleted if hasattr(churn, "total_lines_deleted") else 0,
+        churn_ratio=churn.churn_ratio if hasattr(churn, "churn_ratio") else 0.0,
+        avg_daily_changes=churn.avg_daily_changes if hasattr(churn, "avg_daily_changes") else 0.0,
+    )
+
+
+@router.get("/{repository_id}/history/authors", response_model=list[AuthorActivityOut])
+async def get_authors(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get per-author activity stats."""
+    await _get_repo_access(repository_id, user, db)
+    analyzer = ChangeAnalyzer(db_session=db)
+    try:
+        authors = await analyzer.get_author_activity(repository_id=repository_id, db=db)
+    except Exception:
+        authors = []
+    return [
+        AuthorActivityOut(
+            author_name=a.author_name if hasattr(a, "author_name") else "",
+            author_email=a.author_email if hasattr(a, "author_email") else "",
+            commits=a.commits if hasattr(a, "commits") else 0,
+            files_changed=a.files_changed if hasattr(a, "files_changed") else 0,
+            active_days=a.active_days if hasattr(a, "active_days") else 0,
+        )
+        for a in authors
+    ]
+
+
+@router.get("/{repository_id}/history/summary", response_model=ChangeSummaryOut)
+async def get_change_summary(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get aggregate change history summary."""
+    await _get_repo_access(repository_id, user, db)
+    analyzer = ChangeAnalyzer(db_session=db)
+    try:
+        summary = await analyzer.get_change_summary(repository_id=repository_id, db=db)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return ChangeSummaryOut(
+        total_commits=summary.total_commits if hasattr(summary, "total_commits") else 0,
+        total_files_changed=summary.total_files_changed if hasattr(summary, "total_files_changed") else 0,
+        total_authors=summary.total_authors if hasattr(summary, "total_authors") else 0,
+        date_range_days=summary.date_range_days if hasattr(summary, "date_range_days") else 0,
+        avg_commits_per_day=summary.avg_commits_per_day if hasattr(summary, "avg_commits_per_day") else 0.0,
+    )
+
+
+@router.get("/{repository_id}/history/file/{file_path:path}", response_model=FileTimelineOut)
+async def get_file_timeline(
+    repository_id: uuid.UUID,
+    file_path: str,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get change timeline for a specific file."""
+    await _get_repo_access(repository_id, user, db)
+    analyzer = ChangeAnalyzer(db_session=db)
+    try:
+        timeline = await analyzer.get_file_timeline(repository_id=repository_id, file_path=file_path, db=db)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    commits_list = []
+    if hasattr(timeline, "commits"):
+        for c in timeline.commits:
+            commits_list.append({
+                "commit_sha": getattr(c, "commit_sha", ""),
+                "author": getattr(c, "author_name", ""),
+                "date": str(getattr(c, "commit_date", "")),
+                "message": getattr(c, "message", ""),
+                "lines_added": getattr(c, "lines_added", 0),
+                "lines_deleted": getattr(c, "lines_deleted", 0),
+            })
+    return FileTimelineOut(
+        file_path=timeline.file_path if hasattr(timeline, "file_path") else file_path,
+        commits=commits_list,
+    )
+
+
+# ─── 15. Configuration Analysis ────────────────────────────────────────────
+
+class ConfigFileOut(BaseModel):
+    file_path: str = ""
+    config_type: str = ""
+    description: str = ""
+
+class DependencyOut2(BaseModel):
+    name: str = ""
+    version: str = ""
+    dep_type: str = ""
+
+class SecretDetectionOut(BaseModel):
+    file_path: str = ""
+    secret_type: str = ""
+    line: int = 0
+    redacted: bool = True
+
+class FrameworkDetectionOut(BaseModel):
+    name: str = ""
+    confidence: float = 0.0
+    evidence: str = ""
+
+class ConfigSummaryOut(BaseModel):
+    config_files: list[ConfigFileOut] = []
+    dependencies: list[DependencyOut2] = []
+    frameworks: list[FrameworkDetectionOut] = []
+    build_commands: list[str] = []
+    secrets_detected: int = 0
+
+@router.get("/{repository_id}/config", response_model=ConfigSummaryOut)
+async def get_config_summary(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get configuration analysis summary."""
+    await _get_repo_access(repository_id, user, db)
+    analyzer = ConfigurationAnalyzer(session=db)
+    try:
+        summary = await analyzer.get_configuration_summary(repo_id=repository_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    config_files = []
+    if hasattr(summary, "config_files"):
+        for cf in summary.config_files:
+            config_files.append(ConfigFileOut(
+                file_path=cf.file_path if hasattr(cf, "file_path") else "",
+                config_type=cf.config_type if hasattr(cf, "config_type") else "",
+                description=cf.description if hasattr(cf, "description") else "",
+            ))
+    deps = []
+    if hasattr(summary, "dependencies"):
+        for d in summary.dependencies:
+            deps.append(DependencyOut2(
+                name=d.name if hasattr(d, "name") else "",
+                version=d.version if hasattr(d, "version") else "",
+                dep_type=d.dep_type if hasattr(d, "dep_type") else "",
+            ))
+    frameworks = []
+    if hasattr(summary, "frameworks"):
+        for fw in summary.frameworks:
+            frameworks.append(FrameworkDetectionOut(
+                name=fw.name if hasattr(fw, "name") else "",
+                confidence=fw.confidence if hasattr(fw, "confidence") else 0.0,
+                evidence=fw.evidence if hasattr(fw, "evidence") else "",
+            ))
+    return ConfigSummaryOut(
+        config_files=config_files,
+        dependencies=deps,
+        frameworks=frameworks,
+        build_commands=summary.build_commands if hasattr(summary, "build_commands") else [],
+        secrets_detected=summary.secrets_detected if hasattr(summary, "secrets_detected") else 0,
+    )
+
+
+@router.get("/{repository_id}/config/dependencies", response_model=list[DependencyOut2])
+async def get_all_dependencies(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get all dependencies across the repository."""
+    await _get_repo_access(repository_id, user, db)
+    analyzer = ConfigurationAnalyzer(session=db)
+    try:
+        deps = await analyzer.get_dependency_summary(repo_id=repository_id)
+    except Exception:
+        deps = []
+    items = []
+    if deps is not None and hasattr(deps, "by_ecosystem"):
+        for eco, _count in (deps.by_ecosystem or {}).items():
+            items.append(DependencyOut2(name=eco, version="", dep_type=eco))
+    return items
+
+
+# ─── 16. Documentation ─────────────────────────────────────────────────────
+
+class DocCoverageOut(BaseModel):
+    total_symbols: int = 0
+    symbols_with_docstrings: int = 0
+    coverage_percent: float = 0.0
+
+class DocQualityOut(BaseModel):
+    avg_docstring_length: float = 0.0
+    symbols_with_params: int = 0
+    symbols_with_examples: int = 0
+    quality_score: float = 0.0
+
+class DocSummaryOut(BaseModel):
+    has_readme: bool = False
+    readme_length: int = 0
+    doc_coverage: DocCoverageOut = DocCoverageOut()
+    doc_quality: DocQualityOut = DocQualityOut()
+    api_docs_found: bool = False
+    total_doc_files: int = 0
+
+@router.get("/{repository_id}/docs", response_model=DocSummaryOut)
+async def get_documentation_summary(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get documentation analysis summary."""
+    await _get_repo_access(repository_id, user, db)
+    extractor = DocumentationExtractor(db_session=db)
+    try:
+        summary = await extractor.get_documentation_summary(repository_id=repository_id, db=db)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return DocSummaryOut(
+        has_readme=summary.has_readme if hasattr(summary, "has_readme") else False,
+        readme_length=summary.readme_length if hasattr(summary, "readme_length") else 0,
+        doc_coverage=DocCoverageOut(
+            total_symbols=summary.doc_coverage.total_symbols if hasattr(summary, "doc_coverage") and hasattr(summary.doc_coverage, "total_symbols") else 0,
+            symbols_with_docstrings=summary.doc_coverage.symbols_with_docstrings if hasattr(summary, "doc_coverage") and hasattr(summary.doc_coverage, "symbols_with_docstrings") else 0,
+            coverage_percent=summary.doc_coverage.coverage_percent if hasattr(summary, "doc_coverage") and hasattr(summary.doc_coverage, "coverage_percent") else 0.0,
+        ) if hasattr(summary, "doc_coverage") else DocCoverageOut(),
+        doc_quality=DocQualityOut(
+            avg_docstring_length=summary.doc_quality.avg_docstring_length if hasattr(summary, "doc_quality") and hasattr(summary.doc_quality, "avg_docstring_length") else 0.0,
+            symbols_with_params=summary.doc_quality.symbols_with_params if hasattr(summary, "doc_quality") and hasattr(summary.doc_quality, "symbols_with_params") else 0,
+            symbols_with_examples=summary.doc_quality.symbols_with_examples if hasattr(summary, "doc_quality") and hasattr(summary.doc_quality, "symbols_with_examples") else 0,
+            quality_score=summary.doc_quality.quality_score if hasattr(summary, "doc_quality") and hasattr(summary.doc_quality, "quality_score") else 0.0,
+        ) if hasattr(summary, "doc_quality") else DocQualityOut(),
+        api_docs_found=summary.api_docs_found if hasattr(summary, "api_docs_found") else False,
+        total_doc_files=summary.total_doc_files if hasattr(summary, "total_doc_files") else 0,
+    )
+
+
+# ─── 17. Repository Summary & Entry Points ─────────────────────────────────
+
+class LanguageOut(BaseModel):
+    language: str = ""
+    file_count: int = 0
+    line_count: int = 0
+    percentage: float = 0.0
+
+class EntryPointOut(BaseModel):
+    file_path: str = ""
+    entry_type: str = ""
+    name: str = ""
+    description: str = ""
+
+class RepositoryProfileOut(BaseModel):
+    total_files: int = 0
+    total_symbols: int = 0
+    total_lines: int = 0
+    languages_count: int = 0
+    frameworks: list[str] = []
+    architecture_type: str = ""
+    maturity_indicator: str = ""
+
+@router.get("/{repository_id}/summary", response_model=RepositoryProfileOut)
+async def get_repository_summary(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get full repository summary."""
+    await _get_repo_access(repository_id, user, db)
+    summarizer = RepositorySummarizer(db_session=db)
+    try:
+        summary = await summarizer.generate_summary(repository_id=repository_id, db=db)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return RepositoryProfileOut(
+        total_files=summary.total_files if hasattr(summary, "total_files") else 0,
+        total_symbols=summary.total_symbols if hasattr(summary, "total_symbols") else 0,
+        total_lines=summary.total_lines if hasattr(summary, "total_lines") else 0,
+        languages_count=summary.languages_count if hasattr(summary, "languages_count") else 0,
+        frameworks=summary.frameworks if hasattr(summary, "frameworks") else [],
+        architecture_type=summary.architecture_type if hasattr(summary, "architecture_type") else "",
+        maturity_indicator=summary.maturity_indicator if hasattr(summary, "maturity_indicator") else "",
+    )
+
+
+@router.get("/{repository_id}/summary/languages", response_model=list[LanguageOut])
+async def get_languages(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get language distribution for the repository."""
+    await _get_repo_access(repository_id, user, db)
+    summarizer = RepositorySummarizer(db_session=db)
+    try:
+        languages = await summarizer.detect_languages(repository_id=repository_id, db=db)
+    except Exception:
+        languages = []
+    return [
+        LanguageOut(
+            language=l.language if hasattr(l, "language") else "",
+            file_count=l.file_count if hasattr(l, "file_count") else 0,
+            line_count=l.line_count if hasattr(l, "line_count") else 0,
+            percentage=l.percentage if hasattr(l, "percentage") else 0.0,
+        )
+        for l in languages
+    ]
+
+
+@router.get("/{repository_id}/summary/entry-points", response_model=list[EntryPointOut])
+async def get_entry_points(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Detect application entry points."""
+    await _get_repo_access(repository_id, user, db)
+    summarizer = RepositorySummarizer(db_session=db)
+    try:
+        points = await summarizer.detect_entry_points(repository_id=repository_id, db=db)
+    except Exception:
+        points = []
+    return [
+        EntryPointOut(
+            file_path=p.file_path if hasattr(p, "file_path") else "",
+            entry_type=p.entry_type if hasattr(p, "entry_type") else "",
+            name=p.name if hasattr(p, "name") else "",
+            description=p.description if hasattr(p, "description") else "",
+        )
+        for p in points
+    ]
+
+
+# ─── 18. Index Consistency & Events ────────────────────────────────────────
+
+class ConsistencyIssueOut(BaseModel):
+    issue_type: str = ""
+    severity: str = ""
+    description: str = ""
+    affected_count: int = 0
+
+class HealthScoreOut(BaseModel):
+    score: int = 0
+    total_issues: int = 0
+    critical_issues: int = 0
+    warnings: int = 0
+
+class EventOut(BaseModel):
+    event_id: str = ""
+    event_type: str = ""
+    timestamp: str = ""
+    payload: dict = {}
+
+@router.get("/{repository_id}/consistency", response_model=HealthScoreOut)
+async def get_consistency(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Run consistency validation and return health score."""
+    await _get_repo_access(repository_id, user, db)
+    validator = ConsistencyValidator()
+    try:
+        score = await validator.get_health_score(repository_id=repository_id, db=db)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return HealthScoreOut(
+        score=score.score if hasattr(score, "score") else 0,
+        total_issues=score.total_issues if hasattr(score, "total_issues") else 0,
+        critical_issues=score.critical_issues if hasattr(score, "critical_issues") else 0,
+        warnings=score.warnings if hasattr(score, "warnings") else 0,
+    )
+
+
+@router.get("/{repository_id}/consistency/issues", response_model=list[ConsistencyIssueOut])
+async def get_consistency_issues(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get detailed consistency issues."""
+    await _get_repo_access(repository_id, user, db)
+    validator = ConsistencyValidator()
+    try:
+        report = await validator.validate_all(repository_id=repository_id, db=db)
+    except Exception:
+        report = None
+    issues = report.issues if report is not None and hasattr(report, "issues") else []
+    return [
+        ConsistencyIssueOut(
+            issue_type=i.category if hasattr(i, "category") else "",
+            severity=i.severity if hasattr(i, "severity") else "",
+            description=i.message if hasattr(i, "message") else "",
+            affected_count=1,
+        )
+        for i in issues
+    ]
+
+
+_event_bus = InMemoryEventBus()
+
+@router.get("/{repository_id}/events", response_model=list[EventOut])
+async def get_events(
+    repository_id: uuid.UUID,
+    event_type: Optional[str] = None,
+    limit: int = Query(50, ge=1, le=200),
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get recent code intelligence events for a repository."""
+    await _get_repo_access(repository_id, user, db)
+    emitter = EventEmitter(repository_id=str(repository_id), in_memory_bus=_event_bus)
+    events = emitter.get_recent_events(limit=limit)
+    return [
+        EventOut(
+            event_id=str(e.event_id),
+            event_type=e.event_type.value if hasattr(e.event_type, "value") else str(e.event_type),
+            timestamp=e.timestamp.isoformat() if hasattr(e, "timestamp") else "",
+            payload=e.payload if hasattr(e, "payload") else {},
+        )
+        for e in events
+        if event_type is None or (hasattr(e.event_type, "value") and e.event_type.value == event_type) or str(e.event_type) == event_type
+    ]
+
+
+# ─── 19. Context Quality ───────────────────────────────────────────────────
+
+class ContextQualityOut(BaseModel):
+    quality_score: float = 0.0
+    duplicate_chunks: int = 0
+    citation_coverage: float = 0.0
+    token_utilization: float = 0.0
+    missing_dependencies: int = 0
+
+@router.get("/{repository_id}/context-quality", response_model=ContextQualityOut)
+async def get_context_quality(
+    repository_id: uuid.UUID,
+    user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get context quality metrics for a repository."""
+    await _get_repo_access(repository_id, user, db)
+    tracker = ContextQualityTracker(db_session=db)
+    try:
+        report = await tracker.get_quality_report(repository_id=str(repository_id))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return ContextQualityOut(
+        quality_score=report.quality_score if hasattr(report, "quality_score") else 0.0,
+        duplicate_chunks=report.duplicate_chunks if hasattr(report, "duplicate_chunks") else 0,
+        citation_coverage=report.citation_coverage if hasattr(report, "citation_coverage") else 0.0,
+        token_utilization=report.token_utilization if hasattr(report, "token_utilization") else 0.0,
+        missing_dependencies=report.missing_dependencies if hasattr(report, "missing_dependencies") else 0,
     )
 
 
