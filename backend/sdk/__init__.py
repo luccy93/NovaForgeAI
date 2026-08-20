@@ -12,6 +12,7 @@ from backend.sdk.exceptions import (
 )
 from backend.sdk.rag import RagMixin, AsyncRagMixin
 from backend.sdk.marketplace import MarketplaceMixin, AsyncMarketplaceMixin
+from backend.sdk.automation import AutomationMixin, AsyncAutomationMixin
 
 __all__ = [
     "NovaForgeClient", "AsyncNovaForgeClient",
@@ -22,4 +23,5 @@ __all__ = [
     "RateLimitError", "ValidationError",
     "RagMixin", "AsyncRagMixin",
     "MarketplaceMixin", "AsyncMarketplaceMixin",
+    "AutomationMixin", "AsyncAutomationMixin",
 ]

@@ -69,6 +69,27 @@ class EventType(str, Enum):
     remediation_executed = "sre.remediation.executed"
     canary_aborted = "sre.canary.aborted"
 
+    # Autonomous Software-Engineering events (Volume 45)
+    automation_task_created = "automation.task.created"
+    automation_task_started = "automation.task.started"
+    automation_task_completed = "automation.task.completed"
+    automation_task_failed = "automation.task.failed"
+    automation_task_cancelled = "automation.task.cancelled"
+    automation_plan_created = "automation.plan.created"
+    automation_plan_approved = "automation.plan.approved"
+    automation_approval_required = "automation.approval.required"
+    automation_patch_generated = "automation.patch.generated"
+    automation_patch_validated = "automation.patch.validated"
+    automation_tests_started = "automation.tests.started"
+    automation_tests_passed = "automation.tests.passed"
+    automation_tests_failed = "automation.tests.failed"
+    automation_review_completed = "automation.review.completed"
+    automation_security_gate_failed = "automation.security.gate_failed"
+    automation_deployment_started = "automation.deployment.started"
+    automation_deployment_completed = "automation.deployment.completed"
+    automation_deployment_rollback = "automation.deployment.rollback"
+    automation_budget_exceeded = "automation.budget.exceeded"
+
 
 class Event:
     def __init__(

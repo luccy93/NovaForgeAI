@@ -15,6 +15,8 @@ except ImportError:
 
 from app.common.services import registry
 
+logger = logging.getLogger(__name__)
+
 # Import service modules to register volume services in the global registry
 try:
     from app.release_engineering import service as _
@@ -49,8 +51,6 @@ except Exception as e: logger.debug("automation: %s", e)
 try:
     from app.evaluation import service as _
 except Exception as e: logger.debug("evaluation: %s", e)
-
-logger = logging.getLogger(__name__)
 
 if HAS_FASTAPI:
     router = APIRouter(prefix="/api/v1", tags=["NovaForge"])

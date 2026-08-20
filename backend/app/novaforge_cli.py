@@ -90,7 +90,7 @@ class NovaForgeCLI:
     async def run_cmd(self, args: list[str]):
         if not args:
             print("Usage: novafoge <command> [args...]")
-            print("Commands: health, telemetry, status, ingest, query, analytics, multimodal, automation")
+            print("Commands: health, telemetry, status, ingest, query, analytics, multimodal, automation, marketplace, automate")
             return
         cmd = args[0]
         rest = args[1:] if len(args) > 1 else []
@@ -116,6 +116,9 @@ class NovaForgeCLI:
             from app.cli.marketplace_commands import marketplace_cli_main
 
             marketplace_cli_main(rest)
+        elif cmd == "automate":
+            from app.cli.automation_commands import automation_cli_main
+            await automation_cli_main(rest)
         else:
             print(f"Unknown command: {cmd}")
 
