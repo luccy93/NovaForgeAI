@@ -121,6 +121,25 @@ class EventType(str, Enum):
     delivery_rollout_expanded = "delivery.rollout.expanded"
     delivery_rollout_aborted = "delivery.rollout.aborted"
 
+    # Unified DevSecOps Security Platform events (Volume 47)
+    security_platform_scan_started = "security.platform.scan_started"
+    security_platform_scan_completed = "security.platform.scan_completed"
+    security_platform_finding_created = "security.platform.finding_created"
+    security_platform_finding_updated = "security.platform.finding_updated"
+    security_platform_critical_finding = "security.platform.critical_finding"
+    security_platform_secret_detected = "security.platform.secret_detected"
+    security_platform_artifact_blocked = "security.platform.artifact_blocked"
+    security_platform_gate_failed = "security.platform.gate_failed"
+    security_platform_risk_accepted = "security.platform.risk_accepted"
+    security_platform_fix_started = "security.platform.fix_started"
+    security_platform_fix_verified = "security.platform.fix_verified"
+    security_platform_incident_created = "security.platform.incident_created"
+    security_platform_policy_evaluated = "security.platform.policy_evaluated"
+    security_platform_dependency_vulnerability = "security.platform.dependency_vulnerability"
+    security_platform_sbom_generated = "security.platform.sbom_generated"
+    security_platform_supply_chain_violation = "security.platform.supply_chain_violation"
+    security_platform_container_vulnerability = "security.platform.container_vulnerability"
+
 
 class Event:
     def __init__(

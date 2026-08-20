@@ -121,6 +121,10 @@ class NovaForgeCLI:
             await automation_cli_main(rest)
         elif cmd == "delivery":
             await self.cmd_delivery(rest)
+        elif cmd == "security":
+            from app.cli.security_commands import handle_security_command
+            subcmd = rest[0] if rest else "findings"
+            handle_security_command(subcmd, rest[1:])
         else:
             print(f"Unknown command: {cmd}")
 
