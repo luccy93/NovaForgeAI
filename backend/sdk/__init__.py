@@ -13,6 +13,7 @@ from backend.sdk.exceptions import (
 from backend.sdk.rag import RagMixin, AsyncRagMixin
 from backend.sdk.marketplace import MarketplaceMixin, AsyncMarketplaceMixin
 from backend.sdk.automation import AutomationMixin, AsyncAutomationMixin
+from backend.sdk.delivery import DeliveryMixin, AsyncDeliveryMixin
 
 __all__ = [
     "NovaForgeClient", "AsyncNovaForgeClient",
@@ -24,4 +25,5 @@ __all__ = [
     "RagMixin", "AsyncRagMixin",
     "MarketplaceMixin", "AsyncMarketplaceMixin",
     "AutomationMixin", "AsyncAutomationMixin",
+    "DeliveryMixin", "AsyncDeliveryMixin",
 ]

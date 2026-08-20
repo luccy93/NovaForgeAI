@@ -119,6 +119,8 @@ class NovaForgeCLI:
         elif cmd == "automate":
             from app.cli.automation_commands import automation_cli_main
             await automation_cli_main(rest)
+        elif cmd == "delivery":
+            await self.cmd_delivery(rest)
         else:
             print(f"Unknown command: {cmd}")
 
@@ -409,6 +411,116 @@ class NovaForgeCLI:
             self._print("Review Report", gw.review_report(rest[0]))
         else:
             print(f"Unknown evaluation sub-command: {sub}")
+
+
+    async def cmd_delivery(self, args: list[str]):
+        from app.core.database import async_session
+        from app.delivery.pipeline_service import PipelineService
+        from app.delivery.runner_service import RunnerService
+        from app.delivery.artifact_service import ArtifactService
+        from app.delivery.environment_service import EnvironmentService
+        from app.delivery.deployment_service import DeploymentService
+        from app.delivery.release_service import ReleaseService
+        from app.delivery.preview_service import PreviewService
+        from app.delivery.approval_service import ApprovalService
+
+        if not args:
+            print("Usage: delivery <sub> ...")
+            print("  subs: pipeline-create, pipeline-list, run, runners, artifacts,")
+            print("        env-create, env-list, deploy, deploy-complete, release,")
+            print("        preview, approvals")
+            return
+
+        sub = args[0]
+        rest = args[1:]
+        async with async_session() as db:
+            if sub == "pipeline-create":
+                if len(rest) < 4:
+                    print("Usage: delivery pipeline-create <tenant> <project> <repo> <name> [branch]")
+                    return
+                svc = PipelineService(db)
+                pipe = await svc.create(tenant=rest[0], project=rest[1], repository=rest[2],
+                                        name=rest[3], branch=rest[4] if len(rest) > 4 else "main")
+                await db.commit()
+                self._print("Pipeline Created", {"id": str(pipe.id), "name": pipe.name, "repo": pipe.repository})
+            elif sub == "pipeline-list":
+                svc = PipelineService(db)
+                rows, total = await svc.list_pipelines(tenant=rest[0] if rest else None)
+                self._print("Pipelines", {"count": len(rows), "total": total,
+                                          "pipelines": [{"id": str(p.id), "name": p.name, "repo": p.repository} for p in rows]})
+            elif sub == "run":
+                if len(rest) < 1:
+                    print("Usage: delivery run <pipeline_id> [commit_sha]")
+                    return
+                svc = PipelineService(db)
+                run = await svc.trigger_run(UUID(rest[0]), commit_sha=rest[1] if len(rest) > 1 else "")
+                await db.commit()
+                self._print("Run Triggered", {"id": str(run.id), "status": run.status})
+            elif sub == "runners":
+                svc = RunnerService(db)
+                rows, total = await svc.list_runners()
+                self._print("Runners", {"count": len(rows), "total": total,
+                                        "runners": [{"id": str(r.id), "name": r.name, "status": r.status} for r in rows]})
+            elif sub == "artifacts":
+                svc = ArtifactService(db)
+                rows, total = await svc.list_artifacts()
+                self._print("Artifacts", {"count": len(rows), "total": total,
+                                          "artifacts": [{"id": str(a.id), "name": a.name, "version": a.version} for a in rows]})
+            elif sub == "env-create":
+                if len(rest) < 3:
+                    print("Usage: delivery env-create <tenant> <name> <type> [region]")
+                    return
+                svc = EnvironmentService(db)
+                env = await svc.create(tenant=rest[0], name=rest[1], env_type=rest[2],
+                                       region=rest[3] if len(rest) > 3 else "default")
+                await db.commit()
+                self._print("Environment Created", {"id": str(env.id), "name": env.name, "type": env.env_type})
+            elif sub == "env-list":
+                svc = EnvironmentService(db)
+                rows = await svc.list_environments(tenant=rest[0] if rest else None)
+                self._print("Environments", {"count": len(rows),
+                                             "environments": [{"id": str(e.id), "name": e.name, "type": e.env_type} for e in rows]})
+            elif sub == "deploy":
+                if len(rest) < 1:
+                    print("Usage: delivery deploy <environment_id> [version]")
+                    return
+                svc = DeploymentService(db)
+                dep = await svc.create(tenant="cli", environment_id=UUID(rest[0]),
+                                       version=rest[1] if len(rest) > 1 else "0.0.1")
+                await db.commit()
+                self._print("Deployment Created", {"id": str(dep.id), "status": dep.status})
+            elif sub == "deploy-complete":
+                if len(rest) < 1:
+                    print("Usage: delivery deploy-complete <deployment_id>")
+                    return
+                svc = DeploymentService(db)
+                dep = await svc.complete(UUID(rest[0]))
+                await db.commit()
+                self._print("Deployment Completed", {"id": str(dep.id), "status": dep.status})
+            elif sub == "release":
+                if len(rest) < 4:
+                    print("Usage: delivery release <tenant> <project> <repo> <version>")
+                    return
+                svc = ReleaseService(db)
+                rel = await svc.create(tenant=rest[0], project=rest[1], repository=rest[2], version=rest[3])
+                await db.commit()
+                self._print("Release Created", {"id": str(rel.id), "version": rel.version, "status": rel.status})
+            elif sub == "preview":
+                if len(rest) < 3:
+                    print("Usage: delivery preview <tenant> <name> <repo> <branch>")
+                    return
+                svc = PreviewService(db)
+                prev = await svc.create(tenant=rest[0], name=rest[1], repository=rest[2],
+                                        branch=rest[3] if len(rest) > 3 else "main")
+                await db.commit()
+                self._print("Preview Created", {"id": str(prev.id), "url": prev.url, "status": prev.status})
+            elif sub == "approvals":
+                svc = ApprovalService(db)
+                rows = await svc.list_approvals()
+                self._print("Approvals", {"count": len(rows),
+                                          "approvals": [{"id": str(a.id), "decision": a.decision, "requested_by": a.requested_by} for a in rows]})
+            else:
+                print(f"Unknown delivery sub-command: {sub}")
 
 
 async def main():

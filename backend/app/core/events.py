@@ -90,6 +90,37 @@ class EventType(str, Enum):
     automation_deployment_rollback = "automation.deployment.rollback"
     automation_budget_exceeded = "automation.budget.exceeded"
 
+    # Software Delivery Platform events (Volume 46)
+    delivery_pipeline_created = "delivery.pipeline.created"
+    delivery_pipeline_run_started = "delivery.pipeline.run_started"
+    delivery_pipeline_run_completed = "delivery.pipeline.run_completed"
+    delivery_pipeline_run_failed = "delivery.pipeline.run_failed"
+    delivery_job_started = "delivery.job.started"
+    delivery_job_completed = "delivery.job.completed"
+    delivery_job_failed = "delivery.job.failed"
+    delivery_runner_registered = "delivery.runner.registered"
+    delivery_runner_quarantined = "delivery.runner.quarantined"
+    delivery_artifact_published = "delivery.artifact.published"
+    delivery_artifact_signed = "delivery.artifact.signed"
+    delivery_artifact_promoted = "delivery.artifact.promoted"
+    delivery_deployment_started = "delivery.deployment.started"
+    delivery_deployment_completed = "delivery.deployment.completed"
+    delivery_deployment_failed = "delivery.deployment.failed"
+    delivery_deployment_rollback = "delivery.deployment.rollback"
+    delivery_release_created = "delivery.release.created"
+    delivery_release_promoted = "delivery.release.promoted"
+    delivery_release_finalized = "delivery.release.finalized"
+    delivery_preview_created = "delivery.preview.created"
+    delivery_preview_destroyed = "delivery.preview.destroyed"
+    delivery_approval_requested = "delivery.approval.requested"
+    delivery_approval_granted = "delivery.approval.granted"
+    delivery_approval_rejected = "delivery.approval.rejected"
+    delivery_environment_frozen = "delivery.environment.frozen"
+    delivery_environment_locked = "delivery.environment.locked"
+    delivery_rollout_started = "delivery.rollout.started"
+    delivery_rollout_expanded = "delivery.rollout.expanded"
+    delivery_rollout_aborted = "delivery.rollout.aborted"
+
 
 class Event:
     def __init__(

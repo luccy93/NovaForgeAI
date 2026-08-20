@@ -28,6 +28,7 @@ from app.api.github_integration import router as github_router
 from app.api.code_intelligence_api import router as code_intelligence_router
 from app.api.rag_api import router as rag_router
 from app.api.automation import router as automation_router
+from app.api.delivery import router as delivery_router
 
 api_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_router.include_router(repos_router, prefix="/repositories", tags=["Repositories"])
@@ -55,4 +56,5 @@ api_router.include_router(github_router)
 api_router.include_router(code_intelligence_router, prefix="/code-intelligence", tags=["Code Intelligence"])
 api_router.include_router(rag_router, tags=["Knowledge & RAG"])
 api_router.include_router(automation_router, tags=["Autonomous Engineering"])
+api_router.include_router(delivery_router, tags=["Software Delivery Platform"])
 api_router.include_router(sre_router)
