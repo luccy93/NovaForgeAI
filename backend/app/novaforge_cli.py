@@ -112,6 +112,10 @@ class NovaForgeCLI:
             await self.cmd_automation(rest)
         elif cmd == "evaluation":
             await self.cmd_evaluation(rest)
+        elif cmd == "marketplace":
+            from app.cli.marketplace_commands import marketplace_cli_main
+
+            marketplace_cli_main(rest)
         else:
             print(f"Unknown command: {cmd}")
 

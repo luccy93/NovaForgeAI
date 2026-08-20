@@ -39,6 +39,17 @@ class EventType(str, Enum):
     plugin_uninstalled = "plugin.uninstalled"
     plugin_updated = "plugin.updated"
 
+    # Marketplace events (Volume 44) — idempotent lifecycle events.
+    marketplace_package_published = "marketplace.package.published"
+    marketplace_package_updated = "marketplace.package.updated"
+    marketplace_package_installed = "marketplace.package.installed"
+    marketplace_package_uninstalled = "marketplace.package.uninstalled"
+    marketplace_package_suspended = "marketplace.package.suspended"
+    marketplace_package_reported = "marketplace.package.reported"
+    marketplace_package_security_issue = "marketplace.package.security_issue"
+    marketplace_package_deprecated = "marketplace.package.deprecated"
+    marketplace_package_retired = "marketplace.package.retired"
+
     # SRE events (Volume 35) — idempotent operational events.
     service_degraded = "sre.service.degraded"
     service_recovered = "sre.service.recovered"

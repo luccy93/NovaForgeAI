@@ -11,6 +11,7 @@ from backend.sdk.exceptions import (
     RateLimitError, ValidationError,
 )
 from backend.sdk.rag import RagMixin, AsyncRagMixin
+from backend.sdk.marketplace import MarketplaceMixin, AsyncMarketplaceMixin
 
 __all__ = [
     "NovaForgeClient", "AsyncNovaForgeClient",
@@ -20,4 +21,5 @@ __all__ = [
     "NovaForgeError", "AuthenticationError", "NotFoundError",
     "RateLimitError", "ValidationError",
     "RagMixin", "AsyncRagMixin",
+    "MarketplaceMixin", "AsyncMarketplaceMixin",
 ]
