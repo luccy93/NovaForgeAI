@@ -46,6 +46,9 @@ except Exception as e: logger.debug("automation: %s", e)
 try:
     from app.evaluation import service as _
 except Exception as e: logger.debug("evaluation: %s", e)
+try:
+    from app.quality import service as _
+except Exception as e: logger.debug("quality: %s", e)
 
 
 class NovaForgeCLI:
@@ -125,6 +128,9 @@ class NovaForgeCLI:
             from app.cli.security_commands import handle_security_command
             subcmd = rest[0] if rest else "findings"
             handle_security_command(subcmd, rest[1:])
+        elif cmd == "quality":
+            from app.cli.quality_commands import handle_quality_command
+            handle_quality_command(rest)
         else:
             print(f"Unknown command: {cmd}")
 

@@ -140,6 +140,23 @@ class EventType(str, Enum):
     security_platform_supply_chain_violation = "security.platform.supply_chain_violation"
     security_platform_container_vulnerability = "security.platform.container_vulnerability"
 
+    # AI Software Quality Engine events (Volume 48)
+    quality_review_started = "quality.review.started"
+    quality_review_completed = "quality.review.completed"
+    quality_review_failed = "quality.review.failed"
+    quality_review_cancelled = "quality.review.cancelled"
+    quality_finding_created = "quality.finding.created"
+    quality_finding_updated = "quality.finding.updated"
+    quality_finding_acknowledged = "quality.finding.acknowledged"
+    quality_finding_fixed = "quality.finding.fixed"
+    quality_gate_passed = "quality.gate.passed"
+    quality_gate_failed = "quality.gate.failed"
+    quality_gate_blocked = "quality.gate.blocked"
+    quality_remediation_proposed = "quality.remediation.proposed"
+    quality_remediation_verified = "quality.remediation.verified"
+    quality_baseline_created = "quality.baseline.created"
+    quality_test_generated = "quality.test.generated"
+
 
 class Event:
     def __init__(
