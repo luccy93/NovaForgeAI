@@ -134,6 +134,9 @@ class NovaForgeCLI:
         elif cmd == "incident":
             from app.cli.incident_commands import handle_incident_command
             handle_incident_command(rest)
+        elif cmd == "analytics":
+            from app.cli.analytics_commands import handle_analytics_command
+            handle_analytics_command(rest)
         else:
             print(f"Unknown command: {cmd}")
 
