@@ -157,6 +157,23 @@ class EventType(str, Enum):
     quality_baseline_created = "quality.baseline.created"
     quality_test_generated = "quality.test.generated"
 
+    # Incident Response Platform events (Volume 49)
+    incident_detected = "incident.detected"
+    incident_acknowledged = "incident.acknowledged"
+    incident_triaged = "incident.triaged"
+    incident_investigating = "incident.investigating"
+    incident_mitigating = "incident.mitigating"
+    incident_monitoring = "incident.monitoring"
+    incident_resolved = "incident.resolved"
+    incident_postmortem = "incident.postmortem"
+    incident_closed = "incident.closed"
+    incident_escalated = "incident.escalated"
+    incident_action_approved = "incident.action.approved"
+    incident_action_executed = "incident.action.executed"
+    incident_runbook_executed = "incident.runbook.executed"
+    incident_anomaly_detected = "incident.anomaly.detected"
+    incident_alert_ingested = "incident.alert.ingested"
+
 
 class Event:
     def __init__(

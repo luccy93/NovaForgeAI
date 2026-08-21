@@ -131,6 +131,9 @@ class NovaForgeCLI:
         elif cmd == "quality":
             from app.cli.quality_commands import handle_quality_command
             handle_quality_command(rest)
+        elif cmd == "incident":
+            from app.cli.incident_commands import handle_incident_command
+            handle_incident_command(rest)
         else:
             print(f"Unknown command: {cmd}")
 

@@ -16,6 +16,7 @@ from backend.sdk.automation import AutomationMixin, AsyncAutomationMixin
 from backend.sdk.delivery import DeliveryMixin, AsyncDeliveryMixin
 from backend.sdk.security import SecurityMixin, AsyncSecurityMixin
 from backend.sdk.quality import QualityMixin, AsyncQualityMixin
+from backend.sdk.incident import IncidentMixin, AsyncIncidentMixin
 
 __all__ = [
     "NovaForgeClient", "AsyncNovaForgeClient",
@@ -30,4 +31,5 @@ __all__ = [
     "DeliveryMixin", "AsyncDeliveryMixin",
     "SecurityMixin", "AsyncSecurityMixin",
     "QualityMixin", "AsyncQualityMixin",
+    "IncidentMixin", "AsyncIncidentMixin",
 ]
