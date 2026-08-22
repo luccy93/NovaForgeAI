@@ -18,6 +18,8 @@ from backend.sdk.security import SecurityMixin, AsyncSecurityMixin
 from backend.sdk.quality import QualityMixin, AsyncQualityMixin
 from backend.sdk.incident import IncidentMixin, AsyncIncidentMixin
 from backend.sdk.analytics import AnalyticsMixin, AsyncAnalyticsMixin
+from backend.sdk.knowledge_graph import KnowledgeGraphMixin
+from backend.sdk.iam import IAMMixin, AsyncIAMMixin
 
 __all__ = [
     "NovaForgeClient", "AsyncNovaForgeClient",
@@ -34,4 +36,6 @@ __all__ = [
     "QualityMixin", "AsyncQualityMixin",
     "IncidentMixin", "AsyncIncidentMixin",
     "AnalyticsMixin", "AsyncAnalyticsMixin",
+    "KnowledgeGraphMixin",
+    "IAMMixin", "AsyncIAMMixin",
 ]

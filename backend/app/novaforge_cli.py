@@ -49,6 +49,12 @@ except Exception as e: logger.debug("evaluation: %s", e)
 try:
     from app.quality import service as _
 except Exception as e: logger.debug("quality: %s", e)
+try:
+    from app.knowledge_graph import entity_service as _
+except Exception as e: logger.debug("knowledge_graph: %s", e)
+try:
+    from app.iam import organization_service as _
+except Exception as e: logger.debug("iam: %s", e)
 
 
 class NovaForgeCLI:
@@ -137,6 +143,12 @@ class NovaForgeCLI:
         elif cmd == "analytics":
             from app.cli.analytics_commands import handle_analytics_command
             handle_analytics_command(rest)
+        elif cmd == "knowledge_graph":
+            from app.cli.knowledge_graph_commands import handle_knowledge_graph_command
+            handle_knowledge_graph_command(rest)
+        elif cmd == "iam":
+            from app.cli.iam_commands import handle_iam_command
+            handle_iam_command(rest)
         else:
             print(f"Unknown command: {cmd}")
 

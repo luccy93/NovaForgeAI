@@ -33,6 +33,8 @@ from app.api.security import router as security_router
 from app.api.quality import router as quality_router
 from app.api.incident import router as incident_router
 from app.api.analytics import router as analytics_router
+from app.api.knowledge_graph import router as knowledge_graph_router
+from app.api.iam import router as iam_router
 
 api_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_router.include_router(repos_router, prefix="/repositories", tags=["Repositories"])
@@ -65,4 +67,6 @@ api_router.include_router(security_router, prefix="/security", tags=["DevSecOps 
 api_router.include_router(quality_router, prefix="/quality", tags=["AI Quality Engine"])
 api_router.include_router(incident_router, prefix="/incident", tags=["Incident Response Platform"])
 api_router.include_router(analytics_router, prefix="/analytics", tags=["Unified Analytics Platform"])
+api_router.include_router(knowledge_graph_router)
+api_router.include_router(iam_router, prefix="/iam", tags=["Enterprise IAM"])
 api_router.include_router(sre_router)
