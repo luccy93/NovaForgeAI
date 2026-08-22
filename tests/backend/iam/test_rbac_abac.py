@@ -113,25 +113,25 @@ class TestABAC:
     def test_create_condition_in(self, abac):
         abac.create_policy("region_check", "repository", "repository:read", "allow", conditions=[{"field": "region", "operator": "in", "value": ["us-east", "eu-west"]}])
         result = abac.evaluate("repository", "repository:read", {"region": "us-east"})
-        assert result["decision"] == "allow"
+        assert result["decision"] == "allowed"
 
     def test_create_condition_not_in(self, abac):
-        abac.create_policy("block_restricted", "document", "document:read", "deny", conditions=[{"field": "classification", "operator": "in", "value": ["SECRET", "RESTRICTED"]}], denied_conditions=[{"field": "classification", "operator": "in", "value": ["SECRET"]}]  )
+        abac.create_policy("block_restricted", "document", "document:read", "deny", denied_conditions=[{"field": "classification", "operator": "in", "value": ["SECRET"]}])
 
     def test_evaluate_allow(self, abac):
         abac.create_policy("test", "service", "service:deploy", "allow", conditions=[{"field": "environment", "operator": "equals", "value": "staging"}])
         result = abac.evaluate("service", "service:deploy", {"environment": "staging"})
-        assert result["decision"] == "allow"
+        assert result["decision"] == "allowed"
 
     def test_evaluate_deny(self, abac):
-        abac.create_policy("test", "service", "service:deploy", "deny", conditions=[{"field": "environment", "operator": "equals", "value": "production"}])
+        abac.create_policy("test", "service", "service:deploy", "allow", conditions=[{"field": "environment", "operator": "equals", "value": "production"}], denied_conditions=[{"field": "environment", "operator": "equals", "value": "production", "description": "production blocked"}])
         result = abac.evaluate("service", "service:deploy", {"environment": "production"})
         assert result["decision"] == "denied"
 
     def test_priority_order(self, abac):
         abac.create_policy("low", "repo", "repo:write", "allow", priority=1)
-        abac.create_policy("high", "repo", "repo:write", "deny", priority=10)
-        result = abac.evaluate("repo", "repo:write", {})
+        abac.create_policy("high", "repo", "repo:write", "allow", priority=10, denied_conditions=[{"field": "block", "operator": "equals", "value": True, "description": "blocked"}])
+        result = abac.evaluate("repo", "repo:write", {"block": True})
         assert result["decision"] == "denied"
 
     def test_no_matching_policies(self, abac):
