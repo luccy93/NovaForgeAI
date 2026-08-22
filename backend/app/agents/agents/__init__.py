@@ -1,4 +1,4 @@
-"""All 20 NovaForge AI agents — registered for auto-discovery."""
+"""All NovaForge AI agents — registered for auto-discovery."""
 
 from app.agents.base import BaseAgent
 from app.agents.schemas import AgentConfig, AgentRole, RetryPolicy
@@ -22,6 +22,7 @@ from app.agents.agents.bug_investigation import BugInvestigationAgent
 from app.agents.agents.release_manager import ReleaseManagerAgent
 from app.agents.agents.compliance import ComplianceAgent
 from app.agents.agents.research import ResearchAgent
+from app.support.agent import SupportAgent
 
 
 BASE_RETRY = RetryPolicy(max_retries=3, backoff_base=2.0, max_delay=60.0)
@@ -191,5 +192,16 @@ ALL_AGENTS: list[tuple[type[BaseAgent], AgentConfig]] = [
                "Compare technology options", "Provide evidence-based recommendations"],
         model="gpt-4o", temperature=0.4, retry_policy=BASE_RETRY,
         permissions=["read", "web_search", "doc_search", "search_code"],
+    )),
+    (SupportAgent, AgentConfig(
+        name="support_agent", role=AgentRole.support, version="1.0.0",
+        description="AI customer support agent — searches knowledge, classifies tickets, assists agents",
+        goals=["Search knowledge base for relevant articles", "Classify and categorize support tickets",
+               "Generate grounded, evidence-backed responses", "Detect when human escalation is needed",
+               "Provide troubleshooting steps from approved knowledge"],
+        model="gpt-4o", temperature=0.2, retry_policy=BASE_RETRY,
+        require_human_approval=True,
+        permissions=["read", "ticket.write", "ticket.read", "knowledge.read",
+                     "billing.read", "incident.public.read"],
     )),
 ]

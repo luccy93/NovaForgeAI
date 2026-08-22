@@ -266,6 +266,22 @@ class EventType(str, Enum):
     iam_session_revoked = "iam.session.revoked"
     iam_quota_exceeded = "iam.quota.exceeded"
 
+    # Customer Support & Service Management events (Volume 54)
+    support_ticket_created = "support.ticket.created"
+    support_ticket_updated = "support.ticket.updated"
+    support_ticket_assigned = "support.ticket.assigned"
+    support_ticket_escalated = "support.ticket.escalated"
+    support_ticket_linked_to_incident = "support.ticket.linked_to_incident"
+    support_ticket_linked_to_issue = "support.ticket.linked_to_issue"
+    support_ticket_resolved = "support.ticket.resolved"
+    support_ticket_reopened = "support.ticket.reopened"
+    support_ai_response_generated = "support.ai.response_generated"
+    support_human_handoff_requested = "support.human.handoff_requested"
+    support_sla_at_risk = "support.sla.at_risk"
+    support_sla_breached = "support.sla.breached"
+    support_knowledge_gap_detected = "support.knowledge.gap_detected"
+    support_customer_feedback_received = "support.customer.feedback_received"
+
 
 class Event:
     def __init__(

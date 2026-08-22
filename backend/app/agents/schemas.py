@@ -36,6 +36,7 @@ class AgentRole(str, Enum):
     release_manager = "release_manager"
     compliance = "compliance"
     researcher = "researcher"
+    support = "support"
 
 
 class RiskLevel(str, Enum):

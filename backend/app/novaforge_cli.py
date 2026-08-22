@@ -155,6 +155,9 @@ class NovaForgeCLI:
         elif cmd == "billing":
             from app.cli.billing_commands import handle_billing_command
             handle_billing_command(rest)
+        elif cmd == "support":
+            from app.cli.support_commands import handle_support_command
+            handle_support_command(rest)
         else:
             print(f"Unknown command: {cmd}")
 
