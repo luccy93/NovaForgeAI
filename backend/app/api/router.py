@@ -35,6 +35,7 @@ from app.api.incident import router as incident_router
 from app.api.analytics import router as analytics_router
 from app.api.knowledge_graph import router as knowledge_graph_router
 from app.api.iam import router as iam_router
+from app.api.billing_v2 import router as billing_v2_router
 
 api_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_router.include_router(repos_router, prefix="/repositories", tags=["Repositories"])
@@ -69,4 +70,5 @@ api_router.include_router(incident_router, prefix="/incident", tags=["Incident R
 api_router.include_router(analytics_router, prefix="/analytics", tags=["Unified Analytics Platform"])
 api_router.include_router(knowledge_graph_router)
 api_router.include_router(iam_router, prefix="/iam", tags=["Enterprise IAM"])
+api_router.include_router(billing_v2_router, tags=["Billing Platform"])
 api_router.include_router(sre_router)

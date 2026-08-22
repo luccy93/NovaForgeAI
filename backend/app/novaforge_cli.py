@@ -55,6 +55,9 @@ except Exception as e: logger.debug("knowledge_graph: %s", e)
 try:
     from app.iam import organization_service as _
 except Exception as e: logger.debug("iam: %s", e)
+try:
+    from app.billing import plan_service as _
+except Exception as e: logger.debug("billing: %s", e)
 
 
 class NovaForgeCLI:
@@ -149,6 +152,9 @@ class NovaForgeCLI:
         elif cmd == "iam":
             from app.cli.iam_commands import handle_iam_command
             handle_iam_command(rest)
+        elif cmd == "billing":
+            from app.cli.billing_commands import handle_billing_command
+            handle_billing_command(rest)
         else:
             print(f"Unknown command: {cmd}")
 

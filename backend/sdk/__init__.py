@@ -20,6 +20,7 @@ from backend.sdk.incident import IncidentMixin, AsyncIncidentMixin
 from backend.sdk.analytics import AnalyticsMixin, AsyncAnalyticsMixin
 from backend.sdk.knowledge_graph import KnowledgeGraphMixin
 from backend.sdk.iam import IAMMixin, AsyncIAMMixin
+from backend.sdk.billing import BillingMixin, AsyncBillingMixin
 
 __all__ = [
     "NovaForgeClient", "AsyncNovaForgeClient",
@@ -38,4 +39,5 @@ __all__ = [
     "AnalyticsMixin", "AsyncAnalyticsMixin",
     "KnowledgeGraphMixin",
     "IAMMixin", "AsyncIAMMixin",
+    "BillingMixin", "AsyncBillingMixin",
 ]
