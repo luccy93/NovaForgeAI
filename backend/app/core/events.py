@@ -292,6 +292,23 @@ class EventType(str, Enum):
     support_knowledge_gap_detected = "support.knowledge.gap_detected"
     support_customer_feedback_received = "support.customer.feedback_received"
 
+    # Release Management & Progressive Delivery events (Volume 56)
+    release_created = "release.created"
+    release_validated = "release.validated"
+    release_approval_requested = "release.approval_requested"
+    release_approved = "release.approved"
+    release_rejected = "release.rejected"
+    release_deployment_started = "release.deployment_started"
+    release_canary_started = "release.canary_started"
+    release_canary_paused = "release.canary_paused"
+    release_canary_promoted = "release.canary_promoted"
+    release_promoted = "release.promoted"
+    release_rolled_back = "release.rolled_back"
+    release_failed = "release.failed"
+    release_completed = "release.completed"
+    release_feature_flag_changed = "release.feature_flag_changed"
+    release_verification_completed = "release.verification_completed"
+
 
 class Event:
     def __init__(

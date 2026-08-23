@@ -133,6 +133,9 @@ class NovaForgeCLI:
             await automation_cli_main(rest)
         elif cmd == "delivery":
             await self.cmd_delivery(rest)
+        elif cmd in ("release", "flag", "flags"):
+            from app.cli.release_commands import handle_release_command
+            handle_release_command([cmd] + rest)
         elif cmd == "security":
             from app.cli.security_commands import handle_security_command
             subcmd = rest[0] if rest else "findings"
