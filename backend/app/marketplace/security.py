@@ -52,6 +52,12 @@ PROMPT_INJECTION_PATTERNS = [
     r"developer mode|jailbreak|dtmode",
 ]
 
+# Popular slugs for typosquatting detection (evidence-backed, not exhaustive).
+POPULAR_PACKAGE_SLUGS = [
+    "react", "vue", "angular", "next", "express", "django", "flask", "requests",
+    "numpy", "pandas", "tensorflow", "pytorch", "kubernetes", "docker",
+]
+
 # Static malicious-code indicators.
 STATIC_CODE_PATTERNS = [
     (r"\bos\.system\(", "Uses os.system (arbitrary command execution)"),
@@ -85,6 +91,21 @@ SECRET_PATTERNS = [
 ]
 
 _RISK_NUMERIC = {RiskLevel.LOW: 1, RiskLevel.MEDIUM: 2, RiskLevel.HIGH: 3, RiskLevel.CRITICAL: 4}
+
+
+def _levenshtein(a: str, b: str) -> int:
+    if a == b:
+        return 0
+    if len(a) < len(b):
+        a, b = b, a
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i] + [0] * len(b)
+        for j, cb in enumerate(b, 1):
+            cost = 0 if ca == cb else 1
+            cur[j] = min(prev[j] + 1, cur[j-1] + 1, prev[j-1] + cost)
+        prev = cur
+    return prev[-1]
 
 
 def _severity_from_str(value: str) -> ScanSeverity:
@@ -220,6 +241,8 @@ class SecurityScanner:
         }
         if scan_type == ScanType.FULL:
             to_run = list(checks.values())
+            # Add typosquatting and dependency confusion as part of FULL
+            to_run.extend([self._check_typosquatting, self._check_dependency_confusion])
         else:
             to_run = [checks.get(scan_type, self._check_manifest)]
 
@@ -334,6 +357,32 @@ class SecurityScanner:
         runtime = (manifest.runtime or "").lower()
         if "container" in runtime or "docker" in runtime or "image" in (manifest.environment or {}):
             out.append(self._finding("container", ScanSeverity.HIGH, "Container-based package requires manual review", "Container images cannot be scanned automatically; manual review required", block_pub=False))
+        return out
+
+    def _check_typosquatting(self, manifest: PackageManifest) -> list[dict]:
+        out = []
+        name = (manifest.name or "").lower()
+        slug_candidate = name.replace(" ", "-").replace("_", "-")
+        for popular in POPULAR_PACKAGE_SLUGS:
+            dist = _levenshtein(slug_candidate, popular)
+            if 0 < dist <= 2 and len(slug_candidate) >= 4:
+                out.append(self._finding("typosquatting", ScanSeverity.HIGH, f"Possible typosquatting: '{manifest.name}' close to '{popular}'", f"Levenshtein distance {dist} to popular package '{popular}' — requires manual review", block_pub=False))
+                break
+        return out
+
+    def _check_dependency_confusion(self, manifest: PackageManifest) -> list[dict]:
+        out = []
+        internal_patterns = [r"^@internal/", r"^company-", r"^private-"]
+        for dep in manifest.dependencies:
+            for pat in internal_patterns:
+                if __import__("re").search(pat, dep.name):
+                    out.append(self._finding("dependency", ScanSeverity.MEDIUM, f"Potential dependency confusion: {dep.name}", "Internal-like dependency name without scoped registry — verify provenance", block_pub=False))
+                    break
+        has_secret = any(__import__("re").search(pat, __import__("json").dumps(manifest.environment or {})) for pat, _ in SECRET_PATTERNS)
+        has_network = "network:external" in (manifest.permissions or [])
+        has_fs_write = "filesystem:write" in (manifest.permissions or [])
+        if has_secret and has_network and has_fs_write:
+            out.append(self._finding("static", ScanSeverity.CRITICAL, "Composite risk: secret + network + filesystem write", "Package accesses secrets, makes external network calls, and writes to filesystem — multiple evidence sources combined", block_pub=True, block_install=True))
         return out
 
     # ── helpers ─────────────────────────────────────────────────────

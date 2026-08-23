@@ -99,6 +99,40 @@ class MarketplaceMixin:
     def marketplace_package_health(self, slug: str) -> dict:
         return self.get(self._build_url(f"/marketplace/packages/{slug}/health"))
 
+    def marketplace_package_versions(self, slug: str) -> list:
+        return self.get(self._build_url(f"/marketplace/packages/{slug}/versions"))
+
+    def marketplace_package_reputation(self, slug: str) -> dict:
+        return self.get(self._build_url(f"/marketplace/packages/{slug}/reputation"))
+
+    def marketplace_package_security(self, slug: str) -> dict:
+        return self.get(self._build_url(f"/marketplace/packages/{slug}/security"))
+
+    def marketplace_permissions(self) -> list:
+        return self.get(self._build_url("/marketplace/permissions"))
+
+    def marketplace_package_dependencies(self, slug: str) -> list:
+        return self.get(self._build_url(f"/marketplace/packages/{slug}/dependencies"))
+
+    def marketplace_emergency_blocks(self) -> list:
+        return self.get(self._build_url("/marketplace/emergency-blocks"))
+
+    def marketplace_create_emergency_block(self, target_type: str, target_id: str, reason: str) -> dict:
+        return self.post(self._build_url("/marketplace/emergency-blocks"), data={"target_type": target_type, "target_id": target_id, "reason": reason})
+
+    def marketplace_license_policies(self) -> list:
+        return self.get(self._build_url("/marketplace/license-policies"))
+
+    def marketplace_create_license_policy(self, name: str, allowed: list = None, denied: list = None) -> dict:
+        params = {"name": name}
+        if allowed:
+            import json as _j
+            params["allowed_licenses"] = _j.dumps(allowed)
+        if denied:
+            import json as _j2
+            params["denied_licenses"] = _j2.dumps(denied)
+        return self.post(self._build_url("/marketplace/license-policies"), params=params)
+
 
 class AsyncMarketplaceMixin:
     async def marketplace_search(
@@ -172,3 +206,27 @@ class AsyncMarketplaceMixin:
             self._build_url("/marketplace/configuration/validate"),
             data={"schema_fields": schema_fields, "values": values},
         )
+
+    async def marketplace_list_packages(self, package_type: Optional[str] = None, limit: int = 50, offset: int = 0) -> list:
+        params = {"limit": limit, "offset": offset}
+        if package_type:
+            params["package_type"] = package_type
+        return await self.get(self._build_url("/marketplace/packages"), params=params)
+
+    async def marketplace_categories(self) -> dict:
+        return await self.get(self._build_url("/marketplace/categories"))
+
+    async def marketplace_configure_installation(self, installation_id: str, configuration: dict) -> dict:
+        return await self.put(self._build_url(f"/marketplace/installations/{installation_id}"), data={"configuration": configuration})
+
+    async def marketplace_package_health(self, slug: str) -> dict:
+        return await self.get(self._build_url(f"/marketplace/packages/{slug}/health"))
+
+    async def marketplace_package_versions(self, slug: str) -> list:
+        return await self.get(self._build_url(f"/marketplace/packages/{slug}/versions"))
+
+    async def marketplace_permissions(self) -> list:
+        return await self.get(self._build_url("/marketplace/permissions"))
+
+    async def marketplace_package_dependencies(self, slug: str) -> list:
+        return await self.get(self._build_url(f"/marketplace/packages/{slug}/dependencies"))

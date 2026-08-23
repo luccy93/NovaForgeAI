@@ -46,6 +46,32 @@ class PackageType(str, enum.Enum):
     INTEGRATION = "integration"
     MODEL_ADAPTER = "model_adapter"
     IDE_EXTENSION = "ide_extension"
+    CODE_ANALYZER = "code_analyzer"
+    SECURITY_RULE = "security_rule"
+    CICD_TEMPLATE = "cicd_template"
+    RUNBOOK = "runbook"
+    KNOWLEDGE_PACK = "knowledge_pack"
+
+
+class ReleaseChannel(str, enum.Enum):
+    STABLE = "stable"
+    BETA = "beta"
+    CANARY = "canary"
+    EDGE = "edge"
+
+
+class ModerationStatus(str, enum.Enum):
+    PENDING_REVIEW = "pending_review"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    SUSPENDED = "suspended"
+    DELISTED = "delisted"
+
+
+class LicensePolicyAction(str, enum.Enum):
+    ALLOW = "allow"
+    DENY = "deny"
+    REVIEW_REQUIRED = "review_required"
 
 
 class PackageStatus(str, enum.Enum):
@@ -308,6 +334,13 @@ class MarketplacePackage(Base, TimestampMixin):
     homepage: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     repository_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     created_by: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    # Volume 55 additive columns (nullable for backward compat, populated via migration 0019)
+    release_channel: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    provenance: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict, nullable=True)
+    sbom: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict, nullable=True)
+    moderation_status: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    health_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    health_status: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
 
     publisher: Mapped["MarketplacePublisher"] = relationship(back_populates="packages")
     releases: Mapped[list["MarketplaceRelease"]] = relationship(
@@ -368,6 +401,12 @@ class MarketplaceRelease(Base, TimestampMixin):
     security_scan_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         Uuid(as_uuid=True), nullable=True
     )
+    release_channel: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    provenance: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict, nullable=True)
+    sbom_ref: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    is_security_update: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, nullable=True)
+    is_critical_update: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, nullable=True)
+    is_breaking_update: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, nullable=True)
 
     package: Mapped["MarketplacePackage"] = relationship(back_populates="releases")
     installations: Mapped[list["MarketplaceInstallation"]] = relationship(back_populates="release")
@@ -483,6 +522,10 @@ class MarketplaceInstallation(Base, TimestampMixin):
     canary_stage: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     region: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    dependency_lock: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict, nullable=True)
+    rollout_strategy: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    health_status: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    license_policy_status: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
 
     package: Mapped["MarketplacePackage"] = relationship(back_populates="installations")
     release: Mapped["MarketplaceRelease"] = relationship(back_populates="installations")
@@ -637,3 +680,60 @@ class MarketplacePackageUsage(Base, TimestampMixin):
     value: Mapped[float] = mapped_column(Float, nullable=False)
     environment: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+# ─── Volume 55 — Ecosystem extensions (additive) ────────────────────────
+
+
+class MarketplaceCategory(Base, TimestampMixin):
+    __tablename__ = "marketplace_categories"
+
+    slug: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid(as_uuid=True), ForeignKey("marketplace_categories.id", ondelete="SET NULL"), nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    icon: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class MarketplaceHealth(Base, TimestampMixin):
+    __tablename__ = "marketplace_health"
+
+    package_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("marketplace_packages.id", ondelete="CASCADE"), nullable=False, index=True)
+    release_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid(as_uuid=True), ForeignKey("marketplace_releases.id", ondelete="CASCADE"), nullable=True, index=True)
+    install_failures: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    runtime_failures: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    crashes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    tool_errors: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    latency_p50: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    latency_p95: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    error_rate: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    uninstall_rate: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    health_score: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    health_status: Mapped[str] = mapped_column(String(32), default="healthy", nullable=False)
+    computed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class MarketplaceEmergencyBlock(Base, TimestampMixin):
+    __tablename__ = "marketplace_emergency_blocks"
+
+    target_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)  # package|version|publisher
+    target_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    scope: Mapped[str] = mapped_column(String(32), default="global", nullable=False)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    audit_trail: Mapped[list] = mapped_column(JSONB, default=list)
+
+
+class MarketplaceLicensePolicy(Base, TimestampMixin):
+    __tablename__ = "marketplace_license_policies"
+
+    organization_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    allowed_licenses: Mapped[list] = mapped_column(JSONB, default=list)
+    denied_licenses: Mapped[list] = mapped_column(JSONB, default=list)
+    review_required_licenses: Mapped[list] = mapped_column(JSONB, default=list)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+

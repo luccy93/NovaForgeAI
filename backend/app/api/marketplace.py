@@ -88,8 +88,29 @@ CATEGORIES = [
 
 
 @router.get("/categories")
-async def list_categories():
+async def list_categories(svc: MarketplaceService = Depends(_svc)):
+    # DB-backed configurable categories with seed fallback — not hard-coded hierarchy
+    try:
+        from app.marketplace.categories import CategoryService
+        cat_svc = CategoryService(svc.db)
+        await cat_svc.ensure_seeded()
+        cats = await cat_svc.list(active_only=True)
+        if cats:
+            return [{"slug": c.slug, "name": c.name, "description": c.description} for c in cats]
+    except Exception:
+        pass
     return CATEGORIES
+
+
+@router.post("/categories", status_code=201)
+async def create_category(slug: str, name: str, description: str = "", user=Depends(_get_current_user), svc: MarketplaceService = Depends(_svc)):
+    from app.marketplace.categories import CategoryService
+    cat_svc = CategoryService(svc.db)
+    try:
+        cat = await cat_svc.create(slug=slug, name=name, description=description)
+    except ValueError as e:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return {"slug": cat.slug, "name": cat.name, "description": cat.description}
 
 
 # ─── Publishers ──────────────────────────────────────────────────────
@@ -432,6 +453,114 @@ async def package_health(slug: str, svc: MarketplaceService = Depends(_svc)):
     if not pkg:
         _not_found("Package not found")
     return await svc.analytics.package_health(pkg.id)
+
+
+# ─── Ecosystem extensions (Volume 55) ─────────────────────────────────
+
+
+@router.get("/packages/{slug}/versions", response_model=list[ReleaseOut])
+async def list_package_versions(slug: str, svc: MarketplaceService = Depends(_svc)):
+    # Alias to releases — published versions are immutable
+    pkg = await svc.packages.get_by_slug(slug)
+    if not pkg:
+        _not_found("Package not found")
+    from app.marketplace.models import MarketplaceRelease
+    res = await svc.db.execute(select(MarketplaceRelease).where(MarketplaceRelease.package_id == pkg.id).order_by(MarketplaceRelease.created_at.desc()))
+    return [ReleaseOut.model_validate(r) for r in res.scalars().all()]
+
+
+@router.get("/permissions", response_model=list[dict])
+async def list_permissions():
+    from app.marketplace.manifest import PERMISSION_CATALOG
+    return [{"key": k, **v, "risk_level": v["risk_level"].value if hasattr(v["risk_level"], "value") else str(v["risk_level"])} for k, v in PERMISSION_CATALOG.items()]
+
+
+@router.get("/packages/{slug}/dependencies", response_model=list[dict])
+async def list_dependencies(slug: str, svc: MarketplaceService = Depends(_svc)):
+    pkg = await svc.packages.get_by_slug(slug)
+    if not pkg:
+        _not_found("Package not found")
+    from app.marketplace.models import MarketplaceDependency
+    res = await svc.db.execute(select(MarketplaceDependency).where(MarketplaceDependency.package_id == pkg.id))
+    rows = res.scalars().all()
+    return [{"depends_on_slug": r.depends_on_slug, "constraint": r.constraint, "dependency_type": r.dependency_type.value} for r in rows]
+
+
+@router.get("/packages/{slug}/reputation", response_model=dict)
+async def get_reputation(slug: str, svc: MarketplaceService = Depends(_svc)):
+    pkg = await svc.packages.get_by_slug(slug)
+    if not pkg:
+        _not_found("Package not found")
+    from app.marketplace.models import MarketplacePublisher
+    from app.marketplace.reputation import compute_reputation
+    from app.marketplace.health_service import HealthService
+    pub = await svc.db.get(MarketplacePublisher, pkg.publisher_id) if pkg.publisher_id else None
+    health_svc = HealthService(svc.db)
+    health = await health_svc.get_health(str(pkg.id))
+    hs = health.health_score if health else None
+    rep = compute_reputation(pkg, pub, health_score=hs)
+    return rep
+
+
+@router.get("/packages/{slug}/security", response_model=dict)
+async def get_security_status(slug: str, svc: MarketplaceService = Depends(_svc)):
+    pkg = await svc.packages.get_by_slug(slug)
+    if not pkg:
+        _not_found("Package not found")
+    spec_status = {"pending": "UNKNOWN", "in_progress": "SCANNING", "passed": "PASSED", "failed": "BLOCKED", "waived": "WARNING"}.get(pkg.security_status.value, pkg.security_status.value)
+    return {"package_id": str(pkg.id), "security_status": pkg.security_status.value, "spec_status": spec_status, "governance_status": pkg.governance_status.value}
+
+
+@router.post("/emergency-blocks", response_model=dict, status_code=201)
+async def create_emergency_block(target_type: str, target_id: str, reason: str, scope: str = "global", expires_at: Optional[str] = None, user=Depends(_get_current_user), svc: MarketplaceService = Depends(_svc)):
+    from app.marketplace.emergency_block import EmergencyBlockService
+    from datetime import datetime
+    svc2 = EmergencyBlockService(svc.db)
+    exp = datetime.fromisoformat(expires_at) if expires_at else None
+    block = await svc2.create_block(target_type=target_type, target_id=target_id, reason=reason, scope=scope, expires_at=exp, created_by=str(user.id))
+    return {"id": str(block.id), "target_type": block.target_type, "target_id": block.target_id, "reason": block.reason, "scope": block.scope}
+
+
+@router.get("/emergency-blocks", response_model=list[dict])
+async def list_emergency_blocks(user=Depends(_get_current_user), svc: MarketplaceService = Depends(_svc)):
+    from app.marketplace.emergency_block import EmergencyBlockService
+    svc2 = EmergencyBlockService(svc.db)
+    blocks = await svc2.list_blocks(active_only=True)
+    return [{"id": str(b.id), "target_type": b.target_type, "target_id": b.target_id, "reason": b.reason, "scope": b.scope} for b in blocks]
+
+
+@router.delete("/emergency-blocks/{block_id}", response_model=dict)
+async def delete_emergency_block(block_id: str, user=Depends(_get_current_user), svc: MarketplaceService = Depends(_svc)):
+    from app.marketplace.emergency_block import EmergencyBlockService
+    svc2 = EmergencyBlockService(svc.db)
+    block = await svc2.remove_block(block_id, removed_by=str(user.id))
+    if not block:
+        _not_found("Block not found")
+    return {"deleted": block_id}
+
+
+@router.post("/license-policies", response_model=dict, status_code=201)
+async def create_license_policy(name: str, allowed_licenses: Optional[str] = None, denied_licenses: Optional[str] = None, review_required_licenses: Optional[str] = None, user=Depends(_get_current_user), svc: MarketplaceService = Depends(_svc)):
+    from app.marketplace.license_policy import LicensePolicyService
+    import json as _json
+    svc2 = LicensePolicyService(svc.db)
+    def parse(s):
+        if not s:
+            return []
+        try:
+            return _json.loads(s) if s.startswith("[") else [x.strip() for x in s.split(",")]
+        except Exception:
+            return [s]
+    pol = await svc2.create_policy(str(_org_id(user)), name, allowed_licenses=parse(allowed_licenses), denied_licenses=parse(denied_licenses), review_required_licenses=parse(review_required_licenses))
+    return {"id": str(pol.id), "name": pol.name}
+
+
+@router.get("/license-policies", response_model=list[dict])
+async def list_license_policies(user=Depends(_get_current_user), svc: MarketplaceService = Depends(_svc)):
+    from app.marketplace.license_policy import LicensePolicyService
+    svc2 = LicensePolicyService(svc.db)
+    rows = await svc2.list_policies(str(_org_id(user)))
+    return [{"id": str(r.id), "name": r.name, "allowed": r.allowed_licenses, "denied": r.denied_licenses} for r in rows]
 
 
 # ─── Admin ──────────────────────────────────────────────────────────

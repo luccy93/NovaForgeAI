@@ -252,11 +252,35 @@ class ManifestResourceLimits(BaseModel):
 class ManifestCompatibility(BaseModel):
     novaforge_version: Optional[str] = Field(None, max_length=64)
     runtime: Optional[str] = Field(None, max_length=64)
+    runtime_version: Optional[str] = Field(None, max_length=64)
+    sdk_version: Optional[str] = Field(None, max_length=64)
     os: Optional[list[str]] = None
     arch: Optional[list[str]] = None
     ide_version: Optional[str] = Field(None, max_length=64)
     api_version: Optional[str] = Field(None, max_length=64)
+    sdk_version_constraint: Optional[str] = Field(None, max_length=64)
     dependency_versions: Optional[dict] = None
+    environment: Optional[list[str]] = None
+
+
+class ManifestHealthCheck(BaseModel):
+    endpoint: Optional[str] = Field(None, max_length=512)
+    interval_seconds: Optional[int] = Field(None, ge=5, le=86400)
+    timeout_seconds: Optional[int] = Field(None, ge=1, le=300)
+    healthy_threshold: Optional[int] = Field(None, ge=1, le=10)
+    unhealthy_threshold: Optional[int] = Field(None, ge=1, le=10)
+
+
+class ManifestNetworkPolicy(BaseModel):
+    outbound: Optional[str] = Field("deny", pattern="^(allow|deny|restricted)$")
+    allowed_hosts: list[str] = Field(default_factory=list)
+    requires_approval: bool = False
+
+
+class ManifestStoragePolicy(BaseModel):
+    persistent: bool = False
+    size_limit: Optional[str] = Field(None, max_length=20)
+    mount_path: Optional[str] = Field(None, max_length=255)
 
 
 class PackageManifest(BaseModel):
@@ -277,6 +301,11 @@ class PackageManifest(BaseModel):
     resources: ManifestResourceLimits = Field(default_factory=ManifestResourceLimits)
     compatibility: ManifestCompatibility = Field(default_factory=ManifestCompatibility)
     security_requirements: dict = Field(default_factory=dict)
+    network: ManifestNetworkPolicy = Field(default_factory=ManifestNetworkPolicy)
+    storage: ManifestStoragePolicy = Field(default_factory=ManifestStoragePolicy)
+    secrets: list[str] = Field(default_factory=list)
+    healthcheck: Optional[ManifestHealthCheck] = None
+    release_channel: str = Field("stable", pattern="^(stable|beta|canary|edge)$")
     description: str = Field("", max_length=4000)
     homepage: Optional[str] = Field(None, max_length=512)
     repository: Optional[str] = Field(None, max_length=512)

@@ -14,10 +14,13 @@ from app.marketplace.models import (
     DependencyType,
     EnvironmentType,
     InstallationStatus,
+    LicensePolicyAction,
+    ModerationStatus,
     PackageStatus,
     PackageType,
     PricingType,
     PublisherType,
+    ReleaseChannel,
     ReportStatus,
     ReportType,
     ReviewStatus,
@@ -91,6 +94,9 @@ class PackageCreate(BaseModel):
     icon_url: Optional[str] = None
     homepage: Optional[str] = None
     repository_url: Optional[str] = None
+    release_channel: str = Field("stable", pattern="^(stable|beta|canary|edge)$")
+    provenance: dict = Field(default_factory=dict)
+    sbom: dict = Field(default_factory=dict)
 
 
 class PackageUpdate(BaseModel):
@@ -149,6 +155,12 @@ class PackageOut(BaseModel):
     icon_url: Optional[str]
     homepage: Optional[str]
     repository_url: Optional[str]
+    release_channel: Optional[str] = None
+    provenance: Optional[dict] = None
+    sbom: Optional[dict] = None
+    moderation_status: Optional[str] = None
+    health_score: Optional[float] = None
+    health_status: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -173,6 +185,12 @@ class ReleaseCreate(BaseModel):
     changelog: str = ""
     build_metadata: dict = Field(default_factory=dict)
     yank: bool = False
+    release_channel: str = Field("stable", pattern="^(stable|beta|canary|edge)$")
+    provenance: dict = Field(default_factory=dict)
+    sbom_ref: Optional[str] = None
+    is_security_update: bool = False
+    is_critical_update: bool = False
+    is_breaking_update: bool = False
 
 
 class ReleaseOut(BaseModel):
@@ -189,6 +207,12 @@ class ReleaseOut(BaseModel):
     changelog: str
     is_yanked: bool
     published_at: Optional[datetime]
+    release_channel: Optional[str] = None
+    provenance: Optional[dict] = None
+    sbom_ref: Optional[str] = None
+    is_security_update: Optional[bool] = None
+    is_critical_update: Optional[bool] = None
+    is_breaking_update: Optional[bool] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -206,6 +230,8 @@ class InstallationCreate(BaseModel):
     configuration: dict = Field(default_factory=dict)
     region: Optional[str] = None
     canary: bool = False
+    dependency_lock: dict = Field(default_factory=dict)
+    rollout_strategy: str = Field("manual", pattern="^(manual|all-at-once|staged|canary)$")
 
 
 class InstallationUpdate(BaseModel):
@@ -238,6 +264,10 @@ class InstallationOut(BaseModel):
     canary_stage: Optional[str]
     region: Optional[str]
     last_error: Optional[str]
+    dependency_lock: Optional[dict] = None
+    rollout_strategy: Optional[str] = None
+    health_status: Optional[str] = None
+    license_policy_status: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -378,3 +408,95 @@ class PaginatedPackages(BaseModel):
     total: int
     limit: int
     offset: int
+
+# ─── Volume 55 — Ecosystem extensions ─────────────────────────────────
+
+
+class CategoryOut(BaseModel):
+    id: uuid.UUID
+    slug: str
+    name: str
+    description: str
+    parent_id: Optional[uuid.UUID] = None
+    sort_order: int = 0
+    is_active: bool = True
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CategoryCreate(BaseModel):
+    slug: str = Field(..., pattern="^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$")
+    name: str = Field(..., min_length=1, max_length=128)
+    description: str = Field("", max_length=500)
+    parent_id: Optional[uuid.UUID] = None
+    sort_order: int = 0
+
+
+class HealthOut(BaseModel):
+    id: uuid.UUID
+    package_id: uuid.UUID
+    release_id: Optional[uuid.UUID] = None
+    health_score: float
+    health_status: str
+    error_rate: float
+    install_failures: int
+    runtime_failures: int
+    computed_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class EmergencyBlockCreate(BaseModel):
+    target_type: str = Field(..., pattern="^(package|version|publisher)$")
+    target_id: str = Field(..., min_length=1, max_length=128)
+    reason: str = Field(..., min_length=1, max_length=500)
+    scope: str = Field("global", pattern="^(global|organization)$")
+    expires_at: Optional[datetime] = None
+
+
+class EmergencyBlockOut(BaseModel):
+    id: uuid.UUID
+    target_type: str
+    target_id: str
+    reason: str
+    scope: str
+    expires_at: Optional[datetime] = None
+    created_by: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class LicensePolicyCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=128)
+    allowed_licenses: list[str] = Field(default_factory=list)
+    denied_licenses: list[str] = Field(default_factory=list)
+    review_required_licenses: list[str] = Field(default_factory=list)
+    is_active: bool = True
+
+
+class LicensePolicyOut(BaseModel):
+    id: uuid.UUID
+    organization_id: str
+    name: str
+    allowed_licenses: list
+    denied_licenses: list
+    review_required_licenses: list
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ReputationOut(BaseModel):
+    package_id: uuid.UUID
+    reputation_score: float
+    health_score: Optional[float] = None
+    security_status: str
+    install_count: int
+    rating: float
+    verified: bool
+

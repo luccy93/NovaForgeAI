@@ -154,6 +154,24 @@ class MarketplaceCLICommands:
         print(_green("manifest valid"))
         return True
 
+    async def security(self, args, verbose=False):
+        data = await self._request("GET", f"/api/v1/marketplace/packages/{args.slug}/security", verbose=verbose)
+        if args.json:
+            _print_json(data)
+        else:
+            print(f"security for {args.slug}: {data.get('security_status')} (spec={data.get('spec_status')})")
+            _print_json(data) if args.verbose else None
+        return data
+
+    async def permissions(self, args, verbose=False):
+        data = await self._request("GET", "/api/v1/marketplace/permissions", verbose=verbose)
+        if args.json:
+            _print_json(data)
+        else:
+            for perm in data:
+                print(f"{perm['key']} [{perm['risk_level']}] {'privileged' if perm['privileged'] else ''} - {perm['description'][:60]}")
+        return data
+
 
 def _build_parser():
     p = argparse.ArgumentParser(prog="nova marketplace", description="NovaForge Marketplace CLI")
@@ -172,6 +190,8 @@ def _build_parser():
     sp = sub.add_parser("rollback"); sp.add_argument("installation_id"); sp.add_argument("version"); sp.add_argument("--emergency", action="store_true")
     sp = sub.add_parser("publish"); sp.add_argument("slug"); sp.add_argument("manifest"); sp.add_argument("version"); sp.add_argument("--changelog", default=""); sp.add_argument("--artifacts", default=None)
     sp = sub.add_parser("validate"); sp.add_argument("manifest")
+    sp = sub.add_parser("security"); sp.add_argument("slug")
+    sp = sub.add_parser("permissions")
     return p
 
 
@@ -181,6 +201,7 @@ async def _dispatch(args):
         "search": cli.search, "info": cli.info, "list": cli.list_,
         "install": cli.install, "uninstall": cli.uninstall, "update": cli.update,
         "rollback": cli.rollback, "publish": cli.publish, "validate": cli.validate,
+        "security": cli.security, "permissions": cli.permissions,
     }
     return await handlers[args.command](args, verbose=args.verbose)
 

@@ -136,5 +136,6 @@ class CatalogService:
             return [desc(pkg.created_at)]
         if sort == "name":
             return [pkg.name]
-        # relevance (featured first, then installs)
-        return [desc(pkg.featured), desc(pkg.install_count)]
+        # relevance: weighted mix (featured, rating, installs, updated) — not solely popularity
+        # 40% relevance signal would be semantic embedding in prod; here we blend rating+installs+recency
+        return [desc(pkg.featured), desc(pkg.average_rating), desc(pkg.install_count), desc(pkg.updated_at)]

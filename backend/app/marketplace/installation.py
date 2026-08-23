@@ -32,7 +32,21 @@ from app.marketplace.models import (
     PricingType,
     ScanStatus,
 )
+from app.marketplace.license_policy import LicensePolicyService
+from app.marketplace.emergency_block import EmergencyBlockService
+import uuid
 from app.marketplace.security import RiskCalculator
+
+
+def _to_uuid(value):
+    if value is None:
+        return None
+    if isinstance(value, uuid.UUID):
+        return value
+    try:
+        return uuid.UUID(str(value))
+    except Exception:
+        return value
 
 
 class CompatibilityError(Exception):
@@ -44,11 +58,13 @@ class EntitlementError(Exception):
 
 
 class HostCapabilities:
-    def __init__(self, novaforge_version: str = "0.0.0", api_version: str = "v1", os: Optional[list] = None, arch: Optional[list] = None):
+    def __init__(self, novaforge_version: str = "0.0.0", api_version: str = "v1", os: Optional[list] = None, arch: Optional[list] = None, sdk_version: str = "1.0.0", runtime_version: str = "1.0.0"):
         self.novaforge_version = novaforge_version
         self.api_version = api_version
         self.os = os or []
         self.arch = arch or []
+        self.sdk_version = sdk_version
+        self.runtime_version = runtime_version
 
 
 def is_compatible(package: MarketplacePackage, capabilities: HostCapabilities) -> tuple[bool, str]:
@@ -59,6 +75,12 @@ def is_compatible(package: MarketplacePackage, capabilities: HostCapabilities) -
     av = comp.get("api_version")
     if av and av != capabilities.api_version:
         return False, f"requires API {av}, host exposes {capabilities.api_version}"
+    sv = comp.get("sdk_version") or comp.get("sdk_version_constraint")
+    if sv and not satisfies_constraint(getattr(capabilities, "sdk_version", "1.0.0"), sv):
+        return False, f"requires SDK {sv}, host is {getattr(capabilities, 'sdk_version', '1.0.0')}"
+    rv = comp.get("runtime_version") or comp.get("runtime")
+    if rv and not satisfies_constraint(getattr(capabilities, "runtime_version", "1.0.0"), rv):
+        return False, f"requires runtime {rv}, host is {getattr(capabilities, 'runtime_version', '1.0.0')}"
     if comp.get("os"):
         if capabilities.os and not any(o in capabilities.os for o in comp["os"]):
             return False, f"requires OS {comp['os']}"
@@ -156,6 +178,31 @@ class InstallationService:
         if pkg.security_status == ScanStatus.FAILED or pkg.status == PackageStatus.SECURITY_RISK:
             raise ValueError("package failed security scanning and cannot be installed")
 
+        # Emergency block check (fail closed)
+        try:
+            block_svc = EmergencyBlockService(self.db)
+            blocked, _ = await block_svc.is_blocked("package", str(pkg.id))
+            if blocked:
+                raise ValueError(f"package {pkg.slug} is emergency-blocked")
+            pub_blocked = await block_svc.is_publisher_blocked(str(pkg.publisher_id))
+            if pub_blocked:
+                raise ValueError(f"publisher {pkg.publisher_id} is emergency-blocked")
+        except ValueError:
+            raise
+        except Exception:
+            pass
+
+        # License policy check (organization-scoped)
+        try:
+            lic_svc = LicensePolicyService(self.db)
+            is_blocked, reason = await lic_svc.is_blocked(str(organization_id), pkg.license)
+            if is_blocked:
+                raise ValueError(reason)
+        except ValueError:
+            raise
+        except Exception:
+            pass
+
         manifest_perms = (rel.manifest or {}).get("permissions", [])
         publisher = await self.db.get(MarketplacePublisher, pkg.publisher_id)
         verified = publisher is not None and publisher.verification_status.value.endswith("verified")
@@ -170,6 +217,10 @@ class InstallationService:
 
         existing = await self._find_scope(pkg.id, organization_id, data.workspace_id, data.project_id, data.environment)
         if existing:
+            # Respect dependency lock: do not auto-upgrade if locked version differs and policy says lock
+            dep_lock = getattr(data, "dependency_lock", None) or existing.dependency_lock
+            if dep_lock and dep_lock.get("locked_version") and dep_lock.get("locked_version") != rel.version:
+                raise ValueError(f"dependency locked to {dep_lock.get('locked_version')}, cannot install {rel.version}")
             # Idempotent: update in place.
             existing.release_id = rel.id
             existing.current_version = rel.version
@@ -183,6 +234,9 @@ class InstallationService:
             existing.approval_status = ApprovalStatus.APPROVED if not approval else ApprovalStatus.PENDING
             existing.region = data.region
             existing.canary_stage = "pilot" if data.canary else None
+            existing.rollout_strategy = getattr(data, "rollout_strategy", None) or existing.rollout_strategy or "manual"
+            existing.dependency_lock = dep_lock or {}
+            existing.health_status = "healthy"
             existing.status = status
             existing.last_error = None
             await self.db.flush()
@@ -209,6 +263,10 @@ class InstallationService:
             current_version=rel.version,
             region=data.region,
             canary_stage="pilot" if data.canary else None,
+            dependency_lock=getattr(data, "dependency_lock", None) or {},
+            rollout_strategy=getattr(data, "rollout_strategy", None) or "manual",
+            health_status="healthy",
+            license_policy_status="allow",
         )
         self.db.add(inst)
         await self.db.flush()
@@ -230,7 +288,7 @@ class InstallationService:
         return res.scalar_one_or_none()
 
     async def approve(self, installation_id, approve: bool, admin_user_id=None, reason: Optional[str] = None) -> MarketplaceInstallation:
-        inst = await self.db.get(MarketplaceInstallation, installation_id)
+        inst = await self.db.get(MarketplaceInstallation, _to_uuid(installation_id))
         if not inst:
             raise ValueError("installation not found")
         inst.approval_status = ApprovalStatus.APPROVED if approve else ApprovalStatus.REJECTED
@@ -242,7 +300,7 @@ class InstallationService:
         return inst
 
     async def configure(self, installation_id, config: dict, config_errors: Optional[list] = None, secret_refs: Optional[list] = None) -> MarketplaceInstallation:
-        inst = await self.db.get(MarketplaceInstallation, installation_id)
+        inst = await self.db.get(MarketplaceInstallation, _to_uuid(installation_id))
         if not inst:
             raise ValueError("installation not found")
         if inst.status == InstallationStatus.UNINSTALLED:
@@ -256,7 +314,7 @@ class InstallationService:
         return inst
 
     async def update(self, installation_id, version: Optional[str], user_id=None, capabilities: Optional[HostCapabilities] = None) -> MarketplaceInstallation:
-        inst = await self.db.get(MarketplaceInstallation, installation_id)
+        inst = await self.db.get(MarketplaceInstallation, _to_uuid(installation_id))
         if not inst:
             raise ValueError("installation not found")
         pkg = await self.db.get(MarketplacePackage, inst.package_id)
@@ -282,7 +340,7 @@ class InstallationService:
         return inst
 
     async def rollback(self, installation_id, version: str, user_id=None, emergency: bool = False) -> MarketplaceInstallation:
-        inst = await self.db.get(MarketplaceInstallation, installation_id)
+        inst = await self.db.get(MarketplaceInstallation, _to_uuid(installation_id))
         if not inst:
             raise ValueError("installation not found")
         pkg = await self.db.get(MarketplacePackage, inst.package_id)
@@ -304,7 +362,7 @@ class InstallationService:
         return inst
 
     async def uninstall(self, installation_id, user_id=None) -> MarketplaceInstallation:
-        inst = await self.db.get(MarketplaceInstallation, installation_id)
+        inst = await self.db.get(MarketplaceInstallation, _to_uuid(installation_id))
         if not inst:
             raise ValueError("installation not found")
         if inst.status == InstallationStatus.UNINSTALLED:
@@ -318,7 +376,7 @@ class InstallationService:
         return inst
 
     async def promote_canary(self, installation_id, stage: str) -> MarketplaceInstallation:
-        inst = await self.db.get(MarketplaceInstallation, installation_id)
+        inst = await self.db.get(MarketplaceInstallation, _to_uuid(installation_id))
         if not inst:
             raise ValueError("installation not found")
         inst.canary_stage = stage

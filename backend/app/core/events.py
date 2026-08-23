@@ -49,6 +49,16 @@ class EventType(str, Enum):
     marketplace_package_security_issue = "marketplace.package.security_issue"
     marketplace_package_deprecated = "marketplace.package.deprecated"
     marketplace_package_retired = "marketplace.package.retired"
+    # Volume 55 ecosystem extensions
+    marketplace_package_created = "marketplace.package.created"
+    marketplace_version_published = "marketplace.version.published"
+    marketplace_scan_started = "marketplace.scan.started"
+    marketplace_scan_completed = "marketplace.scan.completed"
+    marketplace_package_approved = "marketplace.package.approved"
+    marketplace_package_rejected = "marketplace.package.rejected"
+    marketplace_package_install_failed = "marketplace.package.install_failed"
+    marketplace_package_updated_v2 = "marketplace.package.updated_v2"
+    marketplace_package_rolled_back = "marketplace.package.rolled_back"
 
     # SRE events (Volume 35) — idempotent operational events.
     service_degraded = "sre.service.degraded"
