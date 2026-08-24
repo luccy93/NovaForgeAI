@@ -136,6 +136,9 @@ class NovaForgeCLI:
         elif cmd in ("release", "flag", "flags"):
             from app.cli.release_commands import handle_release_command
             handle_release_command([cmd] + rest)
+        elif cmd == "governance":
+            from app.cli.datagov_commands import handle_datagov_command
+            handle_datagov_command(rest)
         elif cmd == "security":
             from app.cli.security_commands import handle_security_command
             subcmd = rest[0] if rest else "findings"

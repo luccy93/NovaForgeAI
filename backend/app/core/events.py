@@ -309,6 +309,23 @@ class EventType(str, Enum):
     release_feature_flag_changed = "release.feature_flag_changed"
     release_verification_completed = "release.verification_completed"
 
+    # Data Governance events (Volume 57)
+    governance_data_asset_discovered = "governance.asset.discovered"
+    governance_data_classified = "governance.data.classified"
+    governance_lineage_updated = "governance.lineage.updated"
+    governance_retention_violation_detected = "governance.retention.violation"
+    governance_data_request_created = "governance.request.created"
+    governance_export_completed = "governance.export.completed"
+    governance_policy_violation_detected = "governance.policy.violation"
+    governance_control_status_changed = "governance.control.status_changed"
+    governance_evidence_collected = "governance.evidence.collected"
+    governance_legal_hold_created = "governance.legal_hold.created"
+    governance_exception_expired = "governance.exception.expired"
+    governance_dlp_violation_detected = "governance.dlp.violation"
+    data_redacted = "governance.data.redacted"
+    data_export_requested = "governance.data.export_requested"
+    data_export_approved = "governance.data.export_approved"
+
 
 class Event:
     def __init__(

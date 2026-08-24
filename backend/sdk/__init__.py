@@ -23,6 +23,7 @@ from backend.sdk.iam import IAMMixin, AsyncIAMMixin
 from backend.sdk.billing import BillingMixin, AsyncBillingMixin
 from backend.sdk.support import SupportMixin, AsyncSupportMixin
 from backend.sdk.release import ReleaseMixin, AsyncReleaseMixin
+from backend.sdk.datagov import GovernanceMixin, AsyncGovernanceMixin
 
 __all__ = [
     "NovaForgeClient", "AsyncNovaForgeClient",
@@ -44,4 +45,5 @@ __all__ = [
     "BillingMixin", "AsyncBillingMixin",
     "SupportMixin", "AsyncSupportMixin",
     "ReleaseMixin", "AsyncReleaseMixin",
+    "GovernanceMixin", "AsyncGovernanceMixin",
 ]
