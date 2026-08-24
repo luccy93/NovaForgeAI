@@ -139,6 +139,9 @@ class NovaForgeCLI:
         elif cmd == "governance":
             from app.cli.datagov_commands import handle_datagov_command
             handle_datagov_command(rest)
+        elif cmd == "ai":
+            from app.cli.aiml_commands import handle_aiml_command
+            handle_aiml_command(rest)
         elif cmd == "security":
             from app.cli.security_commands import handle_security_command
             subcmd = rest[0] if rest else "findings"

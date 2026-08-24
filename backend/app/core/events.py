@@ -326,6 +326,26 @@ class EventType(str, Enum):
     data_export_requested = "governance.data.export_requested"
     data_export_approved = "governance.data.export_approved"
 
+    # AI Governance & MLOps events (Volume 58)
+    ai_model_registered = "ai.model.registered"
+    ai_model_version_created = "ai.model.version_created"
+    ai_evaluation_started = "ai.evaluation.started"
+    ai_evaluation_completed = "ai.evaluation.completed"
+    ai_model_approved = "ai.model.approved"
+    ai_model_blocked = "ai.model.blocked"
+    ai_model_deployed = "ai.model.deployed"
+    ai_canary_started = "ai.canary.started"
+    ai_canary_promoted = "ai.canary.promoted"
+    ai_model_rolled_back = "ai.model.rolled_back"
+    ai_prompt_version_created = "ai.prompt.version_created"
+    ai_guardrail_triggered = "ai.guardrail.triggered"
+    ai_policy_denied = "ai.policy.denied"
+    ai_policy_approval_required = "ai.policy.approval_required"
+    ai_drift_detected = "ai.drift.detected"
+    ai_incident_detected = "ai.incident.detected"
+    ai_risk_created = "ai.risk.created"
+    ai_model_retired = "ai.model.retired"
+
 
 class Event:
     def __init__(
