@@ -276,7 +276,11 @@ class ObservabilityPlatform:
         return alert
 
     async def acknowledge_alert(self, db: AsyncSession, tenant: str, alert_id: str, actor: str) -> ObservabilityAlert:
-        alert = await db.get(ObservabilityAlert, alert_id)
+        try:
+            aid = uuid.UUID(str(alert_id))
+        except Exception:
+            raise ValueError(f"invalid alert_id {alert_id}")
+        alert = await db.get(ObservabilityAlert, aid)
         if not alert or alert.tenant != tenant:
             raise ValueError("alert not found")
         if alert.status != "FIRING":
@@ -286,7 +290,11 @@ class ObservabilityPlatform:
         return alert
 
     async def suppress_alert(self, db: AsyncSession, tenant: str, alert_id: str, reason: str) -> ObservabilityAlert:
-        alert = await db.get(ObservabilityAlert, alert_id)
+        try:
+            aid = uuid.UUID(str(alert_id))
+        except Exception:
+            raise ValueError(f"invalid alert_id {alert_id}")
+        alert = await db.get(ObservabilityAlert, aid)
         if not alert or alert.tenant != tenant:
             raise ValueError("alert not found")
         alert.status = "SUPPRESSED"
@@ -297,7 +305,11 @@ class ObservabilityPlatform:
         return alert
 
     async def resolve_alert(self, db: AsyncSession, tenant: str, alert_id: str, actor: str) -> ObservabilityAlert:
-        alert = await db.get(ObservabilityAlert, alert_id)
+        try:
+            aid = uuid.UUID(str(alert_id))
+        except Exception:
+            raise ValueError(f"invalid alert_id {alert_id}")
+        alert = await db.get(ObservabilityAlert, aid)
         if not alert or alert.tenant != tenant:
             raise ValueError("alert not found")
         alert.status = "RESOLVED"
@@ -306,7 +318,11 @@ class ObservabilityPlatform:
         return alert
 
     async def correlate_alerts(self, db: AsyncSession, tenant: str, alert_id: str, window_minutes: int = 15) -> dict:
-        alert = await db.get(ObservabilityAlert, alert_id)
+        try:
+            aid = uuid.UUID(str(alert_id))
+        except Exception:
+            raise ValueError(f"invalid alert_id {alert_id}")
+        alert = await db.get(ObservabilityAlert, aid)
         if not alert or alert.tenant != tenant:
             raise ValueError("alert not found")
         since = _now() - timedelta(minutes=window_minutes)
@@ -357,7 +373,11 @@ class ObservabilityPlatform:
         return {"window_hours": window_hours, "total": len(alerts), "duplicates": duplicates, "high_frequency": high_freq, "flapping": flapping, "recommendations": recommendations}
 
     async def route_alert(self, db: AsyncSession, tenant: str, alert_id: str) -> dict:
-        alert = await db.get(ObservabilityAlert, alert_id)
+        try:
+            aid = uuid.UUID(str(alert_id))
+        except Exception:
+            raise ValueError(f"invalid alert_id {alert_id}")
+        alert = await db.get(ObservabilityAlert, aid)
         if not alert or alert.tenant != tenant:
             raise ValueError("alert not found")
         # Reuse on-call via Volume 49
@@ -381,7 +401,11 @@ class ObservabilityPlatform:
         return slo
 
     async def evaluate_slo(self, db: AsyncSession, tenant: str, slo_id: str, observed: float) -> dict:
-        slo = await db.get(ObservabilitySLO, slo_id)
+        try:
+            sid = uuid.UUID(str(slo_id))
+        except Exception:
+            raise ValueError(f"invalid slo_id {slo_id}")
+        slo = await db.get(ObservabilitySLO, sid)
         if not slo or slo.tenant != tenant:
             raise ValueError("slo not found")
         remaining = slo.target - observed if slo.indicator == "availability" else slo.target - observed
@@ -425,7 +449,11 @@ class ObservabilityPlatform:
         return chk
 
     async def run_synthetic_check(self, db: AsyncSession, tenant: str, check_id: str) -> dict:
-        chk = await db.get(ObservabilitySyntheticCheck, check_id)
+        try:
+            cid = uuid.UUID(str(check_id))
+        except Exception:
+            raise ValueError(f"invalid check_id {check_id}")
+        chk = await db.get(ObservabilitySyntheticCheck, cid)
         if not chk or chk.tenant != tenant:
             raise ValueError("check not found")
         if not chk.enabled:

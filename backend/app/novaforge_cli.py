@@ -145,6 +145,9 @@ class NovaForgeCLI:
         elif cmd == "observe":
             from app.cli.observability_commands import handle_observability_command
             handle_observability_command(rest)
+        elif cmd == "aiops":
+            from app.cli.observability_commands import handle_aiops_command
+            handle_aiops_command(rest)
         elif cmd == "security":
             from app.cli.security_commands import handle_security_command
             subcmd = rest[0] if rest else "findings"

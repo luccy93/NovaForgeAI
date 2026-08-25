@@ -357,6 +357,31 @@ class EventType(str, Enum):
     observability_synthetic_check_failed = "observability.synthetic.check_failed"
     observability_telemetry_retention_completed = "observability.telemetry.retention_completed"
 
+    # Observability AIOps extensions (Volume 59 Commit 2) — additive, no placeholders
+    AnomalyDetected = "observability.anomaly.detected"
+    AlertCorrelated = "observability.alert.correlated"
+    RootCauseCandidateCreated = "observability.root_cause.candidate_created"
+    AIOpsRecommendationCreated = "observability.aiops.recommendation_created"
+    RemediationRequested = "observability.remediation.requested"
+    RemediationApproved = "observability.remediation.approved"
+    RemediationStarted = "observability.remediation.started"
+    RemediationCompleted = "observability.remediation.completed"
+    RemediationFailed = "observability.remediation.failed"
+    AgentCircuitBroken = "observability.agent.circuit_broken"
+    CapacityForecastGenerated = "observability.capacity.forecast_generated"
+    # snake_case aliases (backward compat, same values)
+    anomaly_detected = "observability.anomaly.detected"
+    alert_correlated = "observability.alert.correlated"
+    root_cause_candidate_created = "observability.root_cause.candidate_created"
+    aiops_recommendation_created = "observability.aiops.recommendation_created"
+    remediation_requested = "observability.remediation.requested"
+    remediation_approved = "observability.remediation.approved"
+    remediation_started = "observability.remediation.started"
+    remediation_completed = "observability.remediation.completed"
+    remediation_failed = "observability.remediation.failed"
+    agent_circuit_broken = "observability.agent.circuit_broken"
+    capacity_forecast_generated = "observability.capacity.forecast_generated"
+
 
 class Event:
     def __init__(
