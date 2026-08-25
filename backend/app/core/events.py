@@ -346,6 +346,17 @@ class EventType(str, Enum):
     ai_risk_created = "ai.risk.created"
     ai_model_retired = "ai.model.retired"
 
+    # Observability unified platform (Volume 59 Commit 1)
+    observability_telemetry_received = "observability.telemetry.received"
+    observability_alert_created = "observability.alert.created"
+    observability_alert_fired = "observability.alert.fired"
+    observability_alert_acknowledged = "observability.alert.acknowledged"
+    observability_alert_resolved = "observability.alert.resolved"
+    observability_slo_breached = "observability.slo.breached"
+    observability_health_changed = "observability.health.changed"
+    observability_synthetic_check_failed = "observability.synthetic.check_failed"
+    observability_telemetry_retention_completed = "observability.telemetry.retention_completed"
+
 
 class Event:
     def __init__(
