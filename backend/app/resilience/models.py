@@ -191,3 +191,60 @@ class ResilienceFailoverRecord(Base, TimestampMixin):
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
 
     __table_args__ = (Index("ix_res_failovers_tenant_type", "tenant", "failover_type"),)
+
+
+class ResilienceChaosTest(Base, TimestampMixin):
+    """Volume 60 Commit 2 — controlled chaos tests with production guard."""
+
+    __tablename__ = "resilience_chaos_tests"
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    scope: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)  # {environment, service, target, description} or freeform
+    scope_raw: Mapped[str | None] = mapped_column(String(256), nullable=True)  # original scope string for simple queries
+    failure_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)  # service/database/queue/network/ai_provider/storage/event_bus
+    config: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)  # latency/timeout/error_rate/unavailable/resource_exhaustion + allow_production
+    status: Mapped[str] = mapped_column(String(32), default="PENDING", nullable=False, index=True)  # PENDING/RUNNING/COMPLETED/FAILED/ABORTED
+    created_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    policy_approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    approved_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    target: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    results: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    injection_metadata: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+    __table_args__ = (
+        Index("ix_res_chaos_tenant_status", "tenant", "status"),
+        Index("ix_res_chaos_tenant_failure_type", "tenant", "failure_type"),
+    )
+
+
+class ResilienceRecoveryDrill(Base, TimestampMixin):
+    """Volume 60 Commit 2 — isolated recovery drills (never overwrite production)."""
+
+    __tablename__ = "resilience_recovery_drills"
+
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    drill_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)  # backup_restore/regional/database/provider_failover
+    scope: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    scope_raw: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    schedule: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)  # {scheduled_at, cron, interval}
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    isolated_test: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    target_environment: Mapped[str] = mapped_column(String(32), default="isolated", nullable=False)  # isolated/staging — never production
+    status: Mapped[str] = mapped_column(String(32), default="SCHEDULED", nullable=False, index=True)  # SCHEDULED/RUNNING/COMPLETED/FAILED
+    created_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Game-day fields
+    scenario: Mapped[str | None] = mapped_column(Text, nullable=True)
+    participants: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    results: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    findings: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    score: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+    __table_args__ = (
+        Index("ix_res_drills_tenant_type", "tenant", "drill_type"),
+        Index("ix_res_drills_tenant_status", "tenant", "status"),
+    )

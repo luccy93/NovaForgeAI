@@ -67,6 +67,52 @@ class ResilienceMixin:
     def resilience_rto_rpo(self, service: str, environment: str = "production") -> dict:
         return self.get(self._build_url(f"/resilience/rto-rpo/{service}"), params={"environment": environment})
 
+    # ── Volume 60 Commit 2 ───────────────────────────────────────────────
+
+    def resilience_readiness(self) -> dict:
+        return self.get(self._build_url("/resilience/readiness"))
+
+    def resilience_score(self) -> dict:
+        return self.get(self._build_url("/resilience/resilience-score"))
+
+    def resilience_recommendations(self) -> dict:
+        return self.get(self._build_url("/resilience/recovery-recommendations"))
+
+    def resilience_reconcile(self, job_id: str, pre: dict, restored: dict, expected: dict) -> dict:
+        payload = {
+            "pre": pre, "pre_state": pre,
+            "restored": restored, "restored_state": restored,
+            "expected": expected, "expected_state": expected,
+        }
+        return self.post(self._build_url(f"/resilience/reconcile/{job_id}"), data=payload)
+
+    def resilience_chaos_create(self, data: dict) -> dict:
+        return self.post(self._build_url("/resilience/chaos-tests"), data=data)
+
+    def resilience_chaos_run(self, test_id: str) -> dict:
+        return self.post(self._build_url(f"/resilience/chaos-tests/{test_id}/run"), data={})
+
+    def resilience_chaos_complete(self, test_id: str, success: bool) -> dict:
+        return self.post(self._build_url(f"/resilience/chaos-tests/{test_id}/complete"), data={"success": success, "passed": success})
+
+    def resilience_drill_schedule(self, data: dict) -> dict:
+        return self.post(self._build_url("/resilience/recovery-drills"), data=data)
+
+    def resilience_drill_run(self, drill_id: str) -> dict:
+        return self.post(self._build_url(f"/resilience/recovery-drills/{drill_id}/run"), data={})
+
+    def resilience_game_day(self, drill_id: str, data: dict) -> dict:
+        return self.post(self._build_url(f"/resilience/recovery-drills/{drill_id}/game-day"), data=data)
+
+    def resilience_backup_protection(self, scope: str, reason: str) -> dict:
+        return self.post(self._build_url("/resilience/backup-protection"), data={"scope": scope, "reason": reason})
+
+    def resilience_drift(self) -> dict:
+        return self.get(self._build_url("/resilience/drift"))
+
+    def resilience_chaos_inject(self, target: str, failure_type: str) -> dict:
+        return self.post(self._build_url("/resilience/chaos/failure-injection"), data={"test_id": target, "target": failure_type, "failure_type": failure_type})
+
 
 class AsyncResilienceMixin:
     async def resilience_create_profile(self, data: dict) -> dict:
@@ -97,3 +143,49 @@ class AsyncResilienceMixin:
 
     async def resilience_status(self) -> dict:
         return await self.get(self._build_url("/resilience/dashboard"))
+
+    # ── Volume 60 Commit 2 ───────────────────────────────────────────────
+
+    async def resilience_readiness(self) -> dict:
+        return await self.get(self._build_url("/resilience/readiness"))
+
+    async def resilience_score(self) -> dict:
+        return await self.get(self._build_url("/resilience/resilience-score"))
+
+    async def resilience_recommendations(self) -> dict:
+        return await self.get(self._build_url("/resilience/recovery-recommendations"))
+
+    async def resilience_reconcile(self, job_id: str, pre: dict, restored: dict, expected: dict) -> dict:
+        payload = {
+            "pre": pre, "pre_state": pre,
+            "restored": restored, "restored_state": restored,
+            "expected": expected, "expected_state": expected,
+        }
+        return await self.post(self._build_url(f"/resilience/reconcile/{job_id}"), data=payload)
+
+    async def resilience_chaos_create(self, data: dict) -> dict:
+        return await self.post(self._build_url("/resilience/chaos-tests"), data=data)
+
+    async def resilience_chaos_run(self, test_id: str) -> dict:
+        return await self.post(self._build_url(f"/resilience/chaos-tests/{test_id}/run"), data={})
+
+    async def resilience_chaos_complete(self, test_id: str, success: bool) -> dict:
+        return await self.post(self._build_url(f"/resilience/chaos-tests/{test_id}/complete"), data={"success": success, "passed": success})
+
+    async def resilience_drill_schedule(self, data: dict) -> dict:
+        return await self.post(self._build_url("/resilience/recovery-drills"), data=data)
+
+    async def resilience_drill_run(self, drill_id: str) -> dict:
+        return await self.post(self._build_url(f"/resilience/recovery-drills/{drill_id}/run"), data={})
+
+    async def resilience_game_day(self, drill_id: str, data: dict) -> dict:
+        return await self.post(self._build_url(f"/resilience/recovery-drills/{drill_id}/game-day"), data=data)
+
+    async def resilience_backup_protection(self, scope: str, reason: str) -> dict:
+        return await self.post(self._build_url("/resilience/backup-protection"), data={"scope": scope, "reason": reason})
+
+    async def resilience_drift(self) -> dict:
+        return await self.get(self._build_url("/resilience/drift"))
+
+    async def resilience_chaos_inject(self, target: str, failure_type: str) -> dict:
+        return await self.post(self._build_url("/resilience/chaos/failure-injection"), data={"test_id": target, "target": failure_type, "failure_type": failure_type})

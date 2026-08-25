@@ -373,6 +373,16 @@ class EventType(str, Enum):
     failover_started = "resilience.failover.started"
     failover_completed = "resilience.failover.completed"
 
+    # Resilience Commit 2 — chaos, drills, hardening (Volume 60)
+    chaos_test_started = "resilience.chaos.started"
+    chaos_test_completed = "resilience.chaos.completed"
+    recovery_drill_started = "resilience.drill.started"
+    recovery_drill_completed = "resilience.drill.completed"
+    recovery_readiness_changed = "resilience.readiness.changed"
+    backup_protection_enabled = "resilience.backup.protection_enabled"
+    recovery_reconciliation_created = "resilience.reconciliation.created"
+    recovery_verification_failed = "resilience.verification.failed"
+
     # Observability AIOps extensions (Volume 59 Commit 2) — additive, no placeholders
     AnomalyDetected = "observability.anomaly.detected"
     AlertCorrelated = "observability.alert.correlated"
