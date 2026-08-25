@@ -357,6 +357,22 @@ class EventType(str, Enum):
     observability_synthetic_check_failed = "observability.synthetic.check_failed"
     observability_telemetry_retention_completed = "observability.telemetry.retention_completed"
 
+    # Resilience platform (Volume 60)
+    resilience_backup_started = "resilience.backup.started"
+    resilience_backup_completed = "resilience.backup.completed"
+    resilience_backup_failed = "resilience.backup.failed"
+    backup_verification_started = "resilience.backup.verification_started"
+    backup_verification_completed = "resilience.backup.verification_completed"
+    resilience_restore_started = "resilience.restore.started"
+    resilience_restore_completed = "resilience.restore.completed"
+    resilience_restore_failed = "resilience.restore.failed"
+    disaster_declared = "resilience.disaster.declared"
+    resilience_recovery_started = "resilience.recovery.started"
+    resilience_recovery_completed = "resilience.recovery.completed"
+    recovery_failed = "resilience.recovery.failed"
+    failover_started = "resilience.failover.started"
+    failover_completed = "resilience.failover.completed"
+
     # Observability AIOps extensions (Volume 59 Commit 2) — additive, no placeholders
     AnomalyDetected = "observability.anomaly.detected"
     AlertCorrelated = "observability.alert.correlated"

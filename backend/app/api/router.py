@@ -42,6 +42,7 @@ from app.api.release import feature_flag_router as release_flags_router
 from app.api.datagov import router as datagov_router
 from app.api.aiml import router as aiml_router
 from app.api.observability import router as observability_router
+from app.api.resilience import router as resilience_router
 
 api_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_router.include_router(repos_router, prefix="/repositories", tags=["Repositories"])
@@ -83,4 +84,5 @@ api_router.include_router(release_flags_router, tags=["Feature Flags"])
 api_router.include_router(datagov_router, tags=["Data Governance"])
 api_router.include_router(aiml_router, tags=["AI Governance & MLOps"])
 api_router.include_router(observability_router, tags=["Observability"])
+api_router.include_router(resilience_router, tags=["Resilience"])
 api_router.include_router(sre_router)
