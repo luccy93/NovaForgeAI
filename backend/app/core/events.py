@@ -383,6 +383,25 @@ class EventType(str, Enum):
     recovery_reconciliation_created = "resilience.reconciliation.created"
     recovery_verification_failed = "resilience.verification.failed"
 
+    # Performance & Scalability events (Volume 61 Commit 1)
+    performance_budget_breached = "performance.budget.breached"
+    service_saturated = "performance.service.saturated"
+    queue_backlog_detected = "performance.queue.backlog_detected"
+    slow_query_detected = "performance.slow_query.detected"
+    performance_capacity_warning = "performance.capacity.warning"
+    performance_autoscaling_triggered = "performance.autoscaling.triggered"
+    performance_load_shedding_started = "performance.load_shedding.started"
+    performance_load_shedding_stopped = "performance.load_shedding.stopped"
+    # Commit 2 performance events
+    capacity_forecast_created = "performance.capacity.forecast_created"
+    performance_regression_detected = "performance.regression.detected"
+    benchmark_completed = "performance.benchmark.completed"
+    stress_test_completed = "performance.stress.completed"
+    soak_test_completed = "performance.soak.completed"
+    scaling_recommendation_created = "performance.scaling.recommendation_created"
+    performance_gate_failed = "performance.gate.failed"
+    performance_gate_passed = "performance.gate.passed"
+
     # Observability AIOps extensions (Volume 59 Commit 2) — additive, no placeholders
     AnomalyDetected = "observability.anomaly.detected"
     AlertCorrelated = "observability.alert.correlated"

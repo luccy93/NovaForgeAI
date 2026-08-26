@@ -151,6 +151,9 @@ class NovaForgeCLI:
         elif cmd == "resilience":
             from app.cli.resilience_commands import handle_resilience_command
             handle_resilience_command(rest)
+        elif cmd == "perf":
+            from app.cli.performance_commands import handle_performance_command
+            handle_performance_command(rest)
         elif cmd == "security":
             from app.cli.security_commands import handle_security_command
             subcmd = rest[0] if rest else "findings"

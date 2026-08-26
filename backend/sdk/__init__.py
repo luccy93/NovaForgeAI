@@ -27,6 +27,7 @@ from backend.sdk.datagov import GovernanceMixin, AsyncGovernanceMixin
 from backend.sdk.aiml import AIMLMixin, AsyncAIMLMixin
 from backend.sdk.observability import ObservabilityMixin, AsyncObservabilityMixin
 from backend.sdk.resilience import ResilienceMixin, AsyncResilienceMixin
+from backend.sdk.performance import PerformanceMixin, AsyncPerformanceMixin
 
 __all__ = [
     "NovaForgeClient", "AsyncNovaForgeClient",
@@ -52,4 +53,5 @@ __all__ = [
     "AIMLMixin", "AsyncAIMLMixin",
     "ObservabilityMixin", "AsyncObservabilityMixin",
     "ResilienceMixin", "AsyncResilienceMixin",
+    "PerformanceMixin", "AsyncPerformanceMixin",
 ]
