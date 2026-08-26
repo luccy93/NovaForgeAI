@@ -285,6 +285,61 @@ class PerformanceMixin:
                 params[k] = v
         return self.get(self._build_url("/performance/scaling-events"), params=params)
 
+    # Commit 2 — capacity, benchmarks, regression, scaling
+    def performance_capacity_forecast(self, resource: str, metric: str = "cpu", horizon_days: int = 7, **kwargs: Any) -> dict:
+        params: Dict[str, Any] = {"resource": resource, "metric": metric, "horizon_days": horizon_days}
+        for k, v in kwargs.items():
+            if v is not None:
+                params[k] = v
+        return self.get(self._build_url("/performance/capacity/forecast"), params=params)
+
+    def performance_create_benchmark(self, name: str, suite_type: str = "api", config: Optional[dict] = None, **kwargs: Any) -> dict:
+        payload: Dict[str, Any] = {"name": name, "suite_type": suite_type, "config": config or {}}
+        for k, v in kwargs.items():
+            if v is not None:
+                payload[k] = v
+        return self.post(self._build_url("/performance/benchmarks"), data=payload)
+
+    def performance_list_benchmarks(self, **kwargs: Any) -> dict:
+        return self.get(self._build_url("/performance/benchmarks"), params=kwargs or None)
+
+    def performance_run_benchmark(self, benchmark_id: str, environment: str = "test", **kwargs: Any) -> dict:
+        payload: Dict[str, Any] = {"environment": environment}
+        for k, v in kwargs.items():
+            if v is not None:
+                payload[k] = v
+        return self.post(self._build_url(f"/performance/benchmarks/{benchmark_id}/run"), data=payload)
+
+    def performance_set_baseline(self, benchmark_id: str, run_id: str, **kwargs: Any) -> dict:
+        return self.post(self._build_url(f"/performance/benchmarks/{benchmark_id}/baseline"), data={"run_id": run_id, **kwargs})
+
+    def performance_compare_benchmark(self, benchmark_id: str, run_id: str, **kwargs: Any) -> dict:
+        return self.get(self._build_url(f"/performance/benchmarks/{benchmark_id}/compare"), params={"run_id": run_id, **kwargs})
+
+    def performance_stress_test(self, benchmark_id: str, concurrency: int = 10, duration_seconds: int = 30, **kwargs: Any) -> dict:
+        return self.post(self._build_url(f"/performance/benchmarks/{benchmark_id}/stress"), data={"concurrency": concurrency, "duration_seconds": duration_seconds, **kwargs})
+
+    def performance_soak_test(self, benchmark_id: str, duration_hours: int = 1, **kwargs: Any) -> dict:
+        return self.post(self._build_url(f"/performance/benchmarks/{benchmark_id}/soak"), data={"duration_hours": duration_hours, **kwargs})
+
+    def performance_check_regression(self, benchmark_id: str, run_id: str, thresholds: Optional[dict] = None, **kwargs: Any) -> dict:
+        payload: Dict[str, Any] = {"benchmark_id": benchmark_id, "run_id": run_id}
+        if thresholds is not None:
+            payload["thresholds"] = thresholds
+        for k, v in kwargs.items():
+            if v is not None:
+                payload[k] = v
+        return self.post(self._build_url("/performance/regression/check"), data=payload)
+
+    def performance_scaling_recommendations(self, resource: Optional[str] = None, **kwargs: Any) -> dict:
+        params: Dict[str, Any] = {}
+        if resource is not None:
+            params["resource"] = resource
+        for k, v in kwargs.items():
+            if v is not None:
+                params[k] = v
+        return self.get(self._build_url("/performance/scaling/recommendations"), params=params or None)
+
 
 class AsyncPerformanceMixin:
     """Async Performance mixin — mirrors PerformanceMixin with await."""
@@ -556,3 +611,42 @@ class AsyncPerformanceMixin:
             if v is not None:
                 params[k] = v
         return await self.get(self._build_url("/performance/scaling-events"), params=params)
+
+    async def performance_capacity_forecast(self, resource: str, metric: str = "cpu", horizon_days: int = 7, **kwargs: Any) -> dict:
+        params: Dict[str, Any] = {"resource": resource, "metric": metric, "horizon_days": horizon_days}
+        for k, v in kwargs.items():
+            if v is not None:
+                params[k] = v
+        return await self.get(self._build_url("/performance/capacity/forecast"), params=params)
+
+    async def performance_create_benchmark(self, name: str, suite_type: str = "api", config: Optional[dict] = None, **kwargs: Any) -> dict:
+        payload: Dict[str, Any] = {"name": name, "suite_type": suite_type, "config": config or {}}
+        for k, v in kwargs.items():
+            if v is not None:
+                payload[k] = v
+        return await self.post(self._build_url("/performance/benchmarks"), data=payload)
+
+    async def performance_run_benchmark(self, benchmark_id: str, environment: str = "test", **kwargs: Any) -> dict:
+        payload: Dict[str, Any] = {"environment": environment}
+        for k, v in kwargs.items():
+            if v is not None:
+                payload[k] = v
+        return await self.post(self._build_url(f"/performance/benchmarks/{benchmark_id}/run"), data=payload)
+
+    async def performance_compare_benchmark(self, benchmark_id: str, run_id: str, **kwargs: Any) -> dict:
+        return await self.get(self._build_url(f"/performance/benchmarks/{benchmark_id}/compare"), params={"run_id": run_id, **kwargs})
+
+    async def performance_stress_test(self, benchmark_id: str, concurrency: int = 10, duration_seconds: int = 30, **kwargs: Any) -> dict:
+        return await self.post(self._build_url(f"/performance/benchmarks/{benchmark_id}/stress"), data={"concurrency": concurrency, "duration_seconds": duration_seconds, **kwargs})
+
+    async def performance_soak_test(self, benchmark_id: str, duration_hours: int = 1, **kwargs: Any) -> dict:
+        return await self.post(self._build_url(f"/performance/benchmarks/{benchmark_id}/soak"), data={"duration_hours": duration_hours, **kwargs})
+
+    async def performance_check_regression(self, benchmark_id: str, run_id: str, thresholds: Optional[dict] = None, **kwargs: Any) -> dict:
+        payload: Dict[str, Any] = {"benchmark_id": benchmark_id, "run_id": run_id}
+        if thresholds is not None:
+            payload["thresholds"] = thresholds
+        for k, v in kwargs.items():
+            if v is not None:
+                payload[k] = v
+        return await self.post(self._build_url("/performance/regression/check"), data=payload)

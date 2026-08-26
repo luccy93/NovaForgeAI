@@ -141,6 +141,41 @@ def handle_performance_command(argv):
     p.add_argument("--direction", default=None)
     p.add_argument("--limit", type=int, default=100)
 
+    # Commit 2 — capacity, benchmarks, regression, scaling
+    p = sub.add_parser("benchmark", help="Create benchmark definition")
+    p.add_argument("--name", required=True)
+    p.add_argument("--suite-type", default="api", help="api/database/rag/ai/agents/queues/search/graph")
+    p.add_argument("--config", default=None, help="JSON config string")
+
+    p = sub.add_parser("baseline", help="Set benchmark baseline")
+    p.add_argument("benchmark_id")
+    p.add_argument("run_id")
+
+    p = sub.add_parser("compare", help="Compare current vs baseline")
+    p.add_argument("benchmark_id")
+    p.add_argument("run_id")
+
+    p = sub.add_parser("forecast", help="Capacity forecast")
+    p.add_argument("--resource", required=True)
+    p.add_argument("--metric", default="cpu")
+    p.add_argument("--horizon-days", type=int, default=7)
+
+    p = sub.add_parser("stress", help="Run stress test")
+    p.add_argument("benchmark_id")
+    p.add_argument("--concurrency", type=int, default=10)
+    p.add_argument("--duration-seconds", type=int, default=30)
+
+    p = sub.add_parser("soak", help="Run soak test")
+    p.add_argument("benchmark_id")
+    p.add_argument("--duration-hours", type=int, default=1)
+
+    p = sub.add_parser("regression", help="Check performance regression gate")
+    p.add_argument("benchmark_id")
+    p.add_argument("run_id")
+
+    p = sub.add_parser("scale", help="Scaling recommendation")
+    p.add_argument("--resource", default=None)
+
     # raw argv handling for --json placed anywhere (like resilience)
     raw_argv = argv if argv is not None else sys.argv[1:]
     as_json_raw = "--json" in raw_argv
@@ -268,6 +303,40 @@ def handle_performance_command(argv):
             if getattr(args, "direction", None):
                 params["direction"] = getattr(args, "direction")
             res = _call("GET", "/performance/scaling-events", base, key, params=params)
+
+        elif action == "benchmark":
+            import json as _json
+            cfg = {}
+            if getattr(args, "config", None):
+                try:
+                    cfg = _json.loads(getattr(args, "config"))
+                except Exception:
+                    cfg = {}
+            res = _call("POST", "/performance/benchmarks", base, key, body={"name": getattr(args, "name"), "suite_type": getattr(args, "suite_type", "api"), "config": cfg})
+
+        elif action == "baseline":
+            res = _call("POST", f"/performance/benchmarks/{getattr(args, 'benchmark_id')}/baseline", base, key, body={"run_id": getattr(args, "run_id")})
+
+        elif action == "compare":
+            res = _call("GET", f"/performance/benchmarks/{getattr(args, 'benchmark_id')}/compare", base, key, params={"run_id": getattr(args, "run_id")})
+
+        elif action == "forecast":
+            res = _call("GET", "/performance/capacity/forecast", base, key, params={"resource": getattr(args, "resource"), "metric": getattr(args, "metric", "cpu"), "horizon_days": getattr(args, "horizon_days", 7)})
+
+        elif action == "stress":
+            res = _call("POST", f"/performance/benchmarks/{getattr(args, 'benchmark_id')}/stress", base, key, body={"concurrency": getattr(args, "concurrency", 10), "duration_seconds": getattr(args, "duration_seconds", 30)})
+
+        elif action == "soak":
+            res = _call("POST", f"/performance/benchmarks/{getattr(args, 'benchmark_id')}/soak", base, key, body={"duration_hours": getattr(args, "duration_hours", 1)})
+
+        elif action == "regression":
+            res = _call("POST", "/performance/regression/check", base, key, body={"benchmark_id": getattr(args, "benchmark_id"), "run_id": getattr(args, "run_id")})
+
+        elif action == "scale":
+            params = {}
+            if getattr(args, "resource", None):
+                params["resource"] = getattr(args, "resource")
+            res = _call("GET", "/performance/scaling/recommendations", base, key, params=params)
 
         else:
             res = {"error": f"unknown action {action}"}

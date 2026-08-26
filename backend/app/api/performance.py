@@ -706,3 +706,122 @@ async def list_scaling_events(
     res = await db.execute(stmt)
     rows = list(res.scalars().all())
     return {"items": [_scaling_to_dict(r) for r in rows], "total": len(rows), "limit": limit, "offset": offset, "tenant": tenant}
+
+
+# ── Commit 2 — Capacity, Benchmarks, Regression ──────────────────────
+
+
+@router.get("/capacity/forecast")
+async def capacity_forecast(
+    resource: str = Query(..., max_length=128),
+    metric: str = Query("cpu", max_length=32),
+    horizon_days: int = Query(7, ge=1, le=90),
+    user=Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "performance:read", "capacity")
+    try:
+        from app.performance.capacity import capacity_forecast_service
+        res = await capacity_forecast_service.forecast(db, tenant, resource, metric, horizon_days=horizon_days)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return res
+
+
+@router.post("/benchmarks", status_code=201)
+async def create_benchmark(payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "performance:write", "benchmark")
+    try:
+        from app.performance.benchmark import benchmark_service
+        res = await benchmark_service.create_definition(tenant, payload.get("name", "bench"), payload.get("suite_type", "api"), payload.get("config", {}))
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return res
+
+
+@router.get("/benchmarks")
+async def list_benchmarks(user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.performance.benchmark import benchmark_service
+    rows = await benchmark_service.list_definitions(tenant)
+    return {"items": rows}
+
+
+@router.post("/benchmarks/{benchmark_id}/run", status_code=201)
+async def run_benchmark(benchmark_id: str, payload: dict | None = None, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.performance.benchmark import benchmark_service
+    try:
+        res = await benchmark_service.run_benchmark(db, tenant, benchmark_id, environment=(payload or {}).get("environment", "test"))
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return res
+
+
+@router.post("/benchmarks/{benchmark_id}/baseline")
+async def set_benchmark_baseline(benchmark_id: str, payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.performance.benchmark import benchmark_service
+    try:
+        res = await benchmark_service.set_baseline(tenant, benchmark_id, payload.get("run_id"))
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return res
+
+
+@router.get("/benchmarks/{benchmark_id}/compare")
+async def compare_benchmark(benchmark_id: str, run_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.performance.benchmark import benchmark_service
+    try:
+        res = await benchmark_service.compare(tenant, benchmark_id, run_id)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return res
+
+
+@router.post("/benchmarks/{benchmark_id}/stress", status_code=201)
+async def stress_test(benchmark_id: str, payload: dict | None = None, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.performance.benchmark import benchmark_service
+    try:
+        res = await benchmark_service.run_stress(tenant, benchmark_id, concurrency=(payload or {}).get("concurrency", 10), duration_seconds=(payload or {}).get("duration_seconds", 30))
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return res
+
+
+@router.post("/benchmarks/{benchmark_id}/soak", status_code=201)
+async def soak_test(benchmark_id: str, payload: dict | None = None, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.performance.benchmark import benchmark_service
+    try:
+        res = await benchmark_service.run_soak(tenant, benchmark_id, duration_hours=(payload or {}).get("duration_hours", 1))
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return res
+
+
+@router.post("/regression/check", status_code=201)
+async def check_regression(payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.performance.benchmark import benchmark_service
+    try:
+        res = await benchmark_service.check_regression_gate(tenant, payload.get("benchmark_id"), payload.get("run_id"), thresholds=payload.get("thresholds"))
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return res
+
+
+@router.get("/scaling/recommendations")
+async def scaling_recommendations(resource: str | None = Query(None), user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.performance.capacity import capacity_forecast_service
+    try:
+        res = await capacity_forecast_service.recommend_scaling(db, tenant, resource or "default")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return res
