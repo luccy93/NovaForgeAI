@@ -129,6 +129,32 @@ class RegionService:
             })
         return region
 
+    async def update_region(
+        self, db: AsyncSession, region_id: str, status: str | None = None, provider: str | None = None,
+        location: str | None = None, metadata: dict | None = None, actor: str | None = None,
+    ) -> Region:
+        region = await self.get_region(db, region_id)
+        if not region:
+            raise ValueError(f"region {region_id} not found")
+        if status is not None:
+            if status not in REGION_STATUSES:
+                raise ValueError(f"invalid region status {status}")
+            old = region.status
+            region.status = status
+            if old != status:
+                await self.record_health(db, region_id, status, observed_at=_utcnow())
+                await self._emit(EventType.region_health_changed, {
+                    "region_id": region_id, "old_status": old, "new_status": status, "actor": actor,
+                })
+        if provider is not None:
+            region.provider = provider
+        if location is not None:
+            region.location = location
+        if metadata is not None:
+            region.metadata_json = {**(region.metadata_json or {}), **metadata}
+        await db.flush()
+        return region
+
     async def set_capabilities(self, db: AsyncSession, region_id: str, capabilities: dict[str, bool]) -> list[RegionCapability]:
         if not await self.get_region(db, region_id):
             raise ValueError(f"region {region_id} not found")

@@ -83,6 +83,7 @@ class Region(Base, TimestampMixin):
     capacity: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)  # cpu/memory/storage/queue/ai/database
     data_residency: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)  # provider/restricted constraints
     environment: Mapped[str] = mapped_column(String(32), default="production", nullable=False)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)  # reserved metadata (rejoin, governance)
 
 
 class RegionCapability(Base, TimestampMixin):

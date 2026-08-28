@@ -416,6 +416,19 @@ class EventType(str, Enum):
     regional_failback_started = "region.failback.started"
     regional_failback_completed = "region.failback.completed"
 
+    # Multi-Region Commit 2 — global resilience, consistency & hardening events
+    global_failover_triggered = "region.global.failover.triggered"
+    global_failover_completed = "region.global.failover.completed"
+    failover_blocked = "region.failover.blocked"
+    split_brain_detected = "region.split_brain.detected"
+    primary_fenced = "region.primary.fenced"
+    region_rejoined = "region.rejoined"
+    tenant_migration_started = "region.tenant.migration.started"
+    tenant_migration_completed = "region.tenant.migration.completed"
+    replication_conflict_detected = "region.replication.conflict.detected"
+    configuration_drift_detected = "region.config.drift.detected"
+    regional_recovery_verified = "region.recovery.verified"
+
     # Observability AIOps extensions (Volume 59 Commit 2) — additive, no placeholders
     AnomalyDetected = "observability.anomaly.detected"
     AlertCorrelated = "observability.alert.correlated"

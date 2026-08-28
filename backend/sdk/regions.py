@@ -142,6 +142,89 @@ class RegionsMixin:
         return self.region_failover(source_region, target_region, service=service, data_classification=data_classification,
                                     authorized_by=authorized_by, failover_type="failback")
 
+    # ── Commit 2: orchestration / split-brain / verification ──────────────────
+    def region_orchestrate(self, source_region: str, target_region: str, service: str, **kwargs: Any) -> dict:
+        payload: Dict[str, Any] = {"source_region": source_region, "target_region": target_region, "service": service}
+        for k in ("data_classification", "authorized_by", "automatic", "rpo_minutes"):
+            if k in kwargs and kwargs[k] is not None:
+                payload[k] = kwargs[k]
+        return self.post(self._build_url("/regions/orchestrate"), data=payload)
+
+    def region_recovery_verify(self, source_region: str, target_region: str, checks: Optional[dict] = None) -> dict:
+        return self.post(self._build_url("/regions/recovery/verify"), data={"source_region": source_region, "target_region": target_region, "checks": checks or {}})
+
+    def region_lease(self, region_id: str, holder: str, ttl_seconds: int = 60, generation: int = 1) -> dict:
+        return self.post(self._build_url("/regions/lease"), data={"region_id": region_id, "holder": holder, "ttl_seconds": ttl_seconds, "generation": generation})
+
+    def region_fence(self, region_id: str) -> dict:
+        return self.post(self._build_url(f"/regions/lease/{region_id}/fence"), data={})
+
+    def region_stale_primary(self, region_id: str) -> dict:
+        return self.get(self._build_url(f"/regions/lease/{region_id}/stale"))
+
+    def region_conflict_detect(self, source_region: str, dest_region: str, resource: str, conflict_type: str, tenant: str = "", details: Optional[dict] = None) -> dict:
+        return self.post(self._build_url("/regions/conflicts"), data={"source_region": source_region, "dest_region": dest_region, "resource": resource, "conflict_type": conflict_type, "tenant": tenant, "details": details or {}})
+
+    def region_conflict_resolve(self, conflict_id: int, policy: str, resolved_by: Optional[str] = None) -> dict:
+        payload: Dict[str, Any] = {"policy": policy}
+        if resolved_by is not None:
+            payload["resolved_by"] = resolved_by
+        return self.post(self._build_url(f"/regions/conflicts/{conflict_id}/resolve"), data=payload)
+
+    # ── Commit 2: tenant migration ────────────────────────────────────────────
+    def region_migration_plan(self, source_region: str, target_region: str, authorized_by: str, **kwargs: Any) -> dict:
+        payload: Dict[str, Any] = {"source_region": source_region, "target_region": target_region, "authorized_by": authorized_by}
+        for k in ("service", "data_classification", "rollback_strategy"):
+            if k in kwargs and kwargs[k] is not None:
+                payload[k] = kwargs[k]
+        return self.post(self._build_url("/regions/migrations"), data=payload)
+
+    def region_migration_get(self, migration_id: int) -> dict:
+        return self.get(self._build_url(f"/regions/migrations/{migration_id}"))
+
+    def region_migration_advance(self, migration_id: int, state: str) -> dict:
+        return self.post(self._build_url(f"/regions/migrations/{migration_id}/advance"), data={"state": state})
+
+    def region_migration_verify(self, migration_id: int, verification: dict) -> dict:
+        return self.post(self._build_url(f"/regions/migrations/{migration_id}/verify"), data={"verification": verification})
+
+    def region_migration_rollback(self, migration_id: int, reason: Optional[str] = None) -> dict:
+        return self.post(self._build_url(f"/regions/migrations/{migration_id}/rollback"), data={"reason": reason} if reason else {})
+
+    # ── Commit 2: traffic shift / rejoin / drift / drills / aiops ─────────────
+    def region_traffic(self, region_id: str, percentage: int, actor: Optional[str] = None) -> dict:
+        payload: Dict[str, Any] = {"region_id": region_id, "percentage": percentage}
+        if actor is not None:
+            payload["actor"] = actor
+        return self.post(self._build_url("/regions/traffic"), data=payload)
+
+    def region_traffic_get(self, region_id: str) -> dict:
+        return self.get(self._build_url(f"/regions/traffic/{region_id}"))
+
+    def region_rejoin_begin(self, region_id: str, compromised: bool = False) -> dict:
+        return self.post(self._build_url("/regions/rejoin"), data={"region_id": region_id, "compromised": compromised})
+
+    def region_rejoin_verify(self, region_id: str, source_region: str, checks: Optional[dict] = None) -> dict:
+        return self.post(self._build_url("/regions/rejoin/verify"), data={"region_id": region_id, "source_region": source_region, "checks": checks or {}})
+
+    def region_rejoin_admit(self, region_id: str) -> dict:
+        return self.post(self._build_url(f"/regions/rejoin/{region_id}/admit"), data={})
+
+    def region_drift_detect(self, service: str, expected_version: str, observed_version: str, drift_type: str = "version", details: Optional[dict] = None) -> dict:
+        return self.post(self._build_url("/regions/drift"), data={"service": service, "expected_version": expected_version, "observed_version": observed_version, "drift_type": drift_type, "details": details or {}})
+
+    def region_drift_resolve(self, drift_id: int) -> dict:
+        return self.post(self._build_url(f"/regions/drifts/{drift_id}/resolve"), data={})
+
+    def region_drill_run(self, scenario: str, region_id: Optional[str] = None) -> dict:
+        payload: Dict[str, Any] = {"scenario": scenario}
+        if region_id is not None:
+            payload["region_id"] = region_id
+        return self.post(self._build_url("/regions/drills"), data=payload)
+
+    def region_aiops_recommend(self, region_id: str, signals: dict) -> dict:
+        return self.post(self._build_url("/regions/aiops/recommend"), data={"region_id": region_id, "signals": signals})
+
 
 class AsyncRegionsMixin:
     """Async Multi-Region mixin — mirrors RegionsMixin with await."""
@@ -266,6 +349,89 @@ class AsyncRegionsMixin:
         return await self.post(self._build_url(f"/regions/failover/{record_id}/fail"), data=body)
 
     async def region_failback(self, source_region: str, target_region: str, service: Optional[str] = None,
-                              data_classification: Optional[str] = None, authorized_by: Optional[str] = None) -> dict:
+                               data_classification: Optional[str] = None, authorized_by: Optional[str] = None) -> dict:
         return await self.region_failover(source_region, target_region, service=service, data_classification=data_classification,
                                           authorized_by=authorized_by, failover_type="failback")
+
+    # ── Commit 2: orchestration / split-brain / verification ──────────────────
+    async def region_orchestrate(self, source_region: str, target_region: str, service: str, **kwargs: Any) -> dict:
+        payload: Dict[str, Any] = {"source_region": source_region, "target_region": target_region, "service": service}
+        for k in ("data_classification", "authorized_by", "automatic", "rpo_minutes"):
+            if k in kwargs and kwargs[k] is not None:
+                payload[k] = kwargs[k]
+        return await self.post(self._build_url("/regions/orchestrate"), data=payload)
+
+    async def region_recovery_verify(self, source_region: str, target_region: str, checks: Optional[dict] = None) -> dict:
+        return await self.post(self._build_url("/regions/recovery/verify"), data={"source_region": source_region, "target_region": target_region, "checks": checks or {}})
+
+    async def region_lease(self, region_id: str, holder: str, ttl_seconds: int = 60, generation: int = 1) -> dict:
+        return await self.post(self._build_url("/regions/lease"), data={"region_id": region_id, "holder": holder, "ttl_seconds": ttl_seconds, "generation": generation})
+
+    async def region_fence(self, region_id: str) -> dict:
+        return await self.post(self._build_url(f"/regions/lease/{region_id}/fence"), data={})
+
+    async def region_stale_primary(self, region_id: str) -> dict:
+        return await self.get(self._build_url(f"/regions/lease/{region_id}/stale"))
+
+    async def region_conflict_detect(self, source_region: str, dest_region: str, resource: str, conflict_type: str, tenant: str = "", details: Optional[dict] = None) -> dict:
+        return await self.post(self._build_url("/regions/conflicts"), data={"source_region": source_region, "dest_region": dest_region, "resource": resource, "conflict_type": conflict_type, "tenant": tenant, "details": details or {}})
+
+    async def region_conflict_resolve(self, conflict_id: int, policy: str, resolved_by: Optional[str] = None) -> dict:
+        payload: Dict[str, Any] = {"policy": policy}
+        if resolved_by is not None:
+            payload["resolved_by"] = resolved_by
+        return await self.post(self._build_url(f"/regions/conflicts/{conflict_id}/resolve"), data=payload)
+
+    # ── Commit 2: tenant migration ────────────────────────────────────────────
+    async def region_migration_plan(self, source_region: str, target_region: str, authorized_by: str, **kwargs: Any) -> dict:
+        payload: Dict[str, Any] = {"source_region": source_region, "target_region": target_region, "authorized_by": authorized_by}
+        for k in ("service", "data_classification", "rollback_strategy"):
+            if k in kwargs and kwargs[k] is not None:
+                payload[k] = kwargs[k]
+        return await self.post(self._build_url("/regions/migrations"), data=payload)
+
+    async def region_migration_get(self, migration_id: int) -> dict:
+        return await self.get(self._build_url(f"/regions/migrations/{migration_id}"))
+
+    async def region_migration_advance(self, migration_id: int, state: str) -> dict:
+        return await self.post(self._build_url(f"/regions/migrations/{migration_id}/advance"), data={"state": state})
+
+    async def region_migration_verify(self, migration_id: int, verification: dict) -> dict:
+        return await self.post(self._build_url(f"/regions/migrations/{migration_id}/verify"), data={"verification": verification})
+
+    async def region_migration_rollback(self, migration_id: int, reason: Optional[str] = None) -> dict:
+        return await self.post(self._build_url(f"/regions/migrations/{migration_id}/rollback"), data={"reason": reason} if reason else {})
+
+    # ── Commit 2: traffic shift / rejoin / drift / drills / aiops ─────────────
+    async def region_traffic(self, region_id: str, percentage: int, actor: Optional[str] = None) -> dict:
+        payload: Dict[str, Any] = {"region_id": region_id, "percentage": percentage}
+        if actor is not None:
+            payload["actor"] = actor
+        return await self.post(self._build_url("/regions/traffic"), data=payload)
+
+    async def region_traffic_get(self, region_id: str) -> dict:
+        return await self.get(self._build_url(f"/regions/traffic/{region_id}"))
+
+    async def region_rejoin_begin(self, region_id: str, compromised: bool = False) -> dict:
+        return await self.post(self._build_url("/regions/rejoin"), data={"region_id": region_id, "compromised": compromised})
+
+    async def region_rejoin_verify(self, region_id: str, source_region: str, checks: Optional[dict] = None) -> dict:
+        return await self.post(self._build_url("/regions/rejoin/verify"), data={"region_id": region_id, "source_region": source_region, "checks": checks or {}})
+
+    async def region_rejoin_admit(self, region_id: str) -> dict:
+        return await self.post(self._build_url(f"/regions/rejoin/{region_id}/admit"), data={})
+
+    async def region_drift_detect(self, service: str, expected_version: str, observed_version: str, drift_type: str = "version", details: Optional[dict] = None) -> dict:
+        return await self.post(self._build_url("/regions/drift"), data={"service": service, "expected_version": expected_version, "observed_version": observed_version, "drift_type": drift_type, "details": details or {}})
+
+    async def region_drift_resolve(self, drift_id: int) -> dict:
+        return await self.post(self._build_url(f"/regions/drifts/{drift_id}/resolve"), data={})
+
+    async def region_drill_run(self, scenario: str, region_id: Optional[str] = None) -> dict:
+        payload: Dict[str, Any] = {"scenario": scenario}
+        if region_id is not None:
+            payload["region_id"] = region_id
+        return await self.post(self._build_url("/regions/drills"), data=payload)
+
+    async def region_aiops_recommend(self, region_id: str, signals: dict) -> dict:
+        return await self.post(self._build_url("/regions/aiops/recommend"), data={"region_id": region_id, "signals": signals})

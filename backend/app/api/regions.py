@@ -18,7 +18,16 @@ from app.api.auth import _get_current_user
 from app.core.database import get_db
 from app.regions.config import global_config_service
 from app.regions.failover import failover_service
+from app.regions.migration import tenant_migration_service
+from app.regions.orchestrator import failover_orchestrator
 from app.regions.placement import placement_service
+from app.regions.recovery import (
+    aiops_advisor,
+    config_drift_service,
+    drill_service,
+    rejoin_service,
+    traffic_shift_service,
+)
 from app.regions.registry import region_service
 from app.regions.replication import replication_service
 from app.regions.routing import routing_service
@@ -505,3 +514,307 @@ async def start_failback(payload: FailoverIn, user=Depends(_get_current_user), d
         raise HTTPException(status_code=422, detail=str(e))
     await db.commit()
     return {"id": rec.id, "status": rec.status, "target_region": rec.target_region}
+
+
+# ── Commit 2: Orchestration / Split-brain / Verification ──────────────────────
+
+class OrchestrateIn(BaseModel):
+    source_region: str
+    target_region: str
+    service: str
+    data_classification: Optional[str] = None
+    authorized_by: Optional[str] = None
+    automatic: bool = False
+    rpo_minutes: Optional[int] = None
+
+
+@router.post("/orchestrate", status_code=202)
+async def orchestrate_failover(payload: OrchestrateIn, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:failover", "failover")
+    try:
+        out = await failover_orchestrator.orchestrate_failover(
+            db, tenant=tenant, service=payload.service, source_region=payload.source_region,
+            target_region=payload.target_region, authorized_by=payload.authorized_by,
+            automatic=payload.automatic, data_classification=payload.data_classification,
+            rpo_minutes=payload.rpo_minutes, actor=str(getattr(user, "id", "")),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return out
+
+
+class VerifyRecoveryIn(BaseModel):
+    source_region: str
+    target_region: str
+    checks: dict = {}
+
+
+@router.post("/recovery/verify", status_code=200)
+async def verify_recovery(payload: VerifyRecoveryIn, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:failover", "failover")
+    try:
+        out = await failover_orchestrator.verify_recovery(db, payload.source_region, payload.target_region, checks=payload.checks)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return out
+
+
+class LeaseIn(BaseModel):
+    region_id: str
+    holder: str
+    ttl_seconds: int = 60
+    generation: int = 1
+
+
+@router.post("/lease", status_code=200)
+async def acquire_lease(payload: LeaseIn, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:manage", "region")
+    try:
+        lease = await failover_orchestrator.acquire_lease(db, payload.region_id, payload.holder, ttl_seconds=payload.ttl_seconds, generation=payload.generation)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    await db.commit()
+    return {"region_id": lease.region_id, "holder": lease.holder, "epoch": lease.epoch, "generation": lease.generation, "fenced": lease.fenced}
+
+
+@router.post("/lease/{region_id}/fence", status_code=200)
+async def fence_primary(region_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:failover", "failover")
+    lease = await failover_orchestrator.fence_primary(db, region_id, by=str(getattr(user, "id", "")))
+    await db.commit()
+    return {"region_id": lease.region_id, "fenced": lease.fenced}
+
+
+@router.get("/lease/{region_id}/stale")
+async def stale_primary(region_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    _tenant(user)
+    return {"region_id": region_id, "stale": await failover_orchestrator.detect_stale_primary(db, region_id)}
+
+
+class ConflictIn(BaseModel):
+    source_region: str
+    dest_region: str
+    resource: str
+    conflict_type: str
+    tenant: str = ""
+    details: dict = {}
+
+
+@router.post("/conflicts", status_code=201)
+async def detect_conflict(payload: ConflictIn, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:manage", "region")
+    c = await failover_orchestrator.detect_conflict(db, payload.source_region, payload.dest_region, payload.resource, payload.conflict_type, tenant=payload.tenant, details=payload.details, actor=str(getattr(user, "id", "")))
+    await db.commit()
+    return {"id": c.id, "resolution": c.resolution}
+
+
+class ConflictResolveIn(BaseModel):
+    policy: str
+    resolved_by: Optional[str] = None
+
+
+@router.post("/conflicts/{conflict_id}/resolve", status_code=200)
+async def resolve_conflict(conflict_id: int, payload: ConflictResolveIn, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:manage", "region")
+    try:
+        c = await failover_orchestrator.resolve_conflict(db, conflict_id, payload.policy, resolved_by=payload.resolved_by)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return {"id": c.id, "resolution": c.resolution, "resolved_at": str(c.resolved_at) if c.resolved_at else None}
+
+
+# ── Commit 2: Tenant Migration ─────────────────────────────────────────────────
+
+class MigrationPlanIn(BaseModel):
+    source_region: str
+    target_region: str
+    service: Optional[str] = None
+    data_classification: Optional[str] = None
+    authorized_by: str
+    rollback_strategy: Optional[str] = None
+
+
+@router.post("/migrations", status_code=201)
+async def plan_migration(payload: MigrationPlanIn, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:migrate", "migration")
+    try:
+        m = await tenant_migration_service.plan(db, tenant, payload.source_region, payload.target_region,
+            authorized_by=payload.authorized_by, service=payload.service, data_classification=payload.data_classification,
+            rollback_strategy=payload.rollback_strategy, actor=str(getattr(user, "id", "")))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return {"id": m.id, "state": m.state, "source_region": m.source_region, "target_region": m.target_region}
+
+
+@router.get("/migrations/{migration_id}")
+async def get_migration(migration_id: int, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    _tenant(user)
+    from app.regions.models_c2 import TenantMigration
+    from sqlalchemy import select
+    res = await db.execute(select(TenantMigration).where(TenantMigration.id == migration_id))
+    m = res.scalar_one_or_none()
+    if not m:
+        raise HTTPException(status_code=404, detail="migration not found")
+    return {"id": m.id, "state": m.state, "source_region": m.source_region, "target_region": m.target_region,
+            "service": m.service, "verification": m.verification, "rollback_strategy": m.rollback_strategy}
+
+
+@router.post("/migrations/{migration_id}/advance", status_code=200)
+async def advance_migration(migration_id: int, payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:migrate", "migration")
+    try:
+        m = await tenant_migration_service.advance(db, migration_id, payload.get("state"))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return {"id": m.id, "state": m.state}
+
+
+@router.post("/migrations/{migration_id}/verify", status_code=200)
+async def verify_migration(migration_id: int, payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:migrate", "migration")
+    m = await tenant_migration_service.set_verification(db, migration_id, payload.get("verification", {}))
+    await db.commit()
+    return {"id": m.id, "verification": m.verification}
+
+
+@router.post("/migrations/{migration_id}/rollback", status_code=200)
+async def rollback_migration(migration_id: int, payload: dict | None = None, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:migrate", "migration")
+    try:
+        m = await tenant_migration_service.rollback(db, migration_id, reason=(payload or {}).get("reason"))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return {"id": m.id, "state": m.state}
+
+
+# ── Commit 2: Traffic shift / Rejoin / Drift / Drills / AIOps ──────────────────
+
+class TrafficShiftIn(BaseModel):
+    region_id: str
+    percentage: int
+    actor: Optional[str] = None
+
+
+@router.post("/traffic", status_code=201)
+async def traffic_shift(payload: TrafficShiftIn, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:manage", "region")
+    try:
+        s = await traffic_shift_service.shift(db, payload.region_id, payload.percentage, actor=payload.actor or str(getattr(user, "id", "")))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return {"id": s.id, "region_id": s.region_id, "percentage": s.percentage, "status": s.status}
+
+
+@router.get("/traffic/{region_id}")
+async def current_traffic(region_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    _tenant(user)
+    return {"region_id": region_id, "percentage": await traffic_shift_service.current(db, region_id)}
+
+
+class RejoinIn(BaseModel):
+    region_id: str
+    compromised: bool = False
+
+
+@router.post("/rejoin", status_code=200)
+async def begin_rejoin(payload: RejoinIn, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:failover", "failover")
+    try:
+        out = await rejoin_service.begin_rejoin(db, payload.region_id, compromised=payload.compromised, actor=str(getattr(user, "id", "")))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return out
+
+
+class RejoinVerifyIn(BaseModel):
+    region_id: str
+    source_region: str
+    checks: dict = {}
+
+
+@router.post("/rejoin/verify", status_code=200)
+async def verify_rejoin(payload: RejoinVerifyIn, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:failover", "failover")
+    out = await rejoin_service.verify_sync(db, payload.region_id, payload.source_region, checks=payload.checks)
+    await db.commit()
+    return out
+
+
+@router.post("/rejoin/{region_id}/admit", status_code=200)
+async def admit_rejoin(region_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:failover", "failover")
+    try:
+        out = await rejoin_service.admit_traffic(db, region_id)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return out
+
+
+class DriftIn(BaseModel):
+    service: str
+    expected_version: str
+    observed_version: str
+    drift_type: str = "version"
+    details: dict = {}
+
+
+@router.post("/drift", status_code=201)
+async def detect_drift(payload: DriftIn, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:manage", "region")
+    d = await config_drift_service.detect(db, tenant, payload.service, payload.expected_version, payload.observed_version, drift_type=payload.drift_type, details=payload.details, actor=str(getattr(user, "id", "")))
+    await db.commit()
+    return {"id": d.id, "status": d.status}
+
+
+@router.post("/drifts/{drift_id}/resolve", status_code=200)
+async def resolve_drift(drift_id: int, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:manage", "region")
+    d = await config_drift_service.resolve(db, drift_id)
+    await db.commit()
+    return {"id": d.id, "status": d.status}
+
+
+class DrillIn(BaseModel):
+    scenario: str
+    region_id: Optional[str] = None
+
+
+@router.post("/drills", status_code=200)
+async def run_drill(payload: DrillIn, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "region:drill", "drill")
+    out = await drill_service.run(db, payload.scenario, region_id=payload.region_id, actor=str(getattr(user, "id", "")))
+    await db.commit()
+    return out
+
+
+@router.post("/aiops/recommend", status_code=200)
+async def aiops_recommend(payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    _tenant(user)
+    region_id = payload.get("region_id", "")
+    return aiops_advisor.recommend(region_id, payload.get("signals", {}))
