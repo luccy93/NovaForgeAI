@@ -154,6 +154,9 @@ class NovaForgeCLI:
         elif cmd == "perf":
             from app.cli.performance_commands import handle_performance_command
             handle_performance_command(rest)
+        elif cmd == "region":
+            from app.cli.regions_commands import handle_region_command
+            handle_region_command(rest)
         elif cmd == "security":
             from app.cli.security_commands import handle_security_command
             subcmd = rest[0] if rest else "findings"

@@ -402,6 +402,20 @@ class EventType(str, Enum):
     performance_gate_failed = "performance.gate.failed"
     performance_gate_passed = "performance.gate.passed"
 
+    # Multi-Region platform events (Volume 62 Commit 1) — idempotent lifecycle events
+    region_registered = "region.registered"
+    region_health_changed = "region.health.changed"
+    region_draining_started = "region.draining.started"
+    region_draining_completed = "region.draining.completed"
+    placement_changed = "region.placement.changed"
+    replication_started = "region.replication.started"
+    replication_lag_detected = "region.replication.lag_detected"
+    replication_recovered = "region.replication.recovered"
+    regional_failover_started = "region.failover.started"
+    regional_failover_completed = "region.failover.completed"
+    regional_failback_started = "region.failback.started"
+    regional_failback_completed = "region.failback.completed"
+
     # Observability AIOps extensions (Volume 59 Commit 2) — additive, no placeholders
     AnomalyDetected = "observability.anomaly.detected"
     AlertCorrelated = "observability.alert.correlated"
