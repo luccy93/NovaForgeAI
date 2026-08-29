@@ -451,6 +451,33 @@ class EventType(str, Enum):
     security_control_test_completed = "secops.control_test.completed"
     detection_coverage_changed = "secops.coverage.changed"
 
+    # Zero Trust — Volume 64 Commit 1
+    IdentityCreated = "zero_trust.identity.created"
+    IdentitySuspended = "zero_trust.identity.suspended"
+    SessionCreated = "zero_trust.session.created"
+    SessionRevoked = "zero_trust.session.revoked"
+    CredentialCreated = "zero_trust.credential.created"
+    CredentialExpired = "zero_trust.credential.expired"
+    CredentialRevoked = "zero_trust.credential.revoked"
+    AccessRequested = "zero_trust.access.requested"
+    AccessApproved = "zero_trust.access.approved"
+    AccessDenied = "zero_trust.access.denied"
+    PrivilegedAccessGranted = "zero_trust.privileged.granted"
+    PrivilegedAccessExpired = "zero_trust.privileged.expired"
+    AuthorizationPolicyChanged = "zero_trust.policy.changed"
+
+    # Zero Trust — Volume 64 Commit 2
+    IdentityRiskChanged = "zero_trust.risk.changed"
+    AccessAnomalyDetected = "zero_trust.anomaly.detected"
+    StepUpRequired = "zero_trust.stepup.required"
+    SessionRiskChanged = "zero_trust.session.risk_changed"
+    CredentialRotationStarted = "zero_trust.credential.rotation_started"
+    CredentialRotationCompleted = "zero_trust.credential.rotation_completed"
+    PrivilegeRiskDetected = "zero_trust.privilege.risk_detected"
+    AccessReviewStarted = "zero_trust.review.started"
+    AccessReviewCompleted = "zero_trust.review.completed"
+    ZeroTrustPostureChanged = "zero_trust.posture.changed"
+
     # Observability AIOps extensions (Volume 59 Commit 2) — additive, no placeholders
     AnomalyDetected = "observability.anomaly.detected"
     AlertCorrelated = "observability.alert.correlated"

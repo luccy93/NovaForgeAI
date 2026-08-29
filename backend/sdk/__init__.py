@@ -30,6 +30,7 @@ from backend.sdk.resilience import ResilienceMixin, AsyncResilienceMixin
 from backend.sdk.performance import PerformanceMixin, AsyncPerformanceMixin
 from backend.sdk.regions import RegionsMixin, AsyncRegionsMixin
 from backend.sdk.secops import SecOpsMixin, AsyncSecOpsMixin
+from backend.sdk.zero_trust import ZeroTrustMixin, AsyncZeroTrustMixin
 
 __all__ = [
     "NovaForgeClient", "AsyncNovaForgeClient",
@@ -58,4 +59,5 @@ __all__ = [
     "PerformanceMixin", "AsyncPerformanceMixin",
     "RegionsMixin", "AsyncRegionsMixin",
     "SecOpsMixin", "AsyncSecOpsMixin",
+    "ZeroTrustMixin", "AsyncZeroTrustMixin",
 ]

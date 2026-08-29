@@ -25,7 +25,7 @@ class Workspace(Base, TimestampMixin):
     settings: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
 
     organization = relationship("Organization")
-    projects = relationship("Project", back_populates="workspace", cascade="all, delete-orphan")
+    projects = relationship("IAMProject", back_populates="workspace", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_iam_workspaces_org_id", "organization_id"),
@@ -134,7 +134,7 @@ class IAMRole(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     permissions: Mapped[dict] = mapped_column(JSONB, default=list)
     inherits_from: Mapped[Optional[dict]] = mapped_column(JSONB, default=list)
-    metadata: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
+    metadata_json: Mapped[Optional[dict]] = mapped_column("metadata", JSONB, default=dict)
 
     organization = relationship("Organization")
 
@@ -159,7 +159,7 @@ class ResourcePolicy(Base, TimestampMixin):
     conditions: Mapped[dict] = mapped_column(JSONB, default=list)
     principals: Mapped[dict] = mapped_column(JSONB, default=list)
     actions: Mapped[dict] = mapped_column(JSONB, default=list)
-    metadata: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
+    metadata_json: Mapped[Optional[dict]] = mapped_column("metadata", JSONB, default=dict)
 
     organization = relationship("Organization")
 
@@ -236,15 +236,27 @@ class IAMSession(Base, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
     )
     session_token: Mapped[str] = mapped_column(String(500), unique=True, nullable=False, index=True)
+    session_id_hash: Mapped[Optional[str]] = mapped_column(String(128), unique=True, nullable=True, index=True)
+    identity_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    tenant_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    scope: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict, nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="ACTIVE", nullable=False)
     refresh_token: Mapped[Optional[str]] = mapped_column(String(500), index=True)
     ip_address: Mapped[Optional[str]] = mapped_column(String(45))
     user_agent: Mapped[Optional[str]] = mapped_column(String(500))
     device_fingerprint: Mapped[Optional[str]] = mapped_column(String(255))
+    device_context_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    absolute_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     idle_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     revocation_reason: Mapped[Optional[str]] = mapped_column(Text)
+    revocation_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    risk_state: Mapped[str] = mapped_column(String(16), default="LOW", nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(32), default="1.0", nullable=False)
+    region: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     auth_method: Mapped[str] = mapped_column(String(50), default="password", nullable=False)
 
@@ -360,7 +372,7 @@ class QuotaPolicy(Base, TimestampMixin):
     period_start: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     period_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    metadata: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
+    metadata_json: Mapped[Optional[dict]] = mapped_column("metadata", JSONB, default=dict)
 
     organization = relationship("Organization")
 
@@ -418,7 +430,6 @@ class IAMAuditLog(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_iam_audit_logs_org_id", "organization_id"),
         Index("ix_iam_audit_logs_actor_id", "actor_id"),
-        Index("ix_iam_audit_logs_action", "action"),
         Index("ix_iam_audit_logs_created_at", "created_at"),
     )
 

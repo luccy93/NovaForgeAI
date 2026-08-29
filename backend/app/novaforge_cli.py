@@ -181,8 +181,16 @@ class NovaForgeCLI:
             from app.cli.knowledge_graph_commands import handle_knowledge_graph_command
             handle_knowledge_graph_command(rest)
         elif cmd == "iam":
-            from app.cli.iam_commands import handle_iam_command
-            handle_iam_command(rest)
+            # Zero Trust subcommands take precedence for Volume 64
+            zt_subs = {"authorize", "sessions", "credentials", "access-request", "privileged", "reviews", "risk", "posture", "access-graph", "simulate", "blast-radius", "anomalies", "campaigns"}
+            sub = rest[0] if rest else ""
+            # map aliases to handle dashes
+            if sub in zt_subs:
+                from app.cli.zero_trust_commands import handle_zero_trust_command
+                handle_zero_trust_command(rest)
+            else:
+                from app.cli.iam_commands import handle_iam_command
+                handle_iam_command(rest)
         elif cmd == "billing":
             from app.cli.billing_commands import handle_billing_command
             handle_billing_command(rest)
