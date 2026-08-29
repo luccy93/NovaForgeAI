@@ -429,6 +429,16 @@ class EventType(str, Enum):
     configuration_drift_detected = "region.config.drift.detected"
     regional_recovery_verified = "region.recovery.verified"
 
+    # SecOps — Volume 63 Commit 1
+    security_event_received = "secops.event.received"
+    security_alert_created = "secops.alert.created"
+    security_finding_created = "secops.finding.created"
+    security_case_created = "secops.case.created"
+    security_case_updated = "secops.case.updated"
+    threat_indicator_matched = "secops.indicator.matched"
+    security_risk_changed = "secops.risk.changed"
+    security_alert_resolved = "secops.alert.resolved"
+
     # Observability AIOps extensions (Volume 59 Commit 2) — additive, no placeholders
     AnomalyDetected = "observability.anomaly.detected"
     AlertCorrelated = "observability.alert.correlated"

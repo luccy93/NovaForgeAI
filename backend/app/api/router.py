@@ -45,6 +45,7 @@ from app.api.observability import router as observability_router
 from app.api.resilience import router as resilience_router
 from app.api.performance import router as performance_router
 from app.api.regions import router as regions_router
+from app.api.secops import router as secops_router
 
 api_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_router.include_router(repos_router, prefix="/repositories", tags=["Repositories"])
@@ -89,4 +90,5 @@ api_router.include_router(observability_router, tags=["Observability"])
 api_router.include_router(resilience_router, tags=["Resilience"])
 api_router.include_router(performance_router, tags=["Performance"])
 api_router.include_router(regions_router, tags=["Multi-Region"])
+api_router.include_router(secops_router, tags=["Security Operations"])
 api_router.include_router(sre_router)
