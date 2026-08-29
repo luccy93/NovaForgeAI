@@ -1,6 +1,6 @@
-"""SecOps CLI — Volume 63 Commit 1.
+"""SecOps CLI — Volume 63.
 
-nova security events|alerts|findings|cases|investigate|indicators|risk --json
+nova security events|alerts|findings|cases|investigate|indicators|risk|respond|playbook|hunt|attack-path|blast-radius|posture|coverage --json
 """
 
 import argparse
@@ -83,6 +83,39 @@ def handle_secops_command(argv):
     p.add_argument("--severity", default="MEDIUM")
     p.add_argument("--calculate", action="store_true")
 
+    # Commit 2
+    p = sub.add_parser("respond")
+    p.add_argument("--case-id", required=True)
+    p.add_argument("--action", required=True)
+    p.add_argument("--scope", default="{}")
+    p.add_argument("--policy", default="")
+    p.add_argument("--approve", default=None)
+    p.add_argument("--execute", default=None)
+    p.add_argument("--verify", default=None)
+
+    p = sub.add_parser("playbook")
+    p.add_argument("--playbook-id", required=True)
+    p.add_argument("--case-id", required=True)
+
+    p = sub.add_parser("hunt")
+    p.add_argument("--query", default="{}")
+    p.add_argument("--template", default=None)
+    p.add_argument("--id", default=None)
+    p.add_argument("--limit", type=int, default=20)
+
+    p = sub.add_parser("attack-path")
+    p.add_argument("--start", required=True)
+    p.add_argument("--target", default=None)
+    p.add_argument("--depth", type=int, default=3)
+
+    p = sub.add_parser("blast-radius")
+    p.add_argument("--case-id", required=True)
+    p.add_argument("--entity", default=None)
+
+    p = sub.add_parser("posture")
+
+    p = sub.add_parser("coverage")
+
     raw_argv = argv if argv is not None else sys.argv[1:]
     as_json_raw = "--json" in raw_argv
     filtered_argv = [a for a in raw_argv if a != "--json"]
@@ -144,6 +177,47 @@ def handle_secops_command(argv):
                 res = _call("POST", "/secops/risk/calculate", base, key, body={"resource": args.resource, "severity": args.severity})
             else:
                 res = _call("GET", "/secops/risk", base, key)
+        elif args.action == "respond":
+            if args.approve:
+                res = _call("POST", f"/secops/responses/{args.approve}/approve", base, key, body={})
+            elif args.execute:
+                res = _call("POST", f"/secops/responses/{args.execute}/execute", base, key, body={})
+            elif args.verify:
+                res = _call("POST", f"/secops/responses/{args.verify}/verify", base, key, body={})
+            else:
+                try:
+                    scope = json.loads(args.scope) if isinstance(args.scope, str) else args.scope
+                except Exception:
+                    scope = {}
+                res = _call("POST", f"/secops/cases/{args.case_id}/response/request", base, key, body={"action": args.action, "scope": scope, "policy": args.policy})
+        elif args.action == "playbook":
+            res = _call("POST", f"/secops/playbooks/{args.playbook_id}/execute", base, key, body={"case_id": args.case_id})
+        elif args.action == "hunt":
+            if args.id:
+                res = _call("GET", f"/secops/hunts/{args.id}", base, key)
+            else:
+                try:
+                    query = json.loads(args.query) if isinstance(args.query, str) else args.query
+                except Exception:
+                    query = {}
+                if args.template:
+                    res = _call("POST", "/secops/hunts", base, key, body={"query": query, "template": args.template})
+                else:
+                    res = _call("POST", "/secops/hunts", base, key, body={"query": query})
+        elif args.action == "attack-path":
+            params = {"start": args.start, "depth": args.depth}
+            if args.target:
+                params["target"] = args.target
+            res = _call("GET", "/secops/attack-path", base, key, params=params)
+        elif args.action == "blast-radius":
+            params = {}
+            if args.entity:
+                params["entity"] = args.entity
+            res = _call("GET", f"/secops/blast-radius/{args.case_id}", base, key, params=params or None)
+        elif args.action == "posture":
+            res = _call("GET", "/secops/posture", base, key)
+        elif args.action == "coverage":
+            res = _call("GET", "/secops/coverage", base, key)
         else:
             res = {"error": f"unknown action {args.action}"}
         print(json.dumps(res, indent=None if as_json else 2, default=str))

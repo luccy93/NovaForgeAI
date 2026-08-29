@@ -439,6 +439,18 @@ class EventType(str, Enum):
     security_risk_changed = "secops.risk.changed"
     security_alert_resolved = "secops.alert.resolved"
 
+    # SecOps — Volume 63 Commit 2
+    security_response_requested = "secops.response.requested"
+    security_response_approved = "secops.response.approved"
+    security_response_started = "secops.response.started"
+    security_response_completed = "secops.response.completed"
+    security_response_failed = "secops.response.failed"
+    threat_hunt_started = "secops.hunt.started"
+    threat_hunt_completed = "secops.hunt.completed"
+    containment_verified = "secops.containment.verified"
+    security_control_test_completed = "secops.control_test.completed"
+    detection_coverage_changed = "secops.coverage.changed"
+
     # Observability AIOps extensions (Volume 59 Commit 2) — additive, no placeholders
     AnomalyDetected = "observability.anomaly.detected"
     AlertCorrelated = "observability.alert.correlated"

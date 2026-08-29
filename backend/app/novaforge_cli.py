@@ -159,7 +159,7 @@ class NovaForgeCLI:
             handle_region_command(rest)
         elif cmd in ("secops", "security"):
             # Volume 63 SecOps takes precedence for its subcommands
-            secops_subs = {"events", "alerts", "findings", "cases", "investigate", "indicators", "risk"}
+            secops_subs = {"events", "alerts", "findings", "cases", "investigate", "indicators", "risk", "respond", "playbook", "hunt", "attack-path", "blast-radius", "posture", "coverage"}
             sub = rest[0] if rest else ""
             if sub in secops_subs or cmd == "secops":
                 from app.cli.secops_commands import handle_secops_command

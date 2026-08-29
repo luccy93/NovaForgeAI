@@ -134,6 +134,75 @@ class SecOpsMixin:
     def secops_dashboard(self) -> dict:
         return self.get(self._build_url("/secops/dashboard"))
 
+    # ── Commit 2: response, hunts, attack-path, posture, intel ────────────────
+    def secops_request_response(self, case_id: str, action: str, scope: dict, policy: str = "", timeout_seconds: int = 300) -> dict:
+        return self.post(self._build_url(f"/secops/cases/{case_id}/response/request"), data={"action": action, "scope": scope, "policy": policy, "timeout_seconds": timeout_seconds})
+
+    def secops_approve_response(self, response_id: str) -> dict:
+        return self.post(self._build_url(f"/secops/responses/{response_id}/approve"), data={})
+
+    def secops_execute_response(self, response_id: str) -> dict:
+        return self.post(self._build_url(f"/secops/responses/{response_id}/execute"), data={})
+
+    def secops_verify_response(self, response_id: str) -> dict:
+        return self.post(self._build_url(f"/secops/responses/{response_id}/verify"), data={})
+
+    def secops_list_responses(self, limit: int = 20) -> dict:
+        return self.get(self._build_url("/secops/responses"), params={"limit": limit})
+
+    def secops_execute_playbook(self, playbook_id: str, case_id: str) -> dict:
+        return self.post(self._build_url(f"/secops/playbooks/{playbook_id}/execute"), data={"case_id": case_id})
+
+    def secops_start_hunt(self, query: dict, scope: dict | None = None, template: str | None = None) -> dict:
+        payload: Dict[str, Any] = {"query": query}
+        if scope is not None:
+            payload["scope"] = scope
+        if template is not None:
+            payload["template"] = template
+        return self.post(self._build_url("/secops/hunts"), data=payload)
+
+    def secops_get_hunt(self, hunt_id: str) -> dict:
+        return self.get(self._build_url(f"/secops/hunts/{hunt_id}"))
+
+    def secops_list_hunts(self, limit: int = 20) -> dict:
+        return self.get(self._build_url("/secops/hunts"), params={"limit": limit})
+
+    def secops_list_hunt_templates(self) -> dict:
+        return self.get(self._build_url("/secops/hunt-templates"))
+
+    def secops_get_attack_path(self, start: str, target: str | None = None, depth: int = 3) -> dict:
+        params: Dict[str, Any] = {"start": start, "depth": depth}
+        if target:
+            params["target"] = target
+        return self.get(self._build_url("/secops/attack-path"), params=params)
+
+    def secops_get_blast_radius(self, case_id: str, entity: str | None = None) -> dict:
+        params: Dict[str, Any] = {}
+        if entity:
+            params["entity"] = entity
+        return self.get(self._build_url(f"/secops/blast-radius/{case_id}"), params=params or None)
+
+    def secops_get_posture(self) -> dict:
+        return self.get(self._build_url("/secops/posture"))
+
+    def secops_get_coverage(self) -> dict:
+        return self.get(self._build_url("/secops/coverage"))
+
+    def secops_get_slo(self) -> dict:
+        return self.get(self._build_url("/secops/slo"))
+
+    def secops_ingest_feed(self, feed_id: str, source: str, indicators: list) -> dict:
+        return self.post(self._build_url("/secops/intel/feeds/ingest"), data={"feed_id": feed_id, "source": source, "indicators": indicators})
+
+    def secops_validate_feed(self, feed_id: str) -> dict:
+        return self.post(self._build_url(f"/secops/intel/feeds/{feed_id}/validate"), data={})
+
+    def secops_feed_health(self, feed_id: str) -> dict:
+        return self.get(self._build_url(f"/secops/intel/feeds/{feed_id}/health"))
+
+    def secops_simulate_attack(self, type: str, target: str = "staging", explicit_authorization: bool = False) -> dict:
+        return self.post(self._build_url("/secops/security-testing/simulate"), data={"type": type, "target": target, "explicit_authorization": explicit_authorization})
+
 
 class AsyncSecOpsMixin:
     """Async SecOps mixin."""
@@ -265,3 +334,72 @@ class AsyncSecOpsMixin:
 
     async def secops_dashboard(self) -> dict:
         return await self.get(self._build_url("/secops/dashboard"))
+
+    # ── Commit 2: response, hunts, attack-path, posture, intel ────────────────
+    async def secops_request_response(self, case_id: str, action: str, scope: dict, policy: str = "", timeout_seconds: int = 300) -> dict:
+        return await self.post(self._build_url(f"/secops/cases/{case_id}/response/request"), data={"action": action, "scope": scope, "policy": policy, "timeout_seconds": timeout_seconds})
+
+    async def secops_approve_response(self, response_id: str) -> dict:
+        return await self.post(self._build_url(f"/secops/responses/{response_id}/approve"), data={})
+
+    async def secops_execute_response(self, response_id: str) -> dict:
+        return await self.post(self._build_url(f"/secops/responses/{response_id}/execute"), data={})
+
+    async def secops_verify_response(self, response_id: str) -> dict:
+        return await self.post(self._build_url(f"/secops/responses/{response_id}/verify"), data={})
+
+    async def secops_list_responses(self, limit: int = 20) -> dict:
+        return await self.get(self._build_url("/secops/responses"), params={"limit": limit})
+
+    async def secops_execute_playbook(self, playbook_id: str, case_id: str) -> dict:
+        return await self.post(self._build_url(f"/secops/playbooks/{playbook_id}/execute"), data={"case_id": case_id})
+
+    async def secops_start_hunt(self, query: dict, scope: dict | None = None, template: str | None = None) -> dict:
+        payload: Dict[str, Any] = {"query": query}
+        if scope is not None:
+            payload["scope"] = scope
+        if template is not None:
+            payload["template"] = template
+        return await self.post(self._build_url("/secops/hunts"), data=payload)
+
+    async def secops_get_hunt(self, hunt_id: str) -> dict:
+        return await self.get(self._build_url(f"/secops/hunts/{hunt_id}"))
+
+    async def secops_list_hunts(self, limit: int = 20) -> dict:
+        return await self.get(self._build_url("/secops/hunts"), params={"limit": limit})
+
+    async def secops_list_hunt_templates(self) -> dict:
+        return await self.get(self._build_url("/secops/hunt-templates"))
+
+    async def secops_get_attack_path(self, start: str, target: str | None = None, depth: int = 3) -> dict:
+        params: Dict[str, Any] = {"start": start, "depth": depth}
+        if target:
+            params["target"] = target
+        return await self.get(self._build_url("/secops/attack-path"), params=params)
+
+    async def secops_get_blast_radius(self, case_id: str, entity: str | None = None) -> dict:
+        params: Dict[str, Any] = {}
+        if entity:
+            params["entity"] = entity
+        return await self.get(self._build_url(f"/secops/blast-radius/{case_id}"), params=params or None)
+
+    async def secops_get_posture(self) -> dict:
+        return await self.get(self._build_url("/secops/posture"))
+
+    async def secops_get_coverage(self) -> dict:
+        return await self.get(self._build_url("/secops/coverage"))
+
+    async def secops_get_slo(self) -> dict:
+        return await self.get(self._build_url("/secops/slo"))
+
+    async def secops_ingest_feed(self, feed_id: str, source: str, indicators: list) -> dict:
+        return await self.post(self._build_url("/secops/intel/feeds/ingest"), data={"feed_id": feed_id, "source": source, "indicators": indicators})
+
+    async def secops_validate_feed(self, feed_id: str) -> dict:
+        return await self.post(self._build_url(f"/secops/intel/feeds/{feed_id}/validate"), data={})
+
+    async def secops_feed_health(self, feed_id: str) -> dict:
+        return await self.get(self._build_url(f"/secops/intel/feeds/{feed_id}/health"))
+
+    async def secops_simulate_attack(self, type: str, target: str = "staging", explicit_authorization: bool = False) -> dict:
+        return await self.post(self._build_url("/secops/security-testing/simulate"), data={"type": type, "target": target, "explicit_authorization": explicit_authorization})

@@ -686,6 +686,256 @@ async def list_risk_snapshots(limit: int = Query(50, ge=1, le=1000), user=Depend
     return {"items": [{"id": str(r.id), "risk_score": r.risk_score, "resource": r.resource_id, "severity": r.severity} for r in rows]}
 
 
+# ── Commit 2: Response, Playbooks, Hunting, Attack Path, Posture ────────────
+
+class ResponseRequestIn(BaseModel):
+    action: str
+    scope: dict = {}
+    policy: str = ""
+    timeout_seconds: int = 300
+
+
+@router.post("/cases/{case_id}/response/request", status_code=201)
+async def request_response(case_id: str, payload: ResponseRequestIn, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "secops:write", "secops")
+    from app.secops.response import request_response as _req
+
+    try:
+        rec = await _req(db, tenant, case_id, payload.action, payload.scope, policy=payload.policy, timeout_seconds=payload.timeout_seconds, requested_by=str(getattr(user, "id", "")))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    await _emit_best("security_response_requested", {"response_id": rec["id"], "case_id": case_id}, tenant)
+    return rec
+
+
+@router.post("/responses/{response_id}/approve", status_code=200)
+async def approve_response(response_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "secops:write", "secops")
+    from app.secops.response import approve_response as _appr
+
+    try:
+        rec = await _appr(db, tenant, response_id, approved_by=str(getattr(user, "id", "")))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    await _emit_best("security_response_approved", {"response_id": response_id}, tenant)
+    return rec
+
+
+@router.post("/responses/{response_id}/execute", status_code=200)
+async def execute_response(response_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "secops:write", "secops")
+    from app.secops.response import execute_response as _exec
+
+    try:
+        rec = await _exec(db, tenant, response_id, executor=str(getattr(user, "id", "")))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    if rec.get("status") == "COMPLETED":
+        await _emit_best("security_response_completed", {"response_id": response_id}, tenant)
+        await _emit_best("security_response_started", {"response_id": response_id}, tenant)
+    else:
+        await _emit_best("security_response_failed", {"response_id": response_id}, tenant)
+    return rec
+
+
+@router.post("/responses/{response_id}/verify", status_code=200)
+async def verify_response(response_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "secops:read", "secops")
+    from app.secops.response import verify_containment
+
+    try:
+        rec = await verify_containment(db, tenant, response_id)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    await _emit_best("containment_verified", {"response_id": response_id, "verified": rec.get("verified")}, tenant)
+    return rec
+
+
+@router.get("/responses")
+async def list_responses(limit: int = Query(20, ge=1, le=100), user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    _check_limit(limit)
+    tenant = _tenant(user)
+    from app.secops.response import list_responses as _list
+
+    rows = _list(tenant)
+    return {"items": rows[:limit], "total": len(rows)}
+
+
+@router.post("/playbooks/{playbook_id}/execute", status_code=200)
+async def execute_playbook(playbook_id: str, payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "secops:write", "secops")
+    case_id = payload.get("case_id")
+    if not case_id:
+        raise HTTPException(status_code=422, detail="case_id required")
+    from app.secops.response import execute_playbook as _exec_pb
+
+    res = await _exec_pb(db, tenant, case_id, playbook_id, requested_by=str(getattr(user, "id", "")))
+    await db.commit()
+    return res
+
+
+class HuntIn(BaseModel):
+    query: dict = {}
+    scope: dict = {}
+    template: Optional[str] = None
+    limit: int = 100
+
+
+@router.post("/hunts", status_code=201)
+async def start_hunt(payload: HuntIn, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "secops:read", "secops")
+    from app.secops.hunting import start_hunt as _start
+
+    try:
+        job = await _start(db, tenant, payload.query, scope=payload.scope, analyst=str(getattr(user, "id", "")), template=payload.template)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    await _emit_best("threat_hunt_started", {"hunt_id": job["id"]}, tenant)
+    await _emit_best("threat_hunt_completed", {"hunt_id": job["id"]}, tenant)
+    return job
+
+
+@router.get("/hunts/{hunt_id}")
+async def get_hunt(hunt_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.secops.hunting import get_hunt as _get
+
+    job = await _get(hunt_id, tenant)
+    if not job:
+        raise HTTPException(status_code=404, detail="hunt not found")
+    return job
+
+
+@router.get("/hunts")
+async def list_hunts(limit: int = Query(20, ge=1, le=100), user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    _check_limit(limit)
+    tenant = _tenant(user)
+    from app.secops.hunting import list_hunts as _list
+
+    rows = await _list(tenant, limit=limit)
+    return {"items": rows, "total": len(rows)}
+
+
+@router.get("/hunt-templates")
+async def list_hunt_templates(user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    _tenant(user)
+    from app.secops.hunting import list_templates
+
+    return {"items": list_templates()}
+
+
+@router.get("/attack-path")
+async def get_attack_path(start: str = Query(...), target: Optional[str] = None, depth: int = Query(3, ge=1, le=5), user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.secops.attack_path import analyze_attack_path
+
+    res = await analyze_attack_path(db, tenant, start, target_entity=target, depth=depth)
+    return res
+
+
+@router.get("/blast-radius/{case_id}")
+async def get_blast_radius(case_id: str, entity: Optional[str] = None, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.secops.attack_path import estimate_blast_radius
+
+    res = await estimate_blast_radius(db, tenant, case_id=case_id, entity=entity)
+    return res
+
+
+@router.get("/posture")
+async def get_posture(user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.secops.posture import get_posture as _get
+
+    return await _get(db, tenant)
+
+
+@router.get("/coverage")
+async def get_coverage(user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.secops.posture import get_coverage as _get
+
+    return await _get(db, tenant)
+
+
+@router.get("/slo")
+async def get_slo(user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.secops.posture import get_slo as _get
+
+    return await _get(db, tenant)
+
+
+class FeedIngestIn(BaseModel):
+    feed_id: str
+    source: str
+    indicators: list = []
+
+
+@router.post("/intel/feeds/ingest", status_code=201)
+async def ingest_feed(payload: FeedIngestIn, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "secops:write", "secops")
+    from app.secops.intel import ingest_feed as _ingest
+
+    try:
+        res = await _ingest(db, tenant, payload.feed_id, payload.source, payload.indicators, analyst=str(getattr(user, "id", "")))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return res
+
+
+@router.post("/intel/feeds/{feed_id}/validate", status_code=200)
+async def validate_feed(feed_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "secops:write", "secops")
+    from app.secops.intel import validate_feed_indicators
+
+    count = await validate_feed_indicators(db, tenant, feed_id, validator=str(getattr(user, "id", "")))
+    await db.commit()
+    return {"feed_id": feed_id, "validated": count}
+
+
+@router.get("/intel/feeds/{feed_id}/health")
+async def feed_health(feed_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    _tenant(user)
+    from app.secops.intel import get_feed_health
+
+    h = get_feed_health(feed_id)
+    if not h:
+        raise HTTPException(status_code=404, detail="feed not found")
+    return h
+
+
+@router.post("/security-testing/simulate", status_code=200)
+async def simulate_attack(payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "secops:read", "secops")
+    sim_type = payload.get("type", "credential_misuse")
+    allowed = {"credential_misuse", "privilege_escalation", "data_access", "agent_abuse", "package_compromise"}
+    if sim_type not in allowed:
+        raise HTTPException(status_code=422, detail=f"unknown simulation type {sim_type}")
+    if payload.get("target") == "production" and not payload.get("explicit_authorization"):
+        raise HTTPException(status_code=403, detail="production simulation requires explicit authorization")
+    return {"type": sim_type, "status": "SIMULATED", "tenant": tenant, "explicit_authorization": bool(payload.get("explicit_authorization"))}
+
+
 # ── Dashboard ────────────────────────────────────────────────────────────────
 @router.get("/dashboard")
 async def dashboard(user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
