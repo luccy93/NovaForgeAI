@@ -72,8 +72,11 @@ def handle_zero_trust_command(argv):
     p.add_argument("--evaluate", action="store_true")
 
     p = sub.add_parser("posture")
+    p.add_argument("--type", default="all", choices=["all", "identity", "access", "machine"])
+
     p = sub.add_parser("access-graph")
     p.add_argument("--identity", required=True)
+    p.add_argument("--depth", type=int, default=2)
 
     p = sub.add_parser("simulate")
     p.add_argument("--identity", required=True)
@@ -84,7 +87,11 @@ def handle_zero_trust_command(argv):
     p.add_argument("--identity", required=True)
 
     p = sub.add_parser("anomalies")
+    p.add_argument("--since-hours", type=int, default=24)
+
     p = sub.add_parser("campaigns")
+    p.add_argument("--create", action="store_true")
+    p.add_argument("--scope", default="all")
 
     raw_argv = argv if argv is not None else sys.argv[1:]
     as_json_raw = "--json" in raw_argv
@@ -125,14 +132,27 @@ def handle_zero_trust_command(argv):
             else:
                 res = _call("GET", f"/zero-trust/identity-risk/{args.identity}", base, key)
         elif args.action == "posture":
-            res = _call("GET", "/zero-trust/posture", base, key) if False else {"posture": "not yet via CLI, use SDK"}
-            # placeholder
-            try:
-                res = _call("GET", "/zero-trust/identity-risk/evaluate", base, key)  # fallback
-            except Exception:
-                res = {"note": "posture via API not yet, use SDK posture"}
-        elif args.action in ("access-graph", "simulate", "blast-radius", "anomalies", "campaigns"):
-            res = {"note": f"{args.action} via SDK/API, CLI delegates to zero_trust API"}
+            if args.type == "identity":
+                res = _call("GET", "/zero-trust/identity-posture", base, key)
+            elif args.type == "access":
+                res = _call("GET", "/zero-trust/access-posture", base, key)
+            elif args.type == "machine":
+                res = _call("GET", "/zero-trust/machine-posture", base, key)
+            else:
+                res = _call("GET", "/zero-trust/posture", base, key)
+        elif args.action == "access-graph":
+            res = _call("GET", "/zero-trust/access-graph", base, key, params={"identity": args.identity, "depth": args.depth})
+        elif args.action == "simulate":
+            res = _call("POST", "/zero-trust/policy-simulation", base, key, body={"identity": args.identity, "resource": args.resource, "action": args.action})
+        elif args.action == "blast-radius":
+            res = _call("GET", f"/zero-trust/blast-radius/{args.identity}", base, key)
+        elif args.action == "anomalies":
+            res = _call("GET", "/zero-trust/access-anomalies", base, key, params={"since_hours": args.since_hours})
+        elif args.action == "campaigns":
+            if args.create:
+                res = _call("POST", "/zero-trust/review-campaigns", base, key, body={"scope": args.scope})
+            else:
+                res = _call("GET", "/zero-trust/review-campaigns", base, key)
         else:
             res = {"error": f"unknown {args.action}"}
         print(json.dumps(res, indent=None if as_json else 2, default=str))

@@ -402,3 +402,166 @@ async def get_risk(identity_id: str, user=Depends(_get_current_user), db: AsyncS
     if not snap:
         return {"identity": identity_id, "risk_level": "LOW", "risk_score": 0.0}
     return {"identity": identity_id, "risk_level": snap.risk_level, "risk_score": snap.risk_score, "calculated_at": snap.calculated_at.isoformat()}
+
+
+# ── Continuous trust (Commit 2) ──────────────────────────────────────────────
+class ReevaluateIn(BaseModel):
+    session_id_hash: str
+    signals: dict = {}
+
+
+@router.post("/continuous/reevaluate", status_code=200)
+async def reevaluate_continuous(payload: ReevaluateIn, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.zero_trust.continuous import reevaluate_session_risk
+    res = await reevaluate_session_risk(db, tenant, payload.session_id_hash, payload.signals)
+    await db.commit()
+    return res
+
+
+@router.post("/sessions/{session_id_hash}/step-up", status_code=200)
+async def step_up_session(session_id_hash: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.zero_trust.continuous import step_up_required
+    required = await step_up_required(db, tenant, session_id_hash)
+    return {"session_id_hash": session_id_hash, "step_up_required": required}
+
+
+@router.post("/continuous/check", status_code=200)
+async def continuous_check(payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    session_id_hash = payload.get("session_id_hash")
+    resource = payload.get("resource", "resource:unknown")
+    action = payload.get("action", "READ")
+    if not session_id_hash:
+        raise HTTPException(status_code=422, detail="session_id_hash required")
+    from app.zero_trust.continuous import continuous_authorization_check
+    res = await continuous_authorization_check(db, tenant, session_id_hash, resource, action)
+    return res
+
+
+# ── Posture (Commit 2) ───────────────────────────────────────────────────────
+@router.get("/identity-posture")
+async def identity_posture(user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.zero_trust.posture import get_identity_posture
+    return await get_identity_posture(db, tenant)
+
+
+@router.get("/access-posture")
+async def access_posture(user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.zero_trust.posture import get_access_posture
+    return await get_access_posture(db, tenant)
+
+
+@router.get("/machine-posture")
+async def machine_posture(user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.zero_trust.posture import get_machine_posture
+    return await get_machine_posture(db, tenant)
+
+
+@router.get("/posture")
+async def combined_posture(user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.zero_trust.posture import get_identity_posture, get_access_posture, get_machine_posture
+    return {
+        "identity": await get_identity_posture(db, tenant),
+        "access": await get_access_posture(db, tenant),
+        "machine": await get_machine_posture(db, tenant),
+    }
+
+
+# ── Graph & Simulation (Commit 2) ────────────────────────────────────────────
+@router.get("/access-graph")
+async def access_graph(identity: str = Query(...), depth: int = Query(2, ge=1, le=5), user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.zero_trust.graph import get_access_graph
+    return await get_access_graph(db, tenant, identity, depth=depth)
+
+
+@router.get("/graph/paths")
+async def graph_paths(from_id: str = Query(..., alias="from"), to_id: str = Query(..., alias="to"), depth: int = Query(3, ge=1, le=5), user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.zero_trust.graph import analyze_paths
+    return await analyze_paths(db, tenant, from_id, to_id, depth=depth)
+
+
+@router.get("/blast-radius/{identity_id}")
+async def blast_radius(identity_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.zero_trust.graph import estimate_blast_radius
+    return await estimate_blast_radius(db, tenant, identity_id)
+
+
+@router.get("/blast-radius/session/{session_id_hash}")
+async def blast_radius_session(session_id_hash: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.zero_trust.graph import blast_radius_for_session
+    return await blast_radius_for_session(db, tenant, session_id_hash)
+
+
+@router.post("/policy-simulation", status_code=200)
+async def policy_simulation(payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    identity = payload.get("identity")
+    action = payload.get("action")
+    resource = payload.get("resource")
+    if not identity or not action or not resource:
+        raise HTTPException(status_code=422, detail="identity, action, resource required")
+    from app.zero_trust.simulation import simulate
+    return await simulate(db, tenant, identity, action, resource, context=payload.get("context"))
+
+
+@router.post("/policy-simulation/what-if", status_code=200)
+async def what_if(payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    perm = payload.get("permission")
+    if not perm:
+        raise HTTPException(status_code=422, detail="permission required")
+    from app.zero_trust.simulation import what_if as _what_if
+    return await _what_if(db, tenant, perm, remove=payload.get("remove", True))
+
+
+# ── Anomalies & Campaigns (Commit 2) ─────────────────────────────────────────
+@router.get("/access-anomalies")
+async def access_anomalies(since_hours: int = Query(24, ge=1, le=720), user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.zero_trust.anomaly import detect_anomalies
+    return {"items": await detect_anomalies(db, tenant, since_hours=since_hours)}
+
+
+@router.get("/access-anomalies/impossible")
+async def impossible_access(user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.zero_trust.anomaly import detect_impossible_access
+    return {"items": await detect_impossible_access(db, tenant)}
+
+
+@router.post("/review-campaigns", status_code=201)
+async def create_campaign(payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.iam.access_review_service import access_review_service
+    camp = access_review_service.create_review(tenant, review_type=payload.get("review_type", "campaign"), scope=payload.get("scope", "all"), initiated_by=str(getattr(user, "id", "")))
+    # Add deadline
+    camp["deadline"] = payload.get("deadline")
+    camp["reviewers"] = payload.get("reviewers", [])
+    await _emit("AccessReviewStarted", {"campaign_id": camp["id"]}, tenant)
+    return camp
+
+
+@router.get("/review-campaigns")
+async def list_campaigns(limit: int = Query(20, ge=1, le=100), user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    _tenant(user)
+    from app.iam.access_review_service import access_review_service
+    rows = access_review_service.list_reviews()
+    return {"items": rows[:limit]}
+
+
+@router.post("/review-campaigns/{campaign_id}/escalate", status_code=200)
+async def escalate_campaign(campaign_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    # Simplified escalation
+    await _emit("AccessReviewStarted", {"campaign_id": campaign_id, "escalated": True}, tenant)
+    return {"campaign_id": campaign_id, "escalated": True, "tenant": tenant}

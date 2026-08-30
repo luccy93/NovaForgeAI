@@ -91,6 +91,40 @@ class ZeroTrustMixin:
     def zt_get_risk(self, identity_id: str) -> dict:
         return self.get(self._build_url(f"/zero-trust/identity-risk/{identity_id}"))
 
+    # Commit 2 additions
+    def zt_reevaluate(self, session_id_hash: str, signals: dict | None = None) -> dict:
+        return self.post(self._build_url("/zero-trust/continuous/reevaluate"), data={"session_id_hash": session_id_hash, "signals": signals or {}})
+
+    def zt_continuous_check(self, session_id_hash: str, resource: str, action: str) -> dict:
+        return self.post(self._build_url("/zero-trust/continuous/check"), data={"session_id_hash": session_id_hash, "resource": resource, "action": action})
+
+    def zt_get_posture(self) -> dict:
+        return self.get(self._build_url("/zero-trust/posture"))
+
+    def zt_get_identity_posture(self) -> dict:
+        return self.get(self._build_url("/zero-trust/identity-posture"))
+
+    def zt_get_access_graph(self, identity: str, depth: int = 2) -> dict:
+        return self.get(self._build_url("/zero-trust/access-graph"), params={"identity": identity, "depth": depth})
+
+    def zt_simulate(self, identity: str, action: str, resource: str, context: dict | None = None) -> dict:
+        return self.post(self._build_url("/zero-trust/policy-simulation"), data={"identity": identity, "action": action, "resource": resource, "context": context or {}})
+
+    def zt_what_if(self, permission: str, remove: bool = True) -> dict:
+        return self.post(self._build_url("/zero-trust/policy-simulation/what-if"), data={"permission": permission, "remove": remove})
+
+    def zt_get_blast_radius(self, identity_id: str) -> dict:
+        return self.get(self._build_url(f"/zero-trust/blast-radius/{identity_id}"))
+
+    def zt_get_access_anomalies(self, since_hours: int = 24) -> dict:
+        return self.get(self._build_url("/zero-trust/access-anomalies"), params={"since_hours": since_hours})
+
+    def zt_list_campaigns(self, limit: int = 20) -> dict:
+        return self.get(self._build_url("/zero-trust/review-campaigns"), params={"limit": limit})
+
+    def zt_create_campaign(self, scope: str = "all", reviewers: list | None = None) -> dict:
+        return self.post(self._build_url("/zero-trust/review-campaigns"), data={"scope": scope, "reviewers": reviewers or []})
+
 
 class AsyncZeroTrustMixin:
     """Async Zero Trust mixin."""
@@ -179,3 +213,36 @@ class AsyncZeroTrustMixin:
 
     async def zt_get_risk(self, identity_id: str) -> dict:
         return await self.get(self._build_url(f"/zero-trust/identity-risk/{identity_id}"))
+
+    async def zt_reevaluate(self, session_id_hash: str, signals: dict | None = None) -> dict:
+        return await self.post(self._build_url("/zero-trust/continuous/reevaluate"), data={"session_id_hash": session_id_hash, "signals": signals or {}})
+
+    async def zt_continuous_check(self, session_id_hash: str, resource: str, action: str) -> dict:
+        return await self.post(self._build_url("/zero-trust/continuous/check"), data={"session_id_hash": session_id_hash, "resource": resource, "action": action})
+
+    async def zt_get_posture(self) -> dict:
+        return await self.get(self._build_url("/zero-trust/posture"))
+
+    async def zt_get_identity_posture(self) -> dict:
+        return await self.get(self._build_url("/zero-trust/identity-posture"))
+
+    async def zt_get_access_graph(self, identity: str, depth: int = 2) -> dict:
+        return await self.get(self._build_url("/zero-trust/access-graph"), params={"identity": identity, "depth": depth})
+
+    async def zt_simulate(self, identity: str, action: str, resource: str, context: dict | None = None) -> dict:
+        return await self.post(self._build_url("/zero-trust/policy-simulation"), data={"identity": identity, "action": action, "resource": resource, "context": context or {}})
+
+    async def zt_what_if(self, permission: str, remove: bool = True) -> dict:
+        return await self.post(self._build_url("/zero-trust/policy-simulation/what-if"), data={"permission": permission, "remove": remove})
+
+    async def zt_get_blast_radius(self, identity_id: str) -> dict:
+        return await self.get(self._build_url(f"/zero-trust/blast-radius/{identity_id}"))
+
+    async def zt_get_access_anomalies(self, since_hours: int = 24) -> dict:
+        return await self.get(self._build_url("/zero-trust/access-anomalies"), params={"since_hours": since_hours})
+
+    async def zt_list_campaigns(self, limit: int = 20) -> dict:
+        return await self.get(self._build_url("/zero-trust/review-campaigns"), params={"limit": limit})
+
+    async def zt_create_campaign(self, scope: str = "all", reviewers: list | None = None) -> dict:
+        return await self.post(self._build_url("/zero-trust/review-campaigns"), data={"scope": scope, "reviewers": reviewers or []})
