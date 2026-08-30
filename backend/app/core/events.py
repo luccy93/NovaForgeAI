@@ -478,6 +478,22 @@ class EventType(str, Enum):
     AccessReviewCompleted = "zero_trust.review.completed"
     ZeroTrustPostureChanged = "zero_trust.posture.changed"
 
+    # Data Platform — Volume 65 Commit 1
+    DatasetCreated = "data.dataset.created"
+    DatasetVersionCreated = "data.dataset.version_created"
+    SchemaPublished = "data.schema.published"
+    SchemaValidationFailed = "data.schema.validation_failed"
+    IngestionStarted = "data.ingestion.started"
+    IngestionCompleted = "data.ingestion.completed"
+    IngestionFailed = "data.ingestion.failed"
+    PipelineStarted = "data.pipeline.started"
+    PipelineCompleted = "data.pipeline.completed"
+    PipelineFailed = "data.pipeline.failed"
+    DataQualityFailed = "data.quality.failed"
+    LineageUpdated = "data.lineage.updated"
+    BackfillStarted = "data.backfill.started"
+    BackfillCompleted = "data.backfill.completed"
+
     # Observability AIOps extensions (Volume 59 Commit 2) — additive, no placeholders
     AnomalyDetected = "observability.anomaly.detected"
     AlertCorrelated = "observability.alert.correlated"

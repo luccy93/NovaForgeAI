@@ -47,6 +47,7 @@ from app.api.performance import router as performance_router
 from app.api.regions import router as regions_router
 from app.api.secops import router as secops_router
 from app.api.zero_trust import router as zero_trust_router
+from app.api.data_platform import router as data_platform_router
 
 api_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_router.include_router(repos_router, prefix="/repositories", tags=["Repositories"])
@@ -93,4 +94,5 @@ api_router.include_router(performance_router, tags=["Performance"])
 api_router.include_router(regions_router, tags=["Multi-Region"])
 api_router.include_router(secops_router, tags=["Security Operations"])
 api_router.include_router(zero_trust_router, tags=["Zero Trust"])
+api_router.include_router(data_platform_router, tags=["Data Platform"])
 api_router.include_router(sre_router)

@@ -191,6 +191,9 @@ class NovaForgeCLI:
             else:
                 from app.cli.iam_commands import handle_iam_command
                 handle_iam_command(rest)
+        elif cmd == "data":
+            from app.cli.data_platform_commands import handle_data_platform_command
+            handle_data_platform_command(rest)
         elif cmd == "billing":
             from app.cli.billing_commands import handle_billing_command
             handle_billing_command(rest)
