@@ -494,6 +494,18 @@ class EventType(str, Enum):
     BackfillStarted = "data.backfill.started"
     BackfillCompleted = "data.backfill.completed"
 
+    # Data Platform — Volume 65 Commit 2
+    DataFreshnessBreached = "data.freshness.breached"
+    SchemaDriftDetected = "data.schema.drift_detected"
+    DataDriftDetected = "data.drift.detected"
+    QualityDriftDetected = "data.quality.drift_detected"
+    StreamLagDetected = "data.stream.lag_detected"
+    DataReconciliationFailed = "data.reconciliation.failed"
+    DataExportRequested = "data.export.requested"
+    DataAccessAnomalyDetected = "data.access.anomaly_detected"
+    DataProductPublished = "data.product.published"
+    DatasetRecoveryVerified = "data.recovery.verified"
+
     # Observability AIOps extensions (Volume 59 Commit 2) — additive, no placeholders
     AnomalyDetected = "observability.anomaly.detected"
     AlertCorrelated = "observability.alert.correlated"

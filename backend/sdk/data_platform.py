@@ -83,6 +83,48 @@ class DataPlatformMixin:
     def dp_ingest_stream(self, topic: str, payload: dict) -> dict:
         return self.post(self._build_url(f"/data-platform/streams/{topic}/ingest"), data=payload)
 
+    # Commit 2 additions
+    def dp_write_tier(self, dataset_id: str, tier: str, records: list, fmt: str = "json") -> dict:
+        return self.post(self._build_url(f"/data-platform/lakehouse/{dataset_id}/tier"), data={"tier": tier, "records": records, "format": fmt})
+
+    def dp_get_freshness(self, dataset_id: str) -> dict:
+        return self.get(self._build_url(f"/data-platform/freshness/{dataset_id}"))
+
+    def dp_update_freshness(self, dataset_id: str, expected_interval_hours: int = 24) -> dict:
+        return self.post(self._build_url(f"/data-platform/freshness/{dataset_id}"), data={"expected_interval_hours": expected_interval_hours})
+
+    def dp_check_drift(self, dataset_id: str, current_schema: list, previous_schema: list | None = None) -> dict:
+        return self.post(self._build_url(f"/data-platform/drift/{dataset_id}/check"), data={"current_schema": current_schema, "previous_schema": previous_schema})
+
+    def dp_create_product(self, name: str, owner: str, **kwargs: Any) -> dict:
+        payload: Dict[str, Any] = {"name": name, "owner": owner}
+        for k in ("description", "contract", "classification", "domain", "slo", "status"):
+            if k in kwargs and kwargs[k] is not None:
+                payload[k] = kwargs[k]
+        return self.post(self._build_url("/data-platform/data-products"), data=payload)
+
+    def dp_list_products(self, limit: int = 20) -> dict:
+        return self.get(self._build_url("/data-platform/data-products"), params={"limit": limit})
+
+    def dp_create_domain(self, name: str, owner: str, **kwargs: Any) -> dict:
+        payload: Dict[str, Any] = {"name": name, "owner": owner}
+        for k in ("description",):
+            if k in kwargs and kwargs[k] is not None:
+                payload[k] = kwargs[k]
+        return self.post(self._build_url("/data-platform/data-domains"), data=payload)
+
+    def dp_reconcile(self, source_count: int, processed_count: int, output_count: int) -> dict:
+        return self.post(self._build_url("/data-platform/reconciliation"), data={"source_count": source_count, "processed_count": processed_count, "output_count": output_count})
+
+    def dp_replay(self, topic: str, scope: dict | None = None) -> dict:
+        return self.post(self._build_url("/data-platform/replay"), data={"topic": topic, "scope": scope or {}})
+
+    def dp_export(self, dataset_id: str, purpose: str = "analysis", destination: str = "s3") -> dict:
+        return self.post(self._build_url("/data-platform/exports"), data={"dataset_id": dataset_id, "purpose": purpose, "destination": destination})
+
+    def dp_get_anomalies(self, limit: int = 20) -> dict:
+        return self.get(self._build_url("/data-platform/access-anomalies"), params={"limit": limit})
+
 
 class AsyncDataPlatformMixin:
     """Async Data Platform mixin."""
@@ -163,3 +205,44 @@ class AsyncDataPlatformMixin:
 
     async def dp_ingest_stream(self, topic: str, payload: dict) -> dict:
         return await self.post(self._build_url(f"/data-platform/streams/{topic}/ingest"), data=payload)
+
+    async def dp_write_tier(self, dataset_id: str, tier: str, records: list, fmt: str = "json") -> dict:
+        return await self.post(self._build_url(f"/data-platform/lakehouse/{dataset_id}/tier"), data={"tier": tier, "records": records, "format": fmt})
+
+    async def dp_get_freshness(self, dataset_id: str) -> dict:
+        return await self.get(self._build_url(f"/data-platform/freshness/{dataset_id}"))
+
+    async def dp_update_freshness(self, dataset_id: str, expected_interval_hours: int = 24) -> dict:
+        return await self.post(self._build_url(f"/data-platform/freshness/{dataset_id}"), data={"expected_interval_hours": expected_interval_hours})
+
+    async def dp_check_drift(self, dataset_id: str, current_schema: list, previous_schema: list | None = None) -> dict:
+        return await self.post(self._build_url(f"/data-platform/drift/{dataset_id}/check"), data={"current_schema": current_schema, "previous_schema": previous_schema})
+
+    async def dp_create_product(self, name: str, owner: str, **kwargs: Any) -> dict:
+        payload: Dict[str, Any] = {"name": name, "owner": owner}
+        for k in ("description", "contract", "classification", "domain", "slo", "status"):
+            if k in kwargs and kwargs[k] is not None:
+                payload[k] = kwargs[k]
+        return await self.post(self._build_url("/data-platform/data-products"), data=payload)
+
+    async def dp_list_products(self, limit: int = 20) -> dict:
+        return await self.get(self._build_url("/data-platform/data-products"), params={"limit": limit})
+
+    async def dp_create_domain(self, name: str, owner: str, **kwargs: Any) -> dict:
+        payload: Dict[str, Any] = {"name": name, "owner": owner}
+        for k in ("description",):
+            if k in kwargs and kwargs[k] is not None:
+                payload[k] = kwargs[k]
+        return await self.post(self._build_url("/data-platform/data-domains"), data=payload)
+
+    async def dp_reconcile(self, source_count: int, processed_count: int, output_count: int) -> dict:
+        return await self.post(self._build_url("/data-platform/reconciliation"), data={"source_count": source_count, "processed_count": processed_count, "output_count": output_count})
+
+    async def dp_replay(self, topic: str, scope: dict | None = None) -> dict:
+        return await self.post(self._build_url("/data-platform/replay"), data={"topic": topic, "scope": scope or {}})
+
+    async def dp_export(self, dataset_id: str, purpose: str = "analysis", destination: str = "s3") -> dict:
+        return await self.post(self._build_url("/data-platform/exports"), data={"dataset_id": dataset_id, "purpose": purpose, "destination": destination})
+
+    async def dp_get_anomalies(self, limit: int = 20) -> dict:
+        return await self.get(self._build_url("/data-platform/access-anomalies"), params={"limit": limit})

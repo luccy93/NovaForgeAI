@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(__file__), ".."
 
 from app.core.database import Base, async_engine, async_session
 from app.data_platform import models as _dp  # noqa: F401
+from app.data_platform import models_lakehouse as _lh  # noqa: F401
 from app.iam import models as _iam  # noqa: F401
 from app.regions import models as _regions  # noqa: F401
 

@@ -548,3 +548,183 @@ async def list_data_jobs(pipeline_id: Optional[str] = None, limit: int = Query(2
     res = await db.execute(q)
     rows = res.scalars().all()
     return {"items": [{"run_id": r.run_id, "status": r.status, "records": r.records} for r in rows]}
+
+
+# ── Commit 2: Lakehouse, Products, Domains, Freshness, Drift, Replay, Export ──
+@router.post("/lakehouse/{dataset_id}/tier", status_code=200)
+async def write_tier(dataset_id: str, payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "data:write", "lakehouse")
+    tier = payload.get("tier", "raw")
+    records = payload.get("records", [])
+    fmt = payload.get("format", "json")
+    from app.data_platform.lakehouse_tiers import write_tier as _write
+    try:
+        res = await _write(db, tenant, dataset_id, tier, records, fmt=fmt)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return res
+
+
+@router.get("/lakehouse/{dataset_id}/stats")
+async def lakehouse_stats(dataset_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.data_platform.lakehouse_tiers import get_tier_stats, optimize_storage
+    stats = await get_tier_stats(db, tenant, dataset_id)
+    opts = await optimize_storage(db, tenant, dataset_id)
+    return {"stats": stats, "optimizations": opts}
+
+
+@router.post("/freshness/{dataset_id}", status_code=200)
+async def update_freshness(dataset_id: str, payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.data_platform.freshness import update_freshness as _upd
+    rec = await _upd(db, tenant, dataset_id, expected_interval_hours=payload.get("expected_interval_hours", 24))
+    await db.commit()
+    return {"dataset_id": dataset_id, "status": rec.status, "last_update": rec.last_update.isoformat() if rec.last_update else None}
+
+
+@router.get("/freshness/{dataset_id}")
+async def get_freshness(dataset_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.data_platform.freshness import get_freshness as _get, check_slo
+    rec = await _get(db, tenant, dataset_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="freshness not found")
+    slo = await check_slo(db, tenant, dataset_id)
+    return {"status": rec.status, "last_update": rec.last_update.isoformat() if rec.last_update else None, "slo": slo}
+
+
+@router.post("/drift/{dataset_id}/check", status_code=200)
+async def check_drift(dataset_id: str, payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.data_platform.freshness import detect_drift
+    res = await detect_drift(db, tenant, dataset_id, current_schema=payload.get("current_schema", []), previous_schema=payload.get("previous_schema"))
+    await db.commit()
+    return res or {"drift": False}
+
+
+class ProductIn(BaseModel):
+    name: str
+    description: Optional[str] = None
+    owner: str
+    contract: dict = {}
+    classification: str = "INTERNAL"
+    domain: Optional[str] = None
+    slo: dict = {}
+    status: str = "DRAFT"
+
+
+@router.post("/data-products", status_code=201)
+async def create_product(payload: ProductIn, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "data:write", "data_product")
+    from app.data_platform.products import create_product as _create
+    try:
+        prod = await _create(db, tenant, payload.model_dump())
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return {"id": str(prod.id), "name": prod.name, "status": prod.status}
+
+
+@router.get("/data-products")
+async def list_products(status: Optional[str] = None, limit: int = Query(20, ge=1, le=100), user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    _check_limit(limit)
+    tenant = _tenant(user)
+    from app.data_platform.products import list_products as _list
+    rows = await _list(db, tenant, status=status, limit=limit)
+    return {"items": [{"id": str(r.id), "name": r.name, "status": r.status, "owner": r.owner} for r in rows]}
+
+
+@router.post("/data-domains", status_code=201)
+async def create_domain(payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "data:write", "domain")
+    name = payload.get("name")
+    owner = payload.get("owner")
+    if not name or not owner:
+        raise HTTPException(status_code=422, detail="name and owner required")
+    from app.data_platform.products import create_domain as _create
+    try:
+        dom = await _create(db, tenant, name, owner, description=payload.get("description"))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return {"id": str(dom.id), "name": dom.name}
+
+
+@router.post("/replay", status_code=201)
+async def create_replay(payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    topic = payload.get("topic")
+    if not topic:
+        raise HTTPException(status_code=422, detail="topic required")
+    # Approval preview
+    if payload.get("requires_approval") and not payload.get("approved"):
+        raise HTTPException(status_code=403, detail="replay requires approval")
+    from app.data_platform.models_lakehouse import DataReplayJob
+    job = DataReplayJob(tenant=tenant, topic=topic, scope=payload.get("scope", {}), status="PENDING")
+    db.add(job)
+    await db.flush()
+    await db.commit()
+    return {"id": str(job.id), "topic": topic, "status": job.status}
+
+
+@router.post("/reconciliation", status_code=200)
+async def reconcile(payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    source_count = payload.get("source_count", 0)
+    processed_count = payload.get("processed_count", 0)
+    output_count = payload.get("output_count", 0)
+    missing = source_count - processed_count
+    duplicate = max(processed_count - output_count, 0)
+    if missing > 0 or duplicate > 0:
+        await _emit("DataReconciliationFailed", {"tenant": tenant, "missing": missing, "duplicate": duplicate}, tenant)
+    return {"missing": missing, "duplicate": duplicate, "mismatched": abs(processed_count - output_count)}
+
+
+@router.post("/exports", status_code=201)
+async def create_export(payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "data:export", "dataset")
+    dataset_id = payload.get("dataset_id")
+    if not dataset_id:
+        raise HTTPException(status_code=422, detail="dataset_id required")
+    # Audit
+    _audit_best = None
+    try:
+        from app.iam.audit_service import audit_service
+        audit_service.log(org_id=tenant, actor_id=str(getattr(user, "id", "")), actor_type="user", action="data.export.requested", resource_type="dataset", resource_id=dataset_id, result="success", details={"purpose": payload.get("purpose"), "destination": payload.get("destination")}, tenant_id=tenant)
+    except Exception:
+        pass
+    await _emit("DataExportRequested", {"dataset_id": dataset_id, "actor": str(getattr(user, "id", ""))}, tenant)
+    return {"export_id": str(uuid.uuid4()), "dataset_id": dataset_id, "status": "REQUESTED"}
+
+
+@router.get("/access-anomalies")
+async def access_anomalies(limit: int = Query(20, ge=1, le=100), user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    _check_limit(limit)
+    tenant = _tenant(user)
+    # Correlate identity/dataset/action/region/volume
+    from app.iam.models import IAMAuditLog
+    q = select(IAMAuditLog).where(IAMAuditLog.organization_id == _to_uuid(tenant)).order_by(IAMAuditLog.created_at.desc()).limit(100)
+    try:
+        res = await db.execute(q)
+        logs = res.scalars().all()
+        # Simple anomaly: high volume per actor
+        from collections import Counter
+        cnt = Counter(str(l.actor_id) for l in logs if l.actor_id)
+        anomalies = [{"actor": a, "count": c, "type": "high_volume"} for a, c in cnt.items() if c > 10]
+    except Exception:
+        anomalies = []
+    return {"items": anomalies[:limit]}
+
+
+def _to_uuid(v):
+    import uuid as _u
+    try:
+        return _u.UUID(str(v))
+    except Exception:
+        return v

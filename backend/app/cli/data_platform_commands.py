@@ -81,6 +81,34 @@ def handle_data_platform_command(argv):
     p.add_argument("--consumer", default=None)
     p.add_argument("--limit", type=int, default=20)
 
+    p = sub.add_parser("products")
+    p.add_argument("--name", default=None)
+    p.add_argument("--owner", default=None)
+    p.add_argument("--limit", type=int, default=20)
+
+    p = sub.add_parser("freshness")
+    p.add_argument("--dataset-id", required=True)
+    p.add_argument("--expected-hours", type=int, default=24)
+
+    p = sub.add_parser("drift")
+    p.add_argument("--dataset-id", required=True)
+
+    p = sub.add_parser("reconcile")
+    p.add_argument("--source", type=int, required=True)
+    p.add_argument("--processed", type=int, required=True)
+    p.add_argument("--output", type=int, required=True)
+
+    p = sub.add_parser("replay")
+    p.add_argument("--topic", required=True)
+    p.add_argument("--scope", default="{}")
+
+    p = sub.add_parser("export")
+    p.add_argument("--dataset-id", required=True)
+    p.add_argument("--purpose", default="analysis")
+
+    p = sub.add_parser("anomalies")
+    p.add_argument("--limit", type=int, default=20)
+
     raw_argv = argv if argv is not None else sys.argv[1:]
     as_json_raw = "--json" in raw_argv
     filtered_argv = [a for a in raw_argv if a != "--json"]
@@ -145,6 +173,30 @@ def handle_data_platform_command(argv):
                 res = _call("POST", "/data-platform/streams", base, key, body={"topic": args.topic, "partition": args.partition})
             else:
                 res = _call("GET", "/data-platform/data-jobs", base, key, params={"limit": args.limit})
+        elif args.action == "products":
+            if args.name:
+                res = _call("POST", "/data-platform/data-products", base, key, body={"name": args.name, "owner": args.owner or "owner", "contract": {"quality": True, "slo": True}})
+            else:
+                res = _call("GET", "/data-platform/data-products", base, key, params={"limit": args.limit})
+        elif args.action == "freshness":
+            if args.expected_hours:
+                res = _call("POST", f"/data-platform/freshness/{args.dataset_id}", base, key, body={"expected_interval_hours": args.expected_hours})
+            else:
+                res = _call("GET", f"/data-platform/freshness/{args.dataset_id}", base, key)
+        elif args.action == "drift":
+            res = _call("POST", f"/data-platform/drift/{args.dataset_id}/check", base, key, body={"current_schema": [], "previous_schema": []})
+        elif args.action == "reconcile":
+            res = _call("POST", "/data-platform/reconciliation", base, key, body={"source_count": args.source, "processed_count": args.processed, "output_count": args.output})
+        elif args.action == "replay":
+            try:
+                scope = json.loads(args.scope) if isinstance(args.scope, str) else args.scope
+            except Exception:
+                scope = {}
+            res = _call("POST", "/data-platform/replay", base, key, body={"topic": args.topic, "scope": scope})
+        elif args.action == "export":
+            res = _call("POST", "/data-platform/exports", base, key, body={"dataset_id": args.dataset_id, "purpose": args.purpose})
+        elif args.action == "anomalies":
+            res = _call("GET", "/data-platform/access-anomalies", base, key, params={"limit": args.limit})
         else:
             res = {"error": f"unknown {args.action}"}
         print(json.dumps(res, indent=None if as_json else 2, default=str))
