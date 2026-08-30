@@ -121,6 +121,7 @@ class AutomationTask(Base, TimestampMixin):
     confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     parent_task_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     workflow_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    workflow_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("workflow_versions.id", ondelete="SET NULL"), nullable=True, index=True)
     deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     context: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     result: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)

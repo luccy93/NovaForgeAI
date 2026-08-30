@@ -506,6 +506,23 @@ class EventType(str, Enum):
     DataProductPublished = "data.product.published"
     DatasetRecoveryVerified = "data.recovery.verified"
 
+    # Workflow — Volume 66 Commit 1
+    WorkflowCreated = "workflow.created"
+    WorkflowPublished = "workflow.published"
+    WorkflowStarted = "workflow.started"
+    WorkflowStepStarted = "workflow.step.started"
+    WorkflowStepCompleted = "workflow.step.completed"
+    WorkflowStepFailed = "workflow.step.failed"
+    WorkflowWaiting = "workflow.waiting"
+    WorkflowPaused = "workflow.paused"
+    WorkflowResumed = "workflow.resumed"
+    WorkflowCancelled = "workflow.cancelled"
+    WorkflowCompleted = "workflow.completed"
+    WorkflowFailed = "workflow.failed"
+    WorkflowCompensationStarted = "workflow.compensation.started"
+    WorkflowCompensationCompleted = "workflow.compensation.completed"
+    WorkflowApprovalRequested = "workflow.approval.requested"
+
     # Observability AIOps extensions (Volume 59 Commit 2) — additive, no placeholders
     AnomalyDetected = "observability.anomaly.detected"
     AlertCorrelated = "observability.alert.correlated"

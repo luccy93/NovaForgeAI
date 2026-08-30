@@ -194,6 +194,9 @@ class NovaForgeCLI:
         elif cmd == "data":
             from app.cli.data_platform_commands import handle_data_platform_command
             handle_data_platform_command(rest)
+        elif cmd == "workflow":
+            from app.cli.workflow_commands import handle_workflow_command
+            handle_workflow_command(rest)
         elif cmd == "billing":
             from app.cli.billing_commands import handle_billing_command
             handle_billing_command(rest)
