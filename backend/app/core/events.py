@@ -583,6 +583,23 @@ class EventType(str, Enum):
     CodePrAssisted = "ai_dev.pr.assisted"
     DeveloperAIUsageRecorded = "ai_dev.usage.recorded"
 
+    # AI Developer Experience — Volume 67 Commit 2
+    CodeAgentEnqueued = "ai_dev.agent.enqueued"
+    CodeAgentStarted = "ai_dev.agent.started"
+    CodeAgentCompleted = "ai_dev.agent.completed"
+    CodeAgentFailed = "ai_dev.agent.failed"
+    CodeAgentCheckpointed = "ai_dev.agent.checkpointed"
+    CodeAgentFeedbackRecorded = "ai_dev.agent.feedback.recorded"
+    CodeRefactorPlanned = "ai_dev.refactor.planned"
+    CodeRefactorExecuted = "ai_dev.refactor.executed"
+    CodeMigrationPlanned = "ai_dev.migration.planned"
+    CodeMigrationApplied = "ai_dev.migration.applied"
+    CodeMigrationRolledBack = "ai_dev.migration.rolled_back"
+    CodeBenchmarkStarted = "ai_dev.benchmark.started"
+    CodeBenchmarkCompleted = "ai_dev.benchmark.completed"
+    CodeSecurityGateRun = "ai_dev.security_gate.run"
+    CodeReleaseHandoffPrepared = "ai_dev.release_handoff.prepared"
+
 
 class Event:
     def __init__(

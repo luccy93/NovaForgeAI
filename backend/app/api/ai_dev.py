@@ -43,6 +43,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ai-dev", tags=["AI Developer Experience"])
 
 
+# ── imports ──────────────────────────────────────────────────────────────────
+from app.ai_dev import agent as agent_svc
+from app.ai_dev import workers as agent_workers
+
+
 # ── helpers ─────────────────────────────────────────────────────────────────
 
 
@@ -798,3 +803,555 @@ async def usage(action: Optional[str] = Query(default=None), limit: int = Query(
         "count": len(rows),
         "totals": totals,
     }
+
+
+# ── agents (Volume 67 Commit 2) ────────────────────────────────────────────
+
+
+class AgentEnqueueIn(BaseModel):
+    repository_id: str
+    agent_type: str = "refactor"
+    name: str = "agent"
+    goal: Optional[str] = None
+    files: Optional[list[dict]] = None
+    branch: str = "main"
+    commit_sha: Optional[str] = None
+    model: Optional[str] = None
+    throttle: Optional[int] = None
+    budget_tokens: Optional[int] = None
+    checkpoint_limit: int = 10
+    metadata_: Optional[dict] = None
+
+
+class PlanCreateIn(BaseModel):
+    plan_type: str = "PLAN"
+    name: str = "Plan"
+    steps: Optional[list[dict]] = None
+    rationale: Optional[str] = None
+
+
+class PlanApproveIn(BaseModel):
+    approved: bool = True
+    approved_by: str
+    reason: Optional[str] = None
+
+
+class CheckpointIn(BaseModel):
+    sequence: Optional[int] = None
+    summary: Optional[str] = None
+    state: Optional[dict] = None
+    is_final: bool = False
+
+
+class FeedbackIn(BaseModel):
+    feedback_type: str = "CONTINUE"
+    message: Optional[str] = None
+    patch_id: Optional[str] = None
+    checkpoint_id: Optional[str] = None
+
+
+class SecurityGateIn(BaseModel):
+    repository_id: Optional[str] = None
+    review_id: Optional[str] = None
+    files: Optional[list[ReviewFile]] = None
+    findings: Optional[list[dict]] = None
+    branch: str = "main"
+    commit_sha: Optional[str] = None
+
+
+class RefactorIn(BaseModel):
+    repository_id: str
+    title: str
+    files: list[ReviewFile] = Field(..., min_length=1)
+    goal: Optional[str] = None
+    branch: str = "main"
+    commit_sha: Optional[str] = None
+    model: Optional[str] = None
+
+
+class BenchmarkCreateIn(BaseModel):
+    name: str
+    dataset_spec: Optional[list[dict]] = None
+
+
+class BenchmarkRunIn(BaseModel):
+    commit_sha: Optional[str] = None
+    model: Optional[str] = None
+    system_prompt: Optional[str] = None
+    budget_tokens: Optional[int] = None
+
+
+class BenchmarkCompleteIn(BaseModel):
+    results: Optional[dict] = None
+
+
+class ReleaseHandoffIn(BaseModel):
+    repository_id: str
+    version: Optional[str] = None
+    environment: Optional[str] = None
+    release_channel: Optional[str] = None
+    artifact_id: Optional[str] = None
+    commit_sha: Optional[str] = None
+
+
+class MigrationRollbackIn(BaseModel):
+    reason: Optional[str] = None
+
+
+# ── serializers (C2) ────────────────────────────────────────────────────────
+
+
+def _agent_payload(run) -> dict:
+    return {
+        "id": str(run.id),
+        "repository_id": str(run.repository_id),
+        "agent_type": run.agent_type,
+        "name": run.name,
+        "goal": run.goal,
+        "status": run.status,
+        "worker_id": run.worker_id,
+        "model": run.model,
+        "throttle": run.throttle,
+        "budget_tokens": run.budget_tokens,
+        "tokens_used": run.tokens_used,
+        "attempts": run.attempts,
+        "last_error": run.last_error,
+        "checkpoint_limit": run.checkpoint_limit,
+        "start_time": run.start_time.isoformat() if run.start_time else None,
+        "end_time": run.end_time.isoformat() if run.end_time else None,
+        "result": run.result,
+        "created_at": run.created_at.isoformat() if run.created_at else None,
+    }
+
+
+def _plan_payload(p) -> dict:
+    return {
+        "id": str(p.id),
+        "agent_run_id": str(p.agent_run_id),
+        "plan_type": p.plan_type,
+        "name": p.name,
+        "steps": p.steps,
+        "rationale": p.rationale,
+        "approved": p.approved,
+        "approved_by": p.approved_by,
+        "rejected": p.rejected,
+    }
+
+
+def _checkpoint_payload(c) -> dict:
+    return {
+        "id": str(c.id),
+        "sequence": c.sequence,
+        "summary": c.summary,
+        "state": c.state,
+        "is_final": c.is_final,
+    }
+
+
+def _feedback_payload(f) -> dict:
+    return {
+        "id": str(f.id),
+        "feedback_type": f.feedback_type,
+        "message": f.message,
+        "patch_id": str(f.patch_id) if f.patch_id else None,
+        "checkpoint_id": str(f.checkpoint_id) if f.checkpoint_id else None,
+        "created_by": f.created_by,
+        "created_at": f.created_at.isoformat() if f.created_at else None,
+    }
+
+
+def _benchmark_payload(b) -> dict:
+    return {
+        "id": str(b.id),
+        "name": b.name,
+        "dataset_spec": b.dataset_spec,
+        "status": b.status,
+        "best_eval_id": b.best_eval_id,
+    }
+
+
+def _benchmark_run_payload(r) -> dict:
+    return {
+        "id": str(r.id),
+        "benchmark_id": str(r.benchmark_id),
+        "status": r.status,
+        "model": r.model,
+        "score": r.score,
+        "results": r.results,
+        "patches": r.patches,
+        "tokens_used": r.tokens_used,
+        "cost_cents": r.cost_cents,
+        "took_ms": r.took_ms,
+        "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+    }
+
+
+# ── agent routes ─────────────────────────────────────────────────────────────
+
+
+@router.post("/agents", status_code=201)
+async def enqueue_agent(body: AgentEnqueueIn, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:write")
+    try:
+        run = await agent_svc.enqueue_agent(
+            db, tenant, _user_id(user),
+            repository_id=body.repository_id,
+            agent_type=body.agent_type,
+            name=body.name,
+            goal=body.goal,
+            files=body.files,
+            branch=body.branch,
+            commit_sha=body.commit_sha,
+            model=body.model,
+            throttle=body.throttle,
+            budget_tokens=body.budget_tokens,
+            checkpoint_limit=body.checkpoint_limit,
+            metadata_=body.metadata_,
+        )
+        return _agent_payload(run)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.get("/agents")
+async def list_agents(
+    repository_id: Optional[str] = Query(default=None),
+    agent_type: Optional[str] = Query(default=None),
+    status: Optional[str] = Query(default=None),
+    limit: int = Query(default=50),
+    user=Depends(_get_current_user),
+    db=Depends(get_db),
+):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:read")
+    rows = await agent_svc.list_agent_runs(
+        db, tenant, repository_id=repository_id, agent_type=agent_type, status=status, limit=limit
+    )
+    return {"items": [_agent_payload(r) for r in rows], "count": len(rows)}
+
+
+@router.get("/agents/{run_id}")
+async def get_agent(run_id: str, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:read")
+    try:
+        run = await agent_svc.get_agent_run(db, tenant, run_id)
+        return _agent_payload(run)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.post("/agents/{run_id}/execute")
+async def execute_agent(run_id: str, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:write")
+    try:
+        run = await agent_workers.run_agent_until_done(
+            db, tenant, run_id, user_id=_user_id(user)
+        )
+        return _agent_payload(run)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.post("/agents/{run_id}/cancel")
+async def cancel_agent(run_id: str, body: dict = None, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:write")
+    try:
+        run = await agent_svc.cancel_agent(
+            db, tenant, _user_id(user), run_id,
+            reason=(body or {}).get("reason"),
+        )
+        return _agent_payload(run)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.post("/agents/{run_id}/plan", status_code=201)
+async def create_plan(run_id: str, body: PlanCreateIn, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:write")
+    try:
+        plan = await agent_svc.add_plan(
+            db, tenant, run_id,
+            plan_type=body.plan_type,
+            name=body.name,
+            steps=body.steps,
+            rationale=body.rationale,
+            created_by=_user_id(user),
+        )
+        return _plan_payload(plan)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.get("/agents/{run_id}/plans")
+async def list_plans(run_id: str, limit: int = Query(default=20), user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:read")
+    rows = await agent_svc.list_plans(db, tenant, run_id, limit=limit)
+    return {"items": [_plan_payload(p) for p in rows], "count": len(rows)}
+
+
+@router.post("/agents/{run_id}/plans/{plan_id}/approve")
+async def approve_plan(run_id: str, plan_id: str, body: PlanApproveIn, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:write")
+    try:
+        plan = await agent_svc.approve_plan(
+            db, tenant, run_id, plan_id,
+            approved_by=body.approved_by,
+            approved=body.approved,
+            reason=body.reason,
+        )
+        return _plan_payload(plan)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.post("/agents/{run_id}/checkpoints", status_code=201)
+async def save_checkpoint(run_id: str, body: CheckpointIn, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:write")
+    try:
+        chk = await agent_svc.save_checkpoint(
+            db, tenant, run_id,
+            sequence=body.sequence,
+            summary=body.summary,
+            state=body.state,
+            is_final=body.is_final,
+        )
+        return _checkpoint_payload(chk)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.get("/agents/{run_id}/checkpoints")
+async def list_checkpoints(run_id: str, limit: int = Query(default=50), user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:read")
+    rows = await agent_svc.list_checkpoints(db, tenant, run_id, limit=limit)
+    return {"items": [_checkpoint_payload(c) for c in rows], "count": len(rows)}
+
+
+@router.post("/agents/{run_id}/feedback", status_code=201)
+async def add_feedback(run_id: str, body: FeedbackIn, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:write")
+    try:
+        fb = await agent_svc.add_feedback(
+            db, tenant, run_id,
+            feedback_type=body.feedback_type,
+            message=body.message,
+            created_by=_user_id(user),
+            patch_id=body.patch_id,
+            checkpoint_id=body.checkpoint_id,
+        )
+        return _feedback_payload(fb)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.get("/agents/{run_id}/feedback")
+async def list_feedback(run_id: str, limit: int = Query(default=50), user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:read")
+    rows = await agent_svc.list_feedback(db, tenant, run_id, limit=limit)
+    return {"items": [_feedback_payload(f) for f in rows], "count": len(rows)}
+
+
+# ── security gate ────────────────────────────────────────────────────────────
+
+
+@router.post("/security-gate")
+async def security_gate(body: SecurityGateIn, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:write")
+    try:
+        from app.ai_dev import security_gate as security_gate_svc
+
+        return await security_gate_svc.run_security_gate(
+            db, tenant, _user_id(user),
+            repository_id=body.repository_id,
+            review_id=body.review_id,
+            files=[f.model_dump() for f in body.files] if body.files else None,
+            findings=body.findings,
+            branch=body.branch,
+            commit_sha=body.commit_sha,
+        )
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+# ── refactor / migrate ───────────────────────────────────────────────────────
+
+
+@router.post("/refactor", status_code=201)
+async def refactor(body: RefactorIn, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:write")
+    try:
+        run = await agent_svc.enqueue_agent(
+            db, tenant, _user_id(user),
+            repository_id=body.repository_id,
+            agent_type="refactor",
+            name=body.title,
+            goal=body.goal,
+            files=[f.model_dump() for f in body.files],
+            branch=body.branch,
+            commit_sha=body.commit_sha,
+            model=body.model,
+        )
+        run = await agent_workers.run_agent_until_done(db, tenant, str(run.id), user_id=_user_id(user))
+        return _agent_payload(run)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.post("/migrate", status_code=201)
+async def migrate(body: RefactorIn, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:write")
+    try:
+        run = await agent_svc.enqueue_agent(
+            db, tenant, _user_id(user),
+            repository_id=body.repository_id,
+            agent_type="migrate",
+            name=body.title,
+            goal=body.goal,
+            files=[f.model_dump() for f in body.files],
+            branch=body.branch,
+            commit_sha=body.commit_sha,
+            model=body.model,
+        )
+        run = await agent_workers.run_agent_until_done(db, tenant, str(run.id), user_id=_user_id(user))
+        return _agent_payload(run)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.post("/migrations/{run_id}/rollback")
+async def migration_rollback(run_id: str, body: MigrationRollbackIn = None, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:write")
+    try:
+        from app.ai_dev import migration as migration_svc
+
+        return await migration_svc.rollback_migration(
+            db, tenant, _user_id(user), run_id,
+            reason=(body.reason if body else None),
+        )
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+# ── benchmarks ───────────────────────────────────────────────────────────────
+
+
+@router.get("/benchmarks")
+async def list_benchmarks(limit: int = Query(default=50), user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:read")
+    from app.ai_dev import benchmarks as bench_svc
+
+    rows = await bench_svc.list_benchmarks(db, tenant, limit=limit)
+    return {"items": [_benchmark_payload(b) for b in rows], "count": len(rows)}
+
+
+@router.post("/benchmarks", status_code=201)
+async def create_benchmark(body: BenchmarkCreateIn, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:write")
+    from app.ai_dev import benchmarks as bench_svc
+
+    try:
+        b = await bench_svc.create_benchmark(
+            db, tenant, _user_id(user),
+            name=body.name,
+            dataset_spec=body.dataset_spec,
+        )
+        return _benchmark_payload(b)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.get("/benchmarks/{benchmark_id}")
+async def get_benchmark(benchmark_id: str, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:read")
+    from app.ai_dev import benchmarks as bench_svc
+
+    try:
+        b = await bench_svc.get_benchmark(db, tenant, benchmark_id)
+        return _benchmark_payload(b)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.post("/benchmarks/{benchmark_id}/runs", status_code=201)
+async def start_benchmark_run(benchmark_id: str, body: BenchmarkRunIn = None, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:write")
+    from app.ai_dev import benchmarks as bench_svc
+
+    body = body or BenchmarkRunIn()
+    try:
+        run = await bench_svc.start_benchmark_run(
+            db, tenant, _user_id(user), benchmark_id,
+            commit_sha=body.commit_sha,
+            model=body.model,
+            system_prompt=body.system_prompt,
+            budget_tokens=body.budget_tokens,
+        )
+        run = await bench_svc.execute_benchmark_run(db, tenant, str(run.id))
+        run = await bench_svc.complete_benchmark_run(db, tenant, str(run.id))
+        return _benchmark_run_payload(run)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.post("/benchmarks/{benchmark_id}/summarize")
+async def summarize_benchmark(benchmark_id: str, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:read")
+    from app.ai_dev import benchmarks as bench_svc
+
+    try:
+        return await bench_svc.summarize_benchmark(db, tenant, benchmark_id)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.get("/benchmarks/{benchmark_id}/runs")
+async def list_benchmark_runs(benchmark_id: str, limit: int = Query(default=50), user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:read")
+    from app.ai_dev import benchmarks as bench_svc
+
+    rows = await bench_svc.list_runs(db, tenant, benchmark_id, limit=limit)
+    return {"items": [_benchmark_run_payload(r) for r in rows], "count": len(rows)}
+
+
+# ── release handoff ──────────────────────────────────────────────────────────
+
+
+@router.post("/release/handoff")
+async def release_handoff(body: ReleaseHandoffIn, user=Depends(_get_current_user), db=Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "repository:write")
+    try:
+        from app.ai_dev import release_handoff as rh_svc
+
+        return await rh_svc.prepare_release_handoff(
+            db, tenant, _user_id(user),
+            repository_id=body.repository_id,
+            version=body.version,
+            environment=body.environment,
+            release_channel=body.release_channel,
+            artifact_id=body.artifact_id,
+            commit_sha=body.commit_sha,
+        )
+    except Exception as exc:
+        raise _err(exc) from exc

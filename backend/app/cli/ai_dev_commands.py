@@ -105,6 +105,45 @@ def handle_ai_dev_command(argv):
     p = sub.add_parser("usage")
     p.add_argument("--action", default=None)
 
+    p = sub.add_parser("agent")
+    p.add_argument("repository_id")
+    p.add_argument("--enqueue", action="store_true")
+    p.add_argument("--type", dest="agent_type", default="refactor")
+    p.add_argument("--name", default="agent")
+    p.add_argument("--goal", default=None)
+    p.add_argument("--files", default="[]")
+    p.add_argument("--get", default=None)
+    p.add_argument("--execute", action="store_true")
+    p.add_argument("--cancel", action="store_true")
+    p.add_argument("--approve", default=None)
+    p.add_argument("--plan", action="store_true")
+
+    p = sub.add_parser("security-gate")
+    p.add_argument("--review-id", default=None)
+    p.add_argument("--files", default="[]")
+    p.add_argument("--repository-id", default=None)
+
+    p = sub.add_parser("refactor")
+    p.add_argument("repository_id")
+    p.add_argument("title")
+    p.add_argument("--files", default="[]")
+    p.add_argument("--goal", default=None)
+    p.add_argument("--branch", default="main")
+
+    p = sub.add_parser("migrate")
+    p.add_argument("repository_id")
+    p.add_argument("title")
+    p.add_argument("--files", default="[]")
+    p.add_argument("--goal", default=None)
+    p.add_argument("--rollback", default=None)
+    p.add_argument("--reason", default=None)
+
+    p = sub.add_parser("benchmark")
+    p.add_argument("name")
+    p.add_argument("--runs", default="[]")
+    p.add_argument("--summarize", default=None)
+    p.add_argument("--create", action="store_true")
+
     raw_argv = argv if argv is not None else sys.argv[1:]
     as_json_raw = "--json" in raw_argv
     filtered_argv = [a for a in raw_argv if a != "--json"]
@@ -201,5 +240,71 @@ def handle_ai_dev_command(argv):
     elif action == "usage":
         params = {"limit": 50} if not args.action else {"action": args.action, "limit": 50}
         _out(_call("GET", "/ai-dev/usage", base, key, params=params), as_json)
+    elif action == "agent":
+        if args.get:
+            _out(_call("GET", f"/ai-dev/agents/{args.get}", base, key), as_json)
+        elif args.cancel:
+            _out(_call("POST", f"/ai-dev/agents/{args.cancel if isinstance(args.cancel, str) else args.get}/cancel", base, key, body={}), as_json)
+        elif args.execute:
+            _out(_call("POST", f"/ai-dev/agents/{args.get}/execute", base, key, body={}), as_json)
+        elif args.approve:
+            _out(_call("POST", f"/ai-dev/agents/{args.get}/plans/{args.approve}/approve", base, key, body={
+                "approved": True, "approved_by": "cli",
+            }), as_json)
+        elif args.plan:
+            files = json.loads(args.files)
+            _out(_call("POST", f"/ai-dev/agents/{args.get}/plan", base, key, body={
+                "plan_type": "PLAN", "name": args.name,
+            }), as_json)
+        else:
+            files = json.loads(args.files)
+            _out(_call("POST", "/ai-dev/agents", base, key, body={
+                "repository_id": args.repository_id,
+                "agent_type": args.agent_type,
+                "name": args.name,
+                "goal": args.goal,
+                "files": files,
+            }), as_json)
+    elif action == "security-gate":
+        files = json.loads(args.files)
+        body = {"files": files}
+        if args.review_id:
+            body["review_id"] = args.review_id
+        if args.repository_id:
+            body["repository_id"] = args.repository_id
+        _out(_call("POST", "/ai-dev/security-gate", base, key, body=body), as_json)
+    elif action == "refactor":
+        files = json.loads(args.files)
+        _out(_call("POST", "/ai-dev/refactor", base, key, body={
+            "repository_id": args.repository_id,
+            "title": args.title,
+            "files": files,
+            "goal": args.goal,
+            "branch": args.branch,
+        }), as_json)
+    elif action == "migrate":
+        files = json.loads(args.files)
+        if args.rollback:
+            _out(_call("POST", f"/ai-dev/migrations/{args.rollback}/rollback", base, key, body={
+                "reason": args.reason,
+            }), as_json)
+        else:
+            _out(_call("POST", "/ai-dev/migrate", base, key, body={
+                "repository_id": args.repository_id,
+                "title": args.title,
+                "files": files,
+                "goal": args.goal,
+            }), as_json)
+    elif action == "benchmark":
+        if args.summarize:
+            _out(_call("POST", f"/ai-dev/benchmarks/{args.summarize}/summarize", base, key, body={}), as_json)
+        elif args.create:
+            spec = json.loads(args.runs)
+            _out(_call("POST", "/ai-dev/benchmarks", base, key, body={
+                "name": args.name,
+                "dataset_spec": spec or None,
+            }), as_json)
+        else:
+            _out(_call("POST", f"/ai-dev/benchmarks/{args.name}/runs", base, key, body={}), as_json)
     else:  # pragma: no cover - argparse enforces
         parser.error("unknown action")

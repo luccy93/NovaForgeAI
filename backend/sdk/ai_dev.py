@@ -232,6 +232,165 @@ class AIDevMixin:
             params["action"] = action
         return self.get(self._build_url("/ai-dev/usage"), params=params)
 
+    def ai_agent_enqueue(
+        self, repository_id: str, agent_type: str = "refactor", name: str = "agent",
+        goal: str | None = None, files: list[dict] | None = None, branch: str = "main",
+        commit_sha: str | None = None, model: str | None = None, metadata_: dict | None = None,
+    ) -> dict:
+        payload: Dict[str, Any] = {
+            "repository_id": repository_id, "agent_type": agent_type, "name": name, "branch": branch
+        }
+        if goal:
+            payload["goal"] = goal
+        if files:
+            payload["files"] = files
+        if commit_sha:
+            payload["commit_sha"] = commit_sha
+        if model:
+            payload["model"] = model
+        if metadata_:
+            payload["metadata_"] = metadata_
+        return self.post(self._build_url("/ai-dev/agents"), data=payload)
+
+    def ai_agents(self, limit: int = 50, status: str | None = None, agent_type: str | None = None) -> dict:
+        params: Dict[str, Any] = {"limit": limit}
+        if status:
+            params["status"] = status
+        if agent_type:
+            params["agent_type"] = agent_type
+        return self.get(self._build_url("/ai-dev/agents"), params=params)
+
+    def ai_agent_get(self, run_id: str) -> dict:
+        return self.get(self._build_url(f"/ai-dev/agents/{run_id}"))
+
+    def ai_agent_execute(self, run_id: str) -> dict:
+        return self.post(self._build_url(f"/ai-dev/agents/{run_id}/execute"), data={})
+
+    def ai_agent_cancel(self, run_id: str, reason: str | None = None) -> dict:
+        payload: Dict[str, Any] = {}
+        if reason:
+            payload["reason"] = reason
+        return self.post(self._build_url(f"/ai-dev/agents/{run_id}/cancel"), data=payload)
+
+    def ai_agent_plan(self, run_id: str, plan_type: str = "PLAN", name: str = "Plan",
+                      steps: list[dict] | None = None, rationale: str | None = None) -> dict:
+        payload: Dict[str, Any] = {"plan_type": plan_type, "name": name}
+        if steps:
+            payload["steps"] = steps
+        if rationale:
+            payload["rationale"] = rationale
+        return self.post(self._build_url(f"/ai-dev/agents/{run_id}/plan"), data=payload)
+
+    def ai_agent_plans(self, run_id: str, limit: int = 20) -> dict:
+        return self.get(self._build_url(f"/ai-dev/agents/{run_id}/plans"), params={"limit": limit})
+
+    def ai_agent_approve(self, run_id: str, plan_id: str, approved_by: str,
+                         approved: bool = True, reason: str | None = None) -> dict:
+        payload: Dict[str, Any] = {"approved": approved, "approved_by": approved_by}
+        if reason:
+            payload["reason"] = reason
+        return self.post(
+            self._build_url(f"/ai-dev/agents/{run_id}/plans/{plan_id}/approve"), data=payload
+        )
+
+    def ai_agent_checkpoint(self, run_id: str, summary: str | None = None,
+                            state: dict | None = None, is_final: bool = False) -> dict:
+        payload: Dict[str, Any] = {"is_final": is_final}
+        if summary:
+            payload["summary"] = summary
+        if state:
+            payload["state"] = state
+        return self.post(self._build_url(f"/ai-dev/agents/{run_id}/checkpoints"), data=payload)
+
+    def ai_agent_checkpoints(self, run_id: str, limit: int = 50) -> dict:
+        return self.get(self._build_url(f"/ai-dev/agents/{run_id}/checkpoints"), params={"limit": limit})
+
+    def ai_agent_feedback(self, run_id: str, feedback_type: str = "CONTINUE", message: str | None = None) -> dict:
+        payload: Dict[str, Any] = {"feedback_type": feedback_type}
+        if message:
+            payload["message"] = message
+        return self.post(self._build_url(f"/ai-dev/agents/{run_id}/feedback"), data=payload)
+
+    def ai_agent_feedback_list(self, run_id: str, limit: int = 50) -> dict:
+        return self.get(self._build_url(f"/ai-dev/agents/{run_id}/feedback"), params={"limit": limit})
+
+    def ai_security_gate(self, review_id: str | None = None, files: list[dict] | None = None,
+                         findings: list[dict] | None = None, repository_id: str | None = None) -> dict:
+        payload: Dict[str, Any] = {}
+        if review_id:
+            payload["review_id"] = review_id
+        if files:
+            payload["files"] = files
+        if findings:
+            payload["findings"] = findings
+        if repository_id:
+            payload["repository_id"] = repository_id
+        return self.post(self._build_url("/ai-dev/security-gate"), data=payload)
+
+    def ai_refactor(self, repository_id: str, title: str, files: list[dict],
+                    goal: str | None = None, branch: str = "main",
+                    commit_sha: str | None = None, model: str | None = None) -> dict:
+        payload: Dict[str, Any] = {"repository_id": repository_id, "title": title, "files": files, "branch": branch}
+        if goal:
+            payload["goal"] = goal
+        if commit_sha:
+            payload["commit_sha"] = commit_sha
+        if model:
+            payload["model"] = model
+        return self.post(self._build_url("/ai-dev/refactor"), data=payload)
+
+    def ai_migrate(self, repository_id: str, title: str, files: list[dict],
+                   goal: str | None = None, branch: str = "main",
+                   commit_sha: str | None = None, model: str | None = None) -> dict:
+        payload: Dict[str, Any] = {"repository_id": repository_id, "title": title, "files": files, "branch": branch}
+        if goal:
+            payload["goal"] = goal
+        if commit_sha:
+            payload["commit_sha"] = commit_sha
+        if model:
+            payload["model"] = model
+        return self.post(self._build_url("/ai-dev/migrate"), data=payload)
+
+    def ai_migration_rollback(self, run_id: str, reason: str | None = None) -> dict:
+        payload: Dict[str, Any] = {}
+        if reason:
+            payload["reason"] = reason
+        return self.post(self._build_url(f"/ai-dev/migrations/{run_id}/rollback"), data=payload)
+
+    def ai_benchmark_create(self, name: str, dataset_spec: list[dict] | None = None) -> dict:
+        payload: Dict[str, Any] = {"name": name}
+        if dataset_spec:
+            payload["dataset_spec"] = dataset_spec
+        return self.post(self._build_url("/ai-dev/benchmarks"), data=payload)
+
+    def ai_benchmarks(self, limit: int = 50) -> dict:
+        return self.get(self._build_url("/ai-dev/benchmarks"), params={"limit": limit})
+
+    def ai_benchmark_get(self, benchmark_id: str) -> dict:
+        return self.get(self._build_url(f"/ai-dev/benchmarks/{benchmark_id}"))
+
+    def ai_benchmark_run(self, benchmark_id: str, model: str | None = None, commit_sha: str | None = None) -> dict:
+        payload: Dict[str, Any] = {}
+        if model:
+            payload["model"] = model
+        if commit_sha:
+            payload["commit_sha"] = commit_sha
+        return self.post(self._build_url(f"/ai-dev/benchmarks/{benchmark_id}/runs"), data=payload)
+
+    def ai_benchmark_summarize(self, benchmark_id: str) -> dict:
+        return self.post(self._build_url(f"/ai-dev/benchmarks/{benchmark_id}/summarize"), data={})
+
+    def ai_release_handoff(self, repository_id: str, environment: str | None = None,
+                           release_channel: str | None = None, version: str | None = None) -> dict:
+        payload: Dict[str, Any] = {"repository_id": repository_id}
+        if environment:
+            payload["environment"] = environment
+        if release_channel:
+            payload["release_channel"] = release_channel
+        if version:
+            payload["version"] = version
+        return self.post(self._build_url("/ai-dev/release/handoff"), data=payload)
+
 
 class AsyncAIDevMixin:
     """Async AI Developer Experience mixin."""
@@ -445,3 +604,168 @@ class AsyncAIDevMixin:
         if action:
             params["action"] = action
         return await self.get(self._build_url("/ai-dev/usage"), params=params)
+
+    async def ai_agent_enqueue(self, repository_id: str, agent_type: str = "refactor",
+                               name: str = "agent", goal: str | None = None,
+                               files: list[dict] | None = None, branch: str = "main",
+                               commit_sha: str | None = None, model: str | None = None,
+                               metadata_: dict | None = None) -> dict:
+        payload: Dict[str, Any] = {
+            "repository_id": repository_id, "agent_type": agent_type, "name": name, "branch": branch
+        }
+        if goal:
+            payload["goal"] = goal
+        if files:
+            payload["files"] = files
+        if commit_sha:
+            payload["commit_sha"] = commit_sha
+        if model:
+            payload["model"] = model
+        if metadata_:
+            payload["metadata_"] = metadata_
+        return await self.post(self._build_url("/ai-dev/agents"), data=payload)
+
+    async def ai_agents(self, limit: int = 50, status: str | None = None, agent_type: str | None = None) -> dict:
+        params: Dict[str, Any] = {"limit": limit}
+        if status:
+            params["status"] = status
+        if agent_type:
+            params["agent_type"] = agent_type
+        return await self.get(self._build_url("/ai-dev/agents"), params=params)
+
+    async def ai_agent_get(self, run_id: str) -> dict:
+        return await self.get(self._build_url(f"/ai-dev/agents/{run_id}"))
+
+    async def ai_agent_execute(self, run_id: str) -> dict:
+        return await self.post(self._build_url(f"/ai-dev/agents/{run_id}/execute"), data={})
+
+    async def ai_agent_cancel(self, run_id: str, reason: str | None = None) -> dict:
+        payload: Dict[str, Any] = {}
+        if reason:
+            payload["reason"] = reason
+        return await self.post(self._build_url(f"/ai-dev/agents/{run_id}/cancel"), data=payload)
+
+    async def ai_agent_plan(self, run_id: str, plan_type: str = "PLAN", name: str = "Plan",
+                            steps: list[dict] | None = None, rationale: str | None = None) -> dict:
+        payload: Dict[str, Any] = {"plan_type": plan_type, "name": name}
+        if steps:
+            payload["steps"] = steps
+        if rationale:
+            payload["rationale"] = rationale
+        return await self.post(self._build_url(f"/ai-dev/agents/{run_id}/plan"), data=payload)
+
+    async def ai_agent_plans(self, run_id: str, limit: int = 20) -> dict:
+        return await self.get(self._build_url(f"/ai-dev/agents/{run_id}/plans"), params={"limit": limit})
+
+    async def ai_agent_approve(self, run_id: str, plan_id: str, approved_by: str,
+                               approved: bool = True, reason: str | None = None) -> dict:
+        payload: Dict[str, Any] = {"approved": approved, "approved_by": approved_by}
+        if reason:
+            payload["reason"] = reason
+        return await self.post(
+            self._build_url(f"/ai-dev/agents/{run_id}/plans/{plan_id}/approve"), data=payload
+        )
+
+    async def ai_agent_checkpoint(self, run_id: str, summary: str | None = None,
+                                  state: dict | None = None, is_final: bool = False) -> dict:
+        payload: Dict[str, Any] = {"is_final": is_final}
+        if summary:
+            payload["summary"] = summary
+        if state:
+            payload["state"] = state
+        return await self.post(self._build_url(f"/ai-dev/agents/{run_id}/checkpoints"), data=payload)
+
+    async def ai_agent_checkpoints(self, run_id: str, limit: int = 50) -> dict:
+        return await self.get(self._build_url(f"/ai-dev/agents/{run_id}/checkpoints"), params={"limit": limit})
+
+    async def ai_agent_feedback(self, run_id: str, feedback_type: str = "CONTINUE",
+                                message: str | None = None) -> dict:
+        payload: Dict[str, Any] = {"feedback_type": feedback_type}
+        if message:
+            payload["message"] = message
+        return await self.post(self._build_url(f"/ai-dev/agents/{run_id}/feedback"), data=payload)
+
+    async def ai_agent_feedback_list(self, run_id: str, limit: int = 50) -> dict:
+        return await self.get(self._build_url(f"/ai-dev/agents/{run_id}/feedback"), params={"limit": limit})
+
+    async def ai_security_gate(self, review_id: str | None = None, files: list[dict] | None = None,
+                               findings: list[dict] | None = None, repository_id: str | None = None) -> dict:
+        payload: Dict[str, Any] = {}
+        if review_id:
+            payload["review_id"] = review_id
+        if files:
+            payload["files"] = files
+        if findings:
+            payload["findings"] = findings
+        if repository_id:
+            payload["repository_id"] = repository_id
+        return await self.post(self._build_url("/ai-dev/security-gate"), data=payload)
+
+    async def ai_refactor(self, repository_id: str, title: str, files: list[dict],
+                          goal: str | None = None, branch: str = "main",
+                          commit_sha: str | None = None, model: str | None = None) -> dict:
+        payload: Dict[str, Any] = {
+            "repository_id": repository_id, "title": title, "files": files, "branch": branch
+        }
+        if goal:
+            payload["goal"] = goal
+        if commit_sha:
+            payload["commit_sha"] = commit_sha
+        if model:
+            payload["model"] = model
+        return await self.post(self._build_url("/ai-dev/refactor"), data=payload)
+
+    async def ai_migrate(self, repository_id: str, title: str, files: list[dict],
+                         goal: str | None = None, branch: str = "main",
+                         commit_sha: str | None = None, model: str | None = None) -> dict:
+        payload: Dict[str, Any] = {
+            "repository_id": repository_id, "title": title, "files": files, "branch": branch
+        }
+        if goal:
+            payload["goal"] = goal
+        if commit_sha:
+            payload["commit_sha"] = commit_sha
+        if model:
+            payload["model"] = model
+        return await self.post(self._build_url("/ai-dev/migrate"), data=payload)
+
+    async def ai_migration_rollback(self, run_id: str, reason: str | None = None) -> dict:
+        payload: Dict[str, Any] = {}
+        if reason:
+            payload["reason"] = reason
+        return await self.post(self._build_url(f"/ai-dev/migrations/{run_id}/rollback"), data=payload)
+
+    async def ai_benchmark_create(self, name: str, dataset_spec: list[dict] | None = None) -> dict:
+        payload: Dict[str, Any] = {"name": name}
+        if dataset_spec:
+            payload["dataset_spec"] = dataset_spec
+        return await self.post(self._build_url("/ai-dev/benchmarks"), data=payload)
+
+    async def ai_benchmarks(self, limit: int = 50) -> dict:
+        return await self.get(self._build_url("/ai-dev/benchmarks"), params={"limit": limit})
+
+    async def ai_benchmark_get(self, benchmark_id: str) -> dict:
+        return await self.get(self._build_url(f"/ai-dev/benchmarks/{benchmark_id}"))
+
+    async def ai_benchmark_run(self, benchmark_id: str, model: str | None = None,
+                               commit_sha: str | None = None) -> dict:
+        payload: Dict[str, Any] = {}
+        if model:
+            payload["model"] = model
+        if commit_sha:
+            payload["commit_sha"] = commit_sha
+        return await self.post(self._build_url(f"/ai-dev/benchmarks/{benchmark_id}/runs"), data=payload)
+
+    async def ai_benchmark_summarize(self, benchmark_id: str) -> dict:
+        return await self.post(self._build_url(f"/ai-dev/benchmarks/{benchmark_id}/summarize"), data={})
+
+    async def ai_release_handoff(self, repository_id: str, environment: str | None = None,
+                                 release_channel: str | None = None, version: str | None = None) -> dict:
+        payload: Dict[str, Any] = {"repository_id": repository_id}
+        if environment:
+            payload["environment"] = environment
+        if release_channel:
+            payload["release_channel"] = release_channel
+        if version:
+            payload["version"] = version
+        return await self.post(self._build_url("/ai-dev/release/handoff"), data=payload)
