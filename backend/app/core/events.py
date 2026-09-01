@@ -523,6 +523,19 @@ class EventType(str, Enum):
     WorkflowCompensationCompleted = "workflow.compensation.completed"
     WorkflowApprovalRequested = "workflow.approval.requested"
 
+    # Workflow — Volume 66 Commit 2
+    WorkflowReplayStarted = "workflow.replay.started"
+    WorkflowReplayCompleted = "workflow.replay.completed"
+    WorkflowRecoveryStarted = "workflow.recovery.started"
+    WorkflowRecoveryCompleted = "workflow.recovery.completed"
+    WorkflowSLAWarning = "workflow.sla.warning"
+    WorkflowSLABreached = "workflow.sla.breached"
+    HumanTaskCreated = "workflow.human_task.created"
+    HumanTaskCompleted = "workflow.human_task.completed"
+    WorkflowAnomalyDetected = "workflow.anomaly.detected"
+    WorkflowBudgetBreached = "workflow.budget.breached"
+    WorkflowAuthorizationReevaluated = "workflow.auth.reevaluated"
+
     # Observability AIOps extensions (Volume 59 Commit 2) — additive, no placeholders
     AnomalyDetected = "observability.anomaly.detected"
     AlertCorrelated = "observability.alert.correlated"

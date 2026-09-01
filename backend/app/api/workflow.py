@@ -446,3 +446,179 @@ async def create_schedule(payload: dict, user=Depends(_get_current_user), db: As
     await db.flush()
     await db.commit()
     return {"id": str(sched.id), "workflow_id": workflow_id, "trigger_type": sched.trigger_type}
+
+
+# ── Commit 2: Templates, Human Tasks, Business, Replay, Recovery, SLA, Health ─
+@router.get("/templates", status_code=200)
+async def list_templates(limit: int = Query(20, ge=1, le=100), user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.workflow.templates import list_templates as _list
+    rows = await _list(db, tenant)
+    return {"items": rows[:limit]}
+
+
+@router.post("/templates", status_code=201)
+async def create_template(payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "workflow:execute", "workflow")
+    from app.workflow.templates import create_template as _create
+    try:
+        tmpl = await _create(db, tenant, payload, owner=str(getattr(user, "id", "")))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return {"id": str(tmpl.id), "name": tmpl.name, "version": tmpl.version}
+
+
+@router.post("/templates/{template_id}/publish", status_code=200)
+async def publish_template(template_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.workflow.templates import publish_template as _pub
+    try:
+        tmpl = await _pub(db, tenant, template_id, approver=str(getattr(user, "id", "")))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return {"id": str(tmpl.id), "is_published": tmpl.is_published}
+
+
+@router.get("/human-tasks", status_code=200)
+async def list_human_tasks(status: str | None = None, limit: int = Query(20, ge=1, le=100), user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.workflow.human_tasks import HumanTask
+    q = select(HumanTask).where(HumanTask.tenant == tenant)
+    if status:
+        q = q.where(HumanTask.status == status.upper())
+    q = q.order_by(HumanTask.created_at.desc()).limit(limit)
+    res = await db.execute(q)
+    rows = res.scalars().all()
+    return {"items": [{"id": str(r.id), "assignee": r.assignee, "status": r.status, "run_id": str(r.run_id)} for r in rows]}
+
+
+@router.post("/human-tasks/{task_id}/complete", status_code=200)
+async def complete_human_task(task_id: str, payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.workflow.human_tasks import update_human_task
+    try:
+        task = await update_human_task(db, tenant, task_id, status="COMPLETED", decision=payload.get("decision"), comment=payload.get("comment"))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return {"id": str(task.id), "status": task.status}
+
+
+@router.post("/human-tasks/{task_id}/reassign", status_code=200)
+async def reassign_human_task(task_id: str, payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    new_assignee = payload.get("assignee")
+    if not new_assignee:
+        raise HTTPException(status_code=422, detail="assignee required")
+    from app.workflow.human_tasks import reassign_task
+    try:
+        new_task = await reassign_task(db, tenant, task_id, new_assignee, requester=str(getattr(user, "id", "")))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return {"id": str(new_task.id), "assignee": new_task.assignee}
+
+
+@router.get("/business-processes", status_code=200)
+async def list_business_processes(limit: int = Query(20, ge=1, le=100), user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.workflow.business import BusinessProcess
+    q = select(BusinessProcess).where(BusinessProcess.tenant == tenant).order_by(BusinessProcess.created_at.desc()).limit(limit)
+    res = await db.execute(q)
+    rows = res.scalars().all()
+    return {"items": [{"id": str(r.id), "current_state": r.current_state, "run_id": str(r.run_id)} for r in rows]}
+
+
+@router.post("/business-processes/{process_id}/transition", status_code=200)
+async def transition_business_process(process_id: str, payload: dict, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    new_state = payload.get("new_state")
+    if not new_state:
+        raise HTTPException(status_code=422, detail="new_state required")
+    from app.workflow.business import transition_process
+    try:
+        proc = await transition_process(db, tenant, process_id, new_state)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    return {"id": str(proc.id), "current_state": proc.current_state}
+
+
+@router.post("/runs/{run_id}/replay", status_code=201)
+async def replay_run(run_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    _iam_check(user, tenant, "workflow:execute", "workflow")
+    from app.workflow.recovery import replay_workflow
+    try:
+        new_run = await replay_workflow(db, tenant, run_id, requester=str(getattr(user, "id", "")))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    await _emit("WorkflowReplayStarted", {"original_run_id": run_id, "new_run_id": str(new_run.id)}, tenant)
+    await _emit("WorkflowReplayCompleted", {"new_run_id": str(new_run.id)}, tenant)
+    return {"new_run_id": str(new_run.id), "original_run_id": run_id, "status": new_run.status}
+
+
+@router.post("/runs/{run_id}/recover", status_code=200)
+async def recover_run(run_id: str, payload: dict | None = None, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    worker_id = (payload or {}).get("worker_id", str(getattr(user, "id", "")))
+    from app.workflow.recovery import recover_stale_execution
+    try:
+        run = await recover_stale_execution(db, tenant, run_id, new_worker_id=worker_id)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    await _emit("WorkflowRecoveryStarted", {"run_id": run_id}, tenant)
+    await _emit("WorkflowRecoveryCompleted", {"run_id": run_id}, tenant)
+    return {"run_id": str(run.id), "status": run.status}
+
+
+@router.get("/sla/{run_id}", status_code=200)
+async def get_sla(run_id: str, user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.workflow.business import BusinessProcess
+    q = select(BusinessProcess).where(BusinessProcess.run_id == _to_uuid(run_id), BusinessProcess.tenant == tenant)
+    res = await db.execute(q)
+    proc = res.scalar_one_or_none()
+    if not proc:
+        raise HTTPException(status_code=404, detail="business process not found")
+    # Check breach
+    breached = proc.sla_deadline and datetime.now(timezone.utc) > (proc.sla_deadline.replace(tzinfo=timezone.utc) if proc.sla_deadline.tzinfo is None else proc.sla_deadline)
+    return {"process_id": str(proc.id), "sla_deadline": proc.sla_deadline.isoformat() if proc.sla_deadline else None, "breached": bool(breached), "current_state": proc.current_state}
+
+
+@router.get("/health", status_code=200)
+async def workflow_health(user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.workflow.models import WorkflowRun
+    q = select(WorkflowRun).where(WorkflowRun.tenant == tenant)
+    res = await db.execute(q)
+    runs = res.scalars().all()
+    total = len(runs)
+    success = len([r for r in runs if r.status == "COMPLETED"])
+    failed = len([r for r in runs if r.status == "FAILED"])
+    success_rate = round(success / total * 100, 1) if total else 0
+    return {"tenant": tenant, "total": total, "success": success, "failed": failed, "success_rate": success_rate}
+
+
+@router.get("/anomalies", status_code=200)
+async def workflow_anomalies(limit: int = Query(20, ge=1, le=100), user=Depends(_get_current_user), db: AsyncSession = Depends(get_db)):
+    tenant = _tenant(user)
+    from app.workflow.models import WorkflowRun
+    q = select(WorkflowRun).where(WorkflowRun.tenant == tenant).order_by(WorkflowRun.created_at.desc()).limit(100)
+    res = await db.execute(q)
+    runs = res.scalars().all()
+    # Detect unusual duration
+    anomalies = []
+    for r in runs:
+        if r.duration_ms and r.duration_ms > 60000:  # >60s unusual
+            anomalies.append({"run_id": str(r.id), "type": "unusual_duration", "duration_ms": r.duration_ms})
+        if r.status == "FAILED":
+            anomalies.append({"run_id": str(r.id), "type": "unusual_failure"})
+    return {"items": anomalies[:limit]}

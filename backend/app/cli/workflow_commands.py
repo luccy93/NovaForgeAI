@@ -68,6 +68,28 @@ def handle_workflow_command(argv):
     p.add_argument("--approve", default=None)
     p.add_argument("--decision", default="APPROVED")
 
+    p = sub.add_parser("templates")
+    p.add_argument("--limit", type=int, default=20)
+
+    p = sub.add_parser("replay")
+    p.add_argument("run_id")
+
+    p = sub.add_parser("recover")
+    p.add_argument("run_id")
+    p.add_argument("--worker-id", default=None)
+
+    p = sub.add_parser("tasks")
+    p.add_argument("--limit", type=int, default=20)
+    p.add_argument("--status", default=None)
+
+    p = sub.add_parser("sla")
+    p.add_argument("run_id")
+
+    p = sub.add_parser("health")
+
+    p = sub.add_parser("anomalies")
+    p.add_argument("--limit", type=int, default=20)
+
     raw_argv = argv if argv is not None else sys.argv[1:]
     as_json_raw = "--json" in raw_argv
     filtered_argv = [a for a in raw_argv if a != "--json"]
@@ -111,6 +133,26 @@ def handle_workflow_command(argv):
                 res = _call("POST", f"/workflows/approvals/{args.approve}/decide", base, key, body={"decision": args.decision})
             else:
                 res = _call("GET", "/workflows/approvals", base, key, params={"limit": args.limit})
+        elif args.action == "templates":
+            res = _call("GET", "/workflows/templates", base, key, params={"limit": args.limit})
+        elif args.action == "replay":
+            res = _call("POST", f"/workflows/runs/{args.run_id}/replay", base, key, body={})
+        elif args.action == "recover":
+            body = {}
+            if args.worker_id:
+                body["worker_id"] = args.worker_id
+            res = _call("POST", f"/workflows/runs/{args.run_id}/recover", base, key, body=body)
+        elif args.action == "tasks":
+            params = {"limit": args.limit}
+            if args.status:
+                params["status"] = args.status
+            res = _call("GET", "/workflows/human-tasks", base, key, params=params)
+        elif args.action == "sla":
+            res = _call("GET", f"/workflows/sla/{args.run_id}", base, key)
+        elif args.action == "health":
+            res = _call("GET", "/workflows/health", base, key)
+        elif args.action == "anomalies":
+            res = _call("GET", "/workflows/anomalies", base, key, params={"limit": args.limit})
         else:
             res = {"error": f"unknown {args.action}"}
         print(json.dumps(res, indent=None if as_json else 2, default=str))

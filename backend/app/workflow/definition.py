@@ -34,10 +34,20 @@ def _validate_workflow_definition(definition: dict):
         for dep in s.get("depends_on", []):
             if dep not in step_ids:
                 raise ValueError(f"step {s.get('id')} depends_on unknown {dep}")
-        # Check secrets not embedded
-        if "secret" in json.dumps(s).lower() and "secret_ref" not in json.dumps(s):
-            # Heuristic: if secret appears without ref
-            pass
+        # No arbitrary code execution
+        action = str(s.get("action") or "")
+        if s.get("action") and any(k in action.lower() for k in ("eval", "exec(", "system(", "popen", "subprocess", "rm -rf", "os.system", "shell=")):
+            raise ValueError("arbitrary code execution not allowed")
+        # No unbounded fan-out / loops
+        if t == "PARALLEL" and int(s.get("fan_out", 0) or 0) > 100:
+            raise ValueError("fan-out exceeds platform max of 100")
+        loop = s.get("loop", {})
+        if isinstance(loop, dict) and int(loop.get("max_iterations", 0) or 0) > 1000:
+            raise ValueError("loop iterations exceed platform max")
+        # No secrets embedded in workflow definitions
+        raw = json.dumps(s)
+        if any(k in raw.lower() for k in ("password", "api_key", "token", "private_key", "secret")) and "secret_ref" not in raw:
+            raise ValueError("secrets must use secret_ref, not literal values")
     # DAG cycle check via DFS
     graph = {s["id"]: [] for s in steps}
     for s in steps:

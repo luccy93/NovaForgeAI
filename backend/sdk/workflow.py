@@ -61,6 +61,47 @@ class WorkflowMixin:
             payload["binding_hash"] = binding_hash
         return self.post(self._build_url(f"/workflows/approvals/{approval_id}/decide"), data=payload)
 
+    # Commit 2 additions
+    def wf_templates(self, limit: int = 20) -> dict:
+        return self.get(self._build_url("/workflows/templates"), params={"limit": limit})
+
+    def wf_create_template(self, name: str, definition: dict, **kwargs: Any) -> dict:
+        payload: Dict[str, Any] = {"name": name, "definition": definition}
+        for k in ("description", "category", "version"):
+            if k in kwargs and kwargs[k] is not None:
+                payload[k] = kwargs[k]
+        return self.post(self._build_url("/workflows/templates"), data=payload)
+
+    def wf_replay(self, run_id: str) -> dict:
+        return self.post(self._build_url(f"/workflows/runs/{run_id}/replay"), data={})
+
+    def wf_recover(self, run_id: str, worker_id: str | None = None) -> dict:
+        payload: Dict[str, Any] = {}
+        if worker_id:
+            payload["worker_id"] = worker_id
+        return self.post(self._build_url(f"/workflows/runs/{run_id}/recover"), data=payload)
+
+    def wf_tasks(self, status: str | None = None, limit: int = 20) -> dict:
+        params: Dict[str, Any] = {"limit": limit}
+        if status:
+            params["status"] = status
+        return self.get(self._build_url("/workflows/human-tasks"), params=params)
+
+    def wf_complete_task(self, task_id: str, decision: str = "COMPLETED", comment: str | None = None) -> dict:
+        payload: Dict[str, Any] = {"decision": decision}
+        if comment:
+            payload["comment"] = comment
+        return self.post(self._build_url(f"/workflows/human-tasks/{task_id}/complete"), data=payload)
+
+    def wf_sla(self, run_id: str) -> dict:
+        return self.get(self._build_url(f"/workflows/sla/{run_id}"))
+
+    def wf_health(self) -> dict:
+        return self.get(self._build_url("/workflows/health"))
+
+    def wf_anomalies(self, limit: int = 20) -> dict:
+        return self.get(self._build_url("/workflows/anomalies"), params={"limit": limit})
+
 
 class AsyncWorkflowMixin:
     """Async Workflow mixin."""
@@ -119,3 +160,43 @@ class AsyncWorkflowMixin:
         if binding_hash:
             payload["binding_hash"] = binding_hash
         return await self.post(self._build_url(f"/workflows/approvals/{approval_id}/decide"), data=payload)
+
+    async def wf_templates(self, limit: int = 20) -> dict:
+        return await self.get(self._build_url("/workflows/templates"), params={"limit": limit})
+
+    async def wf_create_template(self, name: str, definition: dict, **kwargs: Any) -> dict:
+        payload: Dict[str, Any] = {"name": name, "definition": definition}
+        for k in ("description", "category", "version"):
+            if k in kwargs and kwargs[k] is not None:
+                payload[k] = kwargs[k]
+        return await self.post(self._build_url("/workflows/templates"), data=payload)
+
+    async def wf_replay(self, run_id: str) -> dict:
+        return await self.post(self._build_url(f"/workflows/runs/{run_id}/replay"), data={})
+
+    async def wf_recover(self, run_id: str, worker_id: str | None = None) -> dict:
+        payload: Dict[str, Any] = {}
+        if worker_id:
+            payload["worker_id"] = worker_id
+        return await self.post(self._build_url(f"/workflows/runs/{run_id}/recover"), data=payload)
+
+    async def wf_tasks(self, status: str | None = None, limit: int = 20) -> dict:
+        params: Dict[str, Any] = {"limit": limit}
+        if status:
+            params["status"] = status
+        return await self.get(self._build_url("/workflows/human-tasks"), params=params)
+
+    async def wf_complete_task(self, task_id: str, decision: str = "COMPLETED", comment: str | None = None) -> dict:
+        payload: Dict[str, Any] = {"decision": decision}
+        if comment:
+            payload["comment"] = comment
+        return await self.post(self._build_url(f"/workflows/human-tasks/{task_id}/complete"), data=payload)
+
+    async def wf_sla(self, run_id: str) -> dict:
+        return await self.get(self._build_url(f"/workflows/sla/{run_id}"))
+
+    async def wf_health(self) -> dict:
+        return await self.get(self._build_url("/workflows/health"))
+
+    async def wf_anomalies(self, limit: int = 20) -> dict:
+        return await self.get(self._build_url("/workflows/anomalies"), params={"limit": limit})
