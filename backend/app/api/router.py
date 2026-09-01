@@ -49,6 +49,7 @@ from app.api.secops import router as secops_router
 from app.api.zero_trust import router as zero_trust_router
 from app.api.data_platform import router as data_platform_router
 from app.api.workflow import router as workflow_router
+from app.api.ai_dev import router as ai_dev_router
 
 api_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_router.include_router(repos_router, prefix="/repositories", tags=["Repositories"])
@@ -97,4 +98,5 @@ api_router.include_router(secops_router, tags=["Security Operations"])
 api_router.include_router(zero_trust_router, tags=["Zero Trust"])
 api_router.include_router(data_platform_router, tags=["Data Platform"])
 api_router.include_router(workflow_router, tags=["Workflow"])
+api_router.include_router(ai_dev_router)
 api_router.include_router(sre_router)

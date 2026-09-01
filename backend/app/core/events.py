@@ -561,6 +561,28 @@ class EventType(str, Enum):
     agent_circuit_broken = "observability.agent.circuit_broken"
     capacity_forecast_generated = "observability.capacity.forecast_generated"
 
+    # AI Developer Experience — Volume 67 Commit 1
+    CodeWorkspaceCreated = "ai_dev.workspace.created"
+    CodeWorkspacePinned = "ai_dev.workspace.pinned"
+    CodeIndexRequested = "ai_dev.index.requested"
+    CodeSearchPerformed = "ai_dev.search.performed"
+    CodeContextBuilt = "ai_dev.context.built"
+    CodeChatStarted = "ai_dev.chat.started"
+    CodeExplainRequested = "ai_dev.explain.requested"
+    CodePatchProposed = "ai_dev.patch.proposed"
+    CodePatchApplied = "ai_dev.patch.applied"
+    CodePatchRolledBack = "ai_dev.patch.rolled_back"
+    CodeReviewGenerated = "ai_dev.review.generated"
+    CodeReviewFindingDismissed = "ai_dev.review.finding.dismissed"
+    CodeTestPlanned = "ai_dev.test.planned"
+    CodeTestExecuted = "ai_dev.test.executed"
+    CodeTestCompleted = "ai_dev.test.completed"
+    CodeFixCycleStarted = "ai_dev.fix.cycle.started"
+    CodeFixCycleCompleted = "ai_dev.fix.cycle.completed"
+    CodeDependencyScanned = "ai_dev.dependency.scanned"
+    CodePrAssisted = "ai_dev.pr.assisted"
+    DeveloperAIUsageRecorded = "ai_dev.usage.recorded"
+
 
 class Event:
     def __init__(
