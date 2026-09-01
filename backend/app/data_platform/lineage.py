@@ -30,13 +30,15 @@ async def record_edge(db: AsyncSession, tenant: str, source: str, target: str, t
     # Also write to governance lineage for compliance if available
     try:
         from app.datagov.lineage import lineage_service
-        await lineage_service.record_edge(db, tenant, source, target, transformation or "unknown", evidence=f"pipeline {pipeline_id}", stage="transform")
+        async with db.begin_nested():
+            await lineage_service.record_edge(db, tenant, source, target, transformation or "unknown", evidence=f"pipeline {pipeline_id}", stage="transform")
     except Exception:
         pass
     # Also write to knowledge graph
     try:
         from app.knowledge_graph.relationship_service import relationship_service
-        await relationship_service.create_relationship(db, tenant, source, target, "lineage", confidence="confirmed", evidence=[provenance or {}])
+        async with db.begin_nested():
+            await relationship_service.create_relationship(db, tenant, source, target, "lineage", confidence="confirmed", evidence=[provenance or {}])
     except Exception:
         pass
     db.add(edge)
