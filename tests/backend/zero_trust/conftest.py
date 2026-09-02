@@ -18,6 +18,7 @@ def _compile_jsonb_sqlite(element, compiler, **kw):
 sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "backend")))
 
 from app.core.database import Base, async_engine, async_session
+from app.workflow import models as _wf  # noqa: E402,F401
 from app.zero_trust import models as _zt  # noqa: F401
 from app.iam import models as _iam  # noqa: F401
 from app.secops import models as _secops  # noqa: F401
