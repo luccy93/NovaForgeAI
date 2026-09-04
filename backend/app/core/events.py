@@ -600,6 +600,29 @@ class EventType(str, Enum):
     CodeSecurityGateRun = "ai_dev.security_gate.run"
     CodeReleaseHandoffPrepared = "ai_dev.release_handoff.prepared"
 
+    # Governed FinOps — Volume 69. Additive; existing events untouched.
+    FinopsUsageRecorded = "finops.usage.recorded"
+    FinopsCostCalculated = "finops.cost.calculated"
+    FinopsBudgetWarning = "finops.budget.warning"
+    FinopsBudgetExceeded = "finops.budget.exceeded"
+    FinopsAllocationCompleted = "finops.allocation.completed"
+    FinopsForecastGenerated = "finops.forecast.generated"
+    FinopsAnomalyDetected = "finops.anomaly.detected"
+    FinopsRecommendationCreated = "finops.recommendation.created"
+    FinopsPolicyDecision = "finops.policy.decision"
+    FinopsChargebackGenerated = "finops.chargeback.generated"
+    # snake_case aliases (backward compat, same values)
+    finops_usage_recorded = "finops.usage.recorded"
+    finops_cost_calculated = "finops.cost.calculated"
+    finops_budget_warning = "finops.budget.warning"
+    finops_budget_exceeded = "finops.budget.exceeded"
+    finops_allocation_completed = "finops.allocation.completed"
+    finops_forecast_generated = "finops.forecast.generated"
+    finops_anomaly_detected = "finops.anomaly.detected"
+    finops_recommendation_created = "finops.recommendation.created"
+    finops_policy_decision = "finops.policy.decision"
+    finops_chargeback_generated = "finops.chargeback.generated"
+
 
 class Event:
     def __init__(
