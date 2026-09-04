@@ -60,6 +60,15 @@ def handle_integrations_command(argv=None):
     p_wh.add_argument("--url", default=None)
     p_health = sub.add_parser("health")
     p_health.add_argument("--connection-id", required=True)
+    p_oauth = sub.add_parser("oauth")
+    p_oauth.add_argument("--integration-id", default=None)
+    p_oauth.add_argument("--action", default="list", choices=["list", "revoke"])
+    p_oauth.add_argument("--id", default=None)
+    sub.add_parser("connectors")
+    p_sync = sub.add_parser("sync")
+    p_sync.add_argument("--connection-id", required=True)
+    p_revoke = sub.add_parser("revoke")
+    p_revoke.add_argument("--id", required=True)
 
     args = parser.parse_args(argv)
     base, key = _base(args.base_url), _key(args.api_key)
@@ -84,5 +93,18 @@ def handle_integrations_command(argv=None):
     elif args.cmd == "health":
         _out(_call("POST", f"/integrations/connections/{args.connection_id}/health",
                    base, key, body={}), as_json)
+    elif args.cmd == "oauth":
+        if args.action == "revoke" and args.id:
+            _out(_call("POST", f"/integrations/oauth/{args.id}/revoke", base, key, body={}), as_json)
+        else:
+            _out(_call("GET", "/integrations/oauth", base, key), as_json)
+    elif args.cmd == "connectors":
+        _out(_call("GET", "/integrations/connectors/available", base, key), as_json)
+    elif args.cmd == "sync":
+        _out(_call("POST", f"/integrations/connections/{args.connection_id}/sync",
+                   base, key, body={}), as_json)
+    elif args.cmd == "revoke":
+        _out(_call("POST", f"/integrations/{args.id}/status", base, key,
+                   body={"status": "REVOKED"}), as_json)
     else:
         parser.print_help()

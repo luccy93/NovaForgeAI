@@ -639,6 +639,25 @@ class EventType(str, Enum):
     integration_health_changed = "integration.health.changed"
     webhook_delivery_succeeded = "webhook.delivery.succeeded"
     webhook_delivery_failed = "webhook.delivery.failed"
+    # Governed integrations C2 — Volume 70. Additive.
+    OauthConnected = "oauth.connected"
+    OauthRefreshed = "oauth.refreshed"
+    OauthReauthRequired = "oauth.reauth.required"
+    ConnectorSyncStarted = "connector.sync.started"
+    ConnectorSyncCompleted = "connector.sync.completed"
+    ConnectorSyncFailed = "connector.sync.failed"
+    IntegrationQuarantined = "integration.quarantined"
+    WebhookReceived = "webhook.received"
+    WebhookReplayRejected = "webhook.replay.rejected"
+    oauth_connected = "oauth.connected"
+    oauth_refreshed = "oauth.refreshed"
+    oauth_reauth_required = "oauth.reauth.required"
+    connector_sync_started = "connector.sync.started"
+    connector_sync_completed = "connector.sync.completed"
+    connector_sync_failed = "connector.sync.failed"
+    integration_quarantined = "integration.quarantined"
+    webhook_received = "webhook.received"
+    webhook_replay_rejected = "webhook.replay.rejected"
 
 
 class Event:

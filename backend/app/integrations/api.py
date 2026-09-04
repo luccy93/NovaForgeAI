@@ -72,6 +72,9 @@ def _iam_check(user, tenant: str, perm: str) -> None:
 def _err(exc: Exception) -> HTTPException:
     if isinstance(exc, HTTPException):
         return exc
+    from app.integrations.common import ValidationError as _ValidationError
+    if isinstance(exc, _ValidationError):
+        return HTTPException(status_code=422, detail=f"{type(exc).__name__}: {exc}")
     msg = f"{type(exc).__name__}: {exc}"
     lowered = str(exc).lower()
     if "not found" in lowered:
@@ -79,8 +82,8 @@ def _err(exc: Exception) -> HTTPException:
     if "already exists" in lowered or "duplicate" in lowered:
         return HTTPException(status_code=409, detail=msg)
     if ("required" in lowered or "too large" in lowered or "must be" in lowered
-            or "unsupported" in lowered or "not allowed" in lowered or "blocked" in lowered
-            or "invalid" in lowered):
+            or "unsupported" in lowered or "unknown" in lowered or "not allowed" in lowered
+            or "blocked" in lowered or "invalid" in lowered or "duplicate" in lowered):
         return HTTPException(status_code=422, detail=msg)
     return HTTPException(status_code=500, detail=msg)
 
