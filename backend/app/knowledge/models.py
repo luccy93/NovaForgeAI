@@ -277,3 +277,93 @@ class KnowledgeQueryResult(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_knowledge_query_results_score", "score"),
     )
+
+
+# ─── 9. KnowledgeCacheEntry ────────────────────────────────────────────────
+
+
+class KnowledgeCacheEntry(Base, TimestampMixin):
+    """Cached search results with content-addressed keys and TTL expiry."""
+
+    __tablename__ = "knowledge_cache_entries"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    cache_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    query_text: Mapped[str] = mapped_column(String(2048), nullable=False)
+    results: Mapped[Optional[list]] = mapped_column(JSONB, default=list)
+    filters: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
+    source_count: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    hit_count: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    last_hit_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("tenant", "cache_key", name="uq_knowledge_cache_tenant_key"),
+        Index("ix_knowledge_cache_tenant_expires", "tenant", "expires_at"),
+    )
+
+
+# ─── 10. KnowledgeExplanation ───────────────────────────────────────────────
+
+
+class KnowledgeExplanation(Base, TimestampMixin):
+    """Stored retrieval explanations for audit and debugging."""
+
+    __tablename__ = "knowledge_explanations"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    query_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    explanation_data: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
+    methods_used: Mapped[Optional[list]] = mapped_column(JSONB, default=list)
+    result_count: Mapped[Optional[int]] = mapped_column(Integer, default=0)
+    latency_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    __table_args__ = (
+        Index("ix_knowledge_explanations_query_id", "query_id"),
+    )
+
+
+# ─── 11. KnowledgeAdminAudit ────────────────────────────────────────────────
+
+
+class KnowledgeAdminAudit(Base, TimestampMixin):
+    """Audit log for admin operations on the knowledge system."""
+
+    __tablename__ = "knowledge_admin_audit"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    resource_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    details: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
+    status: Mapped[str] = mapped_column(String(32), default="SUCCESS")
+
+    __table_args__ = (
+        Index("ix_knowledge_admin_audit_tenant_action", "tenant", "action"),
+    )
+
+
+# ─── 12. KnowledgeGraphCommunity ────────────────────────────────────────────
+
+
+class KnowledgeGraphCommunity(Base, TimestampMixin):
+    """Detected communities/clusters in the knowledge graph."""
+
+    __tablename__ = "knowledge_graph_communities"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    entity_ids: Mapped[Optional[list]] = mapped_column(JSONB, default=list)
+    entity_count: Mapped[int] = mapped_column(Integer, default=0)
+    avg_internal_weight: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="ACTIVE")
+
+    __table_args__ = (
+        Index("ix_knowledge_graph_communities_tenant_status", "tenant", "status"),
+    )
