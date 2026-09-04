@@ -19,7 +19,8 @@ class EncryptionService:
     def _derive_key() -> bytes:
         master = settings.encryption_master_key
         if master and len(master) >= 32:
-            return master.encode()[:32].ljust(32, b'\0' if isinstance(master, bytes) else '\0')
+            raw = master if isinstance(master, bytes) else master.encode()
+            return raw[:32].ljust(32, b"\0")
         return os.urandom(32)
 
     @staticmethod

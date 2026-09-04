@@ -623,6 +623,23 @@ class EventType(str, Enum):
     finops_policy_decision = "finops.policy.decision"
     finops_chargeback_generated = "finops.chargeback.generated"
 
+    # Governed integrations — Volume 70. Additive; existing events untouched.
+    IntegrationCreated = "integration.created"
+    IntegrationUpdated = "integration.updated"
+    IntegrationDisabled = "integration.disabled"
+    IntegrationRevoked = "integration.revoked"
+    IntegrationHealthChanged = "integration.health.changed"
+    WebhookDeliverySucceeded = "webhook.delivery.succeeded"
+    WebhookDeliveryFailed = "webhook.delivery.failed"
+    # snake_case aliases (backward compat, same values)
+    integration_created = "integration.created"
+    integration_updated = "integration.updated"
+    integration_disabled = "integration.disabled"
+    integration_revoked = "integration.revoked"
+    integration_health_changed = "integration.health.changed"
+    webhook_delivery_succeeded = "webhook.delivery.succeeded"
+    webhook_delivery_failed = "webhook.delivery.failed"
+
 
 class Event:
     def __init__(

@@ -209,6 +209,9 @@ class NovaForgeCLI:
         elif cmd == "finops":
             from app.cli.finops_commands import handle_finops_command
             handle_finops_command(rest)
+        elif cmd == "integrations":
+            from app.cli.integrations_commands import handle_integrations_command
+            handle_integrations_command(rest)
         elif cmd == "support":
             from app.cli.support_commands import handle_support_command
             handle_support_command(rest)
