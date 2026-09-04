@@ -63,6 +63,19 @@ def handle_finops_command(argv=None):
     p_agg.add_argument("--granularity", default="day")
     p_agg.add_argument("--start", default=None)
     p_agg.add_argument("--end", default=None)
+    p_forecast = sub.add_parser("forecast")
+    p_forecast.add_argument("--horizon-days", type=int, default=30)
+    sub.add_parser("anomalies")
+    sub.add_parser("recommend")
+    p_compare = sub.add_parser("compare")
+    p_compare.add_argument("--provider", default=None)
+    sub.add_parser("policies")
+    p_gate = sub.add_parser("gate")
+    p_gate.add_argument("--operation", required=True)
+    p_gate.add_argument("--estimated-cents", type=int, default=0)
+    p_report = sub.add_parser("report")
+    p_report.add_argument("--type", default="showback")
+    p_report.add_argument("--group-by", default="workspace")
 
     args = parser.parse_args(argv)
     base, key = _base(args.base_url), _key(args.api_key)
@@ -92,5 +105,25 @@ def handle_finops_command(argv=None):
         _out(_call("POST", "/finops/aggregations/run", base, key, body={
             "granularity": args.granularity, "start": args.start, "end": args.end, "dimensions": {},
         }), as_json)
+    elif args.cmd == "forecast":
+        _out(_call("GET", "/finops/forecast", base, key,
+                   params={"horizon_days": args.horizon_days}), as_json)
+    elif args.cmd == "anomalies":
+        _out(_call("GET", "/finops/anomalies", base, key), as_json)
+    elif args.cmd == "recommend":
+        _out(_call("POST", "/finops/recommendations/generate", base, key, body={}), as_json)
+    elif args.cmd == "compare":
+        params = {}
+        if args.provider:
+            params["provider"] = args.provider
+        _out(_call("GET", "/finops/models/compare", base, key, params=params), as_json)
+    elif args.cmd == "policies":
+        _out(_call("GET", "/finops/policies", base, key), as_json)
+    elif args.cmd == "gate":
+        _out(_call("POST", "/finops/gate/evaluate", base, key, body={
+            "operation": args.operation, "estimated_cents": args.estimated_cents}), as_json)
+    elif args.cmd == "report":
+        _out(_call("POST", f"/finops/reports/{args.type}", base, key,
+                   body={"group_by": args.group_by}), as_json)
     else:
         parser.print_help()

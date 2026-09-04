@@ -59,6 +59,38 @@ class FinOpsMixin:
     def finops_list_aggregations(self, granularity: str = "", limit: int = 100) -> dict:
         return self.get(self._build_url("/finops/aggregations"), params={"granularity": granularity, "limit": limit})
 
+    # ── Volume 69 Commit 2 — intelligence ────────────────────────────────────
+
+    def finops_forecast(self, horizon_days: int = 30, **filters: Any) -> dict:
+        return self.get(self._build_url("/finops/forecast"), params={"horizon_days": horizon_days, **filters})
+
+    def finops_detect_anomalies(self, lookback_days: int = 14) -> dict:
+        return self.post(self._build_url("/finops/anomalies/detect"), data={"lookback_days": lookback_days})
+
+    def finops_list_anomalies(self, severity: str = "", limit: int = 100) -> dict:
+        return self.get(self._build_url("/finops/anomalies"), params={"severity": severity, "limit": limit})
+
+    def finops_generate_recommendations(self) -> dict:
+        return self.post(self._build_url("/finops/recommendations/generate"), data={})
+
+    def finops_list_recommendations(self, limit: int = 100) -> dict:
+        return self.get(self._build_url("/finops/recommendations"), params={"limit": limit})
+
+    def finops_compare_models(self, provider: str = "") -> dict:
+        return self.get(self._build_url("/finops/models/compare"), params={"provider": provider})
+
+    def finops_list_policies(self) -> dict:
+        return self.get(self._build_url("/finops/policies"))
+
+    def finops_create_policy(self, name: str, **fields: Any) -> dict:
+        return self.post(self._build_url("/finops/policies"), data={"name": name, **fields})
+
+    def finops_evaluate_gate(self, operation: str, **fields: Any) -> dict:
+        return self.post(self._build_url("/finops/gate/evaluate"), data={"operation": operation, **fields})
+
+    def finops_generate_report(self, report_type: str, **fields: Any) -> dict:
+        return self.post(self._build_url(f"/finops/reports/{report_type}"), data=fields)
+
 
 class AsyncFinOpsMixin:
     async def finops_usage_summary(self, start: Optional[str] = None, end: Optional[str] = None) -> dict:
@@ -115,3 +147,29 @@ class AsyncFinOpsMixin:
 
     async def finops_list_aggregations(self, granularity: str = "", limit: int = 100) -> dict:
         return await self.get(self._build_url("/finops/aggregations"), params={"granularity": granularity, "limit": limit})
+
+    # ── Volume 69 Commit 2 — intelligence ────────────────────────────────────
+
+    async def finops_forecast(self, horizon_days: int = 30, **filters: Any) -> dict:
+        return await self.get(self._build_url("/finops/forecast"), params={"horizon_days": horizon_days, **filters})
+
+    async def finops_detect_anomalies(self, lookback_days: int = 14) -> dict:
+        return await self.post(self._build_url("/finops/anomalies/detect"), data={"lookback_days": lookback_days})
+
+    async def finops_list_anomalies(self, severity: str = "", limit: int = 100) -> dict:
+        return await self.get(self._build_url("/finops/anomalies"), params={"severity": severity, "limit": limit})
+
+    async def finops_generate_recommendations(self) -> dict:
+        return await self.post(self._build_url("/finops/recommendations/generate"), data={})
+
+    async def finops_compare_models(self, provider: str = "") -> dict:
+        return await self.get(self._build_url("/finops/models/compare"), params={"provider": provider})
+
+    async def finops_create_policy(self, name: str, **fields: Any) -> dict:
+        return await self.post(self._build_url("/finops/policies"), data={"name": name, **fields})
+
+    async def finops_evaluate_gate(self, operation: str, **fields: Any) -> dict:
+        return await self.post(self._build_url("/finops/gate/evaluate"), data={"operation": operation, **fields})
+
+    async def finops_generate_report(self, report_type: str, **fields: Any) -> dict:
+        return await self.post(self._build_url(f"/finops/reports/{report_type}"), data=fields)

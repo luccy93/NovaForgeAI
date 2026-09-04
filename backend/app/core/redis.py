@@ -25,11 +25,25 @@ def _key(namespace: str, key: str) -> str:
     return f"{PREFIX}:{namespace}:{key}"
 
 
+_unavailable_until = 0.0
+_UNAVAILABLE_COOLDOWN = 60.0
+
+
 async def get_redis():
-    """Lazy-init and return Redis client."""
-    global _redis_client
+    """Lazy-init and return Redis client.
+
+    Unavailability is cached briefly so best-effort callers do not pay a
+    TCP timeout on every emission when no server is running.
+    """
+    global _redis_client, _unavailable_until
     if _redis_client is not None:
         return _redis_client
+    try:
+        import time as _time
+        if _time.monotonic() < _unavailable_until:
+            return None
+    except Exception:
+        pass
     try:
         import redis.asyncio as aioredis
         _redis_client = aioredis.from_url(
@@ -44,6 +58,11 @@ async def get_redis():
     except Exception as e:
         logger.warning("Redis unavailable: %s. Using in-memory fallback.", e)
         _redis_client = None
+        try:
+            import time as _time
+            _unavailable_until = _time.monotonic() + _UNAVAILABLE_COOLDOWN
+        except Exception:
+            pass
     return _redis_client
 
 

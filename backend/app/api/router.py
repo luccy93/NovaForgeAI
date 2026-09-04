@@ -51,6 +51,7 @@ from app.api.data_platform import router as data_platform_router
 from app.api.workflow import router as workflow_router
 from app.api.ai_dev import router as ai_dev_router
 from app.finops.api import router as finops_router
+from app.finops.api_c2 import router as finops_intel_router
 
 api_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_router.include_router(repos_router, prefix="/repositories", tags=["Repositories"])
@@ -101,4 +102,5 @@ api_router.include_router(data_platform_router, tags=["Data Platform"])
 api_router.include_router(workflow_router, tags=["Workflow"])
 api_router.include_router(ai_dev_router)
 api_router.include_router(finops_router, tags=["FinOps"])
+api_router.include_router(finops_intel_router, tags=["FinOps"])
 api_router.include_router(sre_router)
