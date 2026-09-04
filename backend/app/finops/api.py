@@ -9,9 +9,11 @@ the existing policy authorizer; explicit deny overrides are honored
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db as _get_db_session
 
 from app.finops.governed_common import ADMIN_PERMISSION, READ_PERMISSION
 
@@ -26,10 +28,15 @@ async def _get_db():
         yield session
 
 
-async def _resolve_user():
+async def _resolve_user(
+    authorization: Optional[str] = Header(None),
+    db: AsyncSession = Depends(_get_db_session),
+):
     try:
         from app.api.auth import _get_current_user
-        return await _get_current_user()
+        return await _get_current_user(authorization, db)
+    except HTTPException:
+        raise
     except Exception:
         class _Anon:
             id = ""
@@ -46,6 +53,9 @@ def _tenant(user) -> str:
 
 
 def _iam_check(user, tenant: str, perm: str) -> None:
+    # Same convention as app.api.auth.require_permission: superusers bypass.
+    if getattr(user, "is_superuser", False):
+        return
     try:
         from app.iam.policy_authorizer import policy_authorizer
         result = policy_authorizer.authorize(

@@ -1,12 +1,36 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Navigation } from "@/components/landing/Navigation";
 import { FooterSection } from "@/components/landing/FooterSection";
 import { BrutalButton } from "@/components/ui/BrutalButton";
 import { ArrowRight } from "lucide-react";
+import { api, setToken } from "@/lib/api";
+
+const inputCls =
+  "w-full border border-outline bg-surface px-4 py-3 text-body-md text-on-surface placeholder:text-on-surface-variant/50 outline-none focus:border-primary-container transition-colors";
 
 export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function onSubmit() {
+    setError("");
+    setBusy(true);
+    try {
+      const res = await api.login(email.trim(), password);
+      setToken(res.access_token);
+      window.location.href = "/dashboard";
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sign in failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <main className="relative min-h-screen bg-surface overflow-hidden">
       <Navigation />
@@ -20,11 +44,14 @@ export default function LoginPage() {
             <p className="text-body-md text-on-surface-variant mb-8">Sign in to your NovaForge account.</p>
             <div className="border border-outline bg-surface-container p-8">
               <div className="space-y-4">
-                <input type="email" placeholder="Email" className="w-full border border-outline bg-surface px-4 py-3 text-body-md text-on-surface placeholder:text-on-surface-variant/50 outline-none focus:border-primary-container transition-colors" />
-                <input type="password" placeholder="Password" className="w-full border border-outline bg-surface px-4 py-3 text-body-md text-on-surface placeholder:text-on-surface-variant/50 outline-none focus:border-primary-container transition-colors" />
-                <BrutalButton href="#" variant="yellow" size="lg" fullWidth>Sign In <ArrowRight className="h-4 w-4" /></BrutalButton>
+                <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
+                <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void onSubmit(); }} className={inputCls} />
+                {error ? <p className="text-sm text-red-500 text-left">{error}</p> : null}
+                <BrutalButton variant="yellow" size="lg" fullWidth onClick={() => { if (!busy) void onSubmit(); }}>
+                  {busy ? "Signing in…" : <>Sign In <ArrowRight className="h-4 w-4" /></>}
+                </BrutalButton>
               </div>
-              <p className="mt-6 text-sm text-on-surface-variant">Don't have an account? <a href="/auth/register" className="text-primary-container hover:text-on-surface transition-colors">Sign up</a></p>
+              <p className="mt-6 text-sm text-on-surface-variant">Don&apos;t have an account? <a href="/auth/register" className="text-primary-container hover:text-on-surface transition-colors">Sign up</a></p>
             </div>
           </motion.div>
         </div>

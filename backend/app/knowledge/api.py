@@ -9,10 +9,12 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db as _get_db_session
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +31,15 @@ async def _get_db():
 # Auth helpers
 # ---------------------------------------------------------------------------
 
-async def _resolve_user():
+async def _resolve_user(
+    authorization: Optional[str] = Header(None),
+    db: AsyncSession = Depends(_get_db_session),
+):
     try:
-        from app.api.auth import get_current_user
-        return await get_current_user()
+        from app.api.auth import _get_current_user
+        return await _get_current_user(authorization, db)
+    except HTTPException:
+        raise
     except Exception:
         class _Anon:
             id = ""
@@ -158,7 +165,7 @@ async def search_knowledge(
     try:
         await _iam_check(current_user, await _tenant(current_user), "knowledge:read")
         from app.knowledge.search import search as search_svc
-        result = await search_svc.search(
+        result = await search_svc(
             db, await _tenant(current_user), query,
             filters={"source_type": source_type, "doc_type": doc_type, "classification": classification},
             limit=limit, offset=offset, user=current_user,

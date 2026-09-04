@@ -441,3 +441,59 @@ async def test_api_missing_tenant_rejected(db):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/api/v1/finops/costs")
         assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_api_superuser_bypass(db, org_id):
+    """Superusers bypass RBAC per the require_permission convention."""
+    from httpx import AsyncClient, ASGITransport
+    from app.api import create_app
+    import app.finops.api as finops_api
+
+    app = create_app()
+
+    async def _override_db():
+        yield db
+
+    async def _override_user():
+        class _Super:
+            id = str(uuid.uuid4())
+            organization_id = org_id
+            role = "viewer"
+            is_superuser = True
+        return _Super()
+
+    app.dependency_overrides[finops_api._get_db] = _override_db
+    app.dependency_overrides[finops_api._resolve_user] = _override_user
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/v1/finops/pricing", json={"provider": "acme"})
+        assert resp.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_api_viewer_denied_write(db, org_id):
+    """Plain viewers without billing admin cannot create pricing."""
+    from httpx import AsyncClient, ASGITransport
+    from app.api import create_app
+    import app.finops.api as finops_api
+
+    app = create_app()
+
+    async def _override_db():
+        yield db
+
+    async def _override_user():
+        class _Viewer:
+            id = str(uuid.uuid4())
+            organization_id = org_id
+            role = "viewer"
+            is_superuser = False
+        return _Viewer()
+
+    app.dependency_overrides[finops_api._get_db] = _override_db
+    app.dependency_overrides[finops_api._resolve_user] = _override_user
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/v1/finops/pricing", json={"provider": "acme"})
+        assert resp.status_code == 403
