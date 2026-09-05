@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(__file__), ".."
 from app.core.database import Base, async_engine, async_session, get_db
 from app.release import models as _rel  # noqa
 from app.delivery import models as _del  # noqa
+from app.workflow import models as _wf  # noqa: E402,F401  (resolves workflow_versions FK targets)
 from app.api.release import router as release_router
 from app.api.release import feature_flag_router
 from app.api.auth import _get_current_user

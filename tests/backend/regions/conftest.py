@@ -17,6 +17,7 @@ from app.regions import models as _regions
 from app.resilience import models as _res
 from app.observability import models as _obs
 from app.datagov import models as _dg
+from app.workflow import models as _wf  # noqa: E402,F401  (resolves workflow_versions FK targets)
 
 
 @pytest_asyncio.fixture

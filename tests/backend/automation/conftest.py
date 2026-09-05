@@ -10,6 +10,7 @@ os.environ.setdefault("TESTING", "true")
 os.environ.setdefault("PYTHONPATH", ".")
 
 from app.core.database import Base
+from app.workflow import models as _wf  # noqa: F401  (resolves workflow_versions FK targets)
 
 
 @pytest_asyncio.fixture

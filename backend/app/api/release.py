@@ -1087,82 +1087,10 @@ async def create_feature_flag(
         raise HTTPException(status_code=422, detail=msg)
 
 
-@feature_flag_router.get("")
-@feature_flag_router.get("/", include_in_schema=False)
-async def list_feature_flags(
-    current_user: User = Depends(_get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    from app.release.flags import FeatureFlagService
-
-    tenant = await _get_tenant(current_user, db)
-    svc = FeatureFlagService()
-    flags = await svc.list_flags(db, tenant)
-    return [_flag_to_dict(f) for f in flags]
-
-
-@feature_flag_router.get("/{key}")
-async def get_feature_flag(
-    key: str,
-    current_user: User = Depends(_get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    from app.release.flags import FeatureFlagService
-
-    tenant = await _get_tenant(current_user, db)
-    svc = FeatureFlagService()
-    flag = await svc.get_flag(db, tenant, key)
-    if not flag:
-        raise HTTPException(status_code=404, detail="Feature flag not found")
-    return _flag_to_dict(flag)
-
-
-@feature_flag_router.put("/{key}")
-async def update_feature_flag(
-    key: str,
-    body: UpdateFlagRequest,
-    current_user: User = Depends(_get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    from app.release.flags import FeatureFlagService
-
-    tenant = await _get_tenant(current_user, db)
-    svc = FeatureFlagService()
-    flag = await svc.get_flag(db, tenant, key)
-    if not flag:
-        raise HTTPException(status_code=404, detail="Feature flag not found")
-    updates: dict[str, Any] = {}
-    if body.name is not None:
-        updates["name"] = body.name
-    if body.description is not None:
-        updates["description"] = body.description
-    if body.flag_type is not None:
-        updates["flag_type"] = body.flag_type
-    if body.default_value is not None:
-        updates["default_value"] = body.default_value
-    if body.owner is not None:
-        updates["owner"] = body.owner
-    if body.expires_at is not None:
-        updates["expires_at"] = body.expires_at
-    if body.tags is not None:
-        updates["tags"] = body.tags
-    if body.key is not None:
-        updates["key"] = body.key
-    # state is handled via set_state
-    state_change = body.state
-    try:
-        if updates:
-            flag = await svc.update_flag(db, flag.id, updates, actor=str(current_user.id))
-        if state_change:
-            flag = await svc.set_state(db, flag.id, state_change, actor=str(current_user.id))
-        await _emit_event("feature.flag.updated", {"flag_id": str(flag.id), "key": flag.key, "tenant": tenant}, tenant, str(current_user.id))
-        _audit(str(current_user.id), tenant, "flag.updated", "feature_flag", str(flag.id), {"key": flag.key})
-        return _flag_to_dict(flag)
-    except ValueError as e:
-        msg = str(e)
-        if "already exists" in msg.lower():
-            raise HTTPException(status_code=409, detail=msg)
-        raise HTTPException(status_code=422, detail=msg)
+# NOTE (V72): GET "", GET "/{key}" and PUT "/{key}" lived here but were
+# unreachable — the feature_flags router is registered first and serves
+# those paths. They were removed to eliminate dead shadowed handlers.
+# POST evaluate/rules/archive below remain the managed write surface.
 
 
 @feature_flag_router.post("/{key}/evaluate")

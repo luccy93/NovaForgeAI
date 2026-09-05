@@ -25,19 +25,15 @@ def _worker_id() -> str:
 
 
 async def acquire_aggregation_lease(tenant: str, job_key: str, worker_id: str, ttl_seconds: int = 300) -> bool:
+    from datetime import timedelta
     now = datetime.now(timezone.utc)
     key = f"{tenant}:{job_key}"
     lease = _aggregation_leases.get(key)
     if lease and lease["expires_at"] > now and lease["worker_id"] != worker_id:
         return False
-    _aggregation_leases[key] = {"worker_id": worker_id, "acquired_at": now, "expires_at": now}
-    _aggregation_leases[key]["expires_at"] = now + timedelta_seconds(ttl_seconds)
+    _aggregation_leases[key] = {"worker_id": worker_id, "acquired_at": now,
+                                "expires_at": now + timedelta(seconds=ttl_seconds)}
     return True
-
-
-def timedelta_seconds(value: int):
-    from datetime import timedelta
-    return timedelta(seconds=value)
 
 
 async def release_aggregation_lease(tenant: str, job_key: str, worker_id: str) -> None:

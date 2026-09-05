@@ -35,6 +35,7 @@ sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(__file__), ".."
 
 from app.core.database import Base, async_engine, async_session  # noqa: E402
 from app.rag import models as _rag_models  # noqa: E402,F401  (registers rag tables)
+from app.workflow import models as _wf  # noqa: E402,F401  (resolves workflow_versions FK targets)
 
 
 class FakeEmbedding:

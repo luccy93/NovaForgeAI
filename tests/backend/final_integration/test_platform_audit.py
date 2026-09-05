@@ -45,13 +45,20 @@ def _app_routes():
 # ─── Route inventory ─────────────────────────────────────────────────────────
 
 
+def _normalize_path(path: str) -> str:
+    import re
+    return re.sub(r"\{[^}]+\}", "{}", path)
+
+
 def test_no_duplicate_routes():
     routes = _app_routes()
     assert len(routes) > 1000, f"unexpected route count: {len(routes)}"
     seen: dict[tuple, int] = {}
     for methods, path in routes:
         for method in methods:
-            key = (method, path)
+            # Literal comparison: trailing-slash compat twins are
+            # intentional; parameter names are normalized.
+            key = (method, _normalize_path(path))
             seen[key] = seen.get(key, 0) + 1
     duplicates = {k: v for k, v in seen.items() if v > 1}
     assert duplicates == {}, f"duplicate routes: {duplicates}"

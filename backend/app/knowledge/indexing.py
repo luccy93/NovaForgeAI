@@ -260,6 +260,13 @@ async def ingest_document(
         fresh_doc.status = "INGESTED"
 
     await db.flush()
+    # Invalidate cached search results for this document (best-effort;
+    # ingestion must never fail because of cache maintenance).
+    try:
+        from app.knowledge.cache import invalidate_cache as _invalidate_cache
+        await _invalidate_cache(db, tenant, document_id=str(document_id))
+    except Exception as exc:
+        logger.warning("Cache invalidation failed: %s", exc)
     return str(document_id)
 
 

@@ -39,11 +39,13 @@ def _bootstrap():
     _ensure_package("app", _APP_DIR)
     _ensure_package("app.core", _APP_DIR / "core")
     _ensure_package("app.api", _APP_DIR / "api")
+    _ensure_package("app.workflow", _APP_DIR / "workflow")
     _ensure_package("app.quality", _APP_DIR / "quality")
     _ensure_package("app.quality.analyzers", _APP_DIR / "quality" / "analyzers")
 
     _import_module_from_file("app.core.config", _APP_DIR / "core" / "config.py")
     _import_module_from_file("app.core.database", _APP_DIR / "core" / "database.py")
+    _import_module_from_file("app.workflow.models", _APP_DIR / "workflow" / "models.py")
     _import_module_from_file("app.quality.models", _APP_DIR / "quality" / "models.py")
 
     _import_module_from_file("app.quality.schemas", _APP_DIR / "quality" / "schemas.py")

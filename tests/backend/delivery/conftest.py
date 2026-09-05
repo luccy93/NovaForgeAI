@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(__file__), ".."
 
 from app.core.database import Base, get_db
 from app.delivery import models as _delivery_models  # noqa: F401
+from app.workflow import models as _wf  # noqa: E402,F401  (resolves workflow_versions FK targets)
 from app.api.delivery import router as delivery_router
 
 _engine = create_async_engine("sqlite+aiosqlite://", echo=False)

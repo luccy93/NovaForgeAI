@@ -365,9 +365,22 @@ class CacheMetricsService:
         await self.record_miss(db, tenant_s, key, reason="not_found")
         return None
 
-    def validate_isolation(self, tenant: str, cache_key: str) -> bool:
-        """Synchronous isolation check: never allow cross-tenant read."""
-        return _is_tenant_key(str(tenant), str(cache_key))
+    def validate_isolation(self, tenant: str, cache_key: str,
+                             other_tenant: str = "", other_key: str = "") -> bool:
+        """Synchronous isolation check: never allow cross-tenant read.
+
+        With only (tenant, cache_key): the key must be tenant-bound.
+        With (other_tenant, other_key): both keys must be tenant-bound and
+        must not be interchangeable across tenants.
+        """
+        if not _is_tenant_key(str(tenant), str(cache_key)):
+            return False
+        if other_tenant or other_key:
+            if not _is_tenant_key(str(other_tenant), str(other_key)):
+                return False
+            if str(tenant) != str(other_tenant) and str(cache_key) == str(other_key):
+                return False
+        return True
 
     # ---------------------------------------------------------------- invalidation
 

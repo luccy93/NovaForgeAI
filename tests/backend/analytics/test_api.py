@@ -6,7 +6,9 @@ from fastapi.testclient import TestClient
 from app.api.analytics import router
 
 app = FastAPI()
-app.include_router(router)
+# Mirror production assembly (api_router prefix /api/v1 + include prefix
+# /analytics); the router itself carries no prefix.
+app.include_router(router, prefix="/api/v1/analytics")
 client = TestClient(app, raise_server_exceptions=False)
 
 

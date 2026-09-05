@@ -16,6 +16,7 @@ from app.core.database import Base, async_engine, async_session
 from app.aiml import models as _aiml
 from app.datagov import models as _dg
 from app.release import models as _rel
+from app.workflow import models as _wf  # noqa: E402,F401  (resolves workflow_versions FK targets)
 
 @pytest_asyncio.fixture
 async def db():

@@ -86,6 +86,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker  # noqa: E402
 
 from app.core.database import Base, get_db  # noqa: E402
+from app.workflow import models as _wf  # noqa: E402,F401  (resolves workflow_versions FK targets)
 
 security_router = _security_router_mod.router
 

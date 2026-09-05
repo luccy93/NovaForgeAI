@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(__file__), ".."
 
 from app.core.database import Base, async_engine, async_session  # noqa: E402
 from app.datagov import models as _dg  # noqa: E402,F401
+from app.workflow import models as _wf  # noqa: E402,F401  (resolves workflow_versions FK targets)
 
 
 @pytest_asyncio.fixture

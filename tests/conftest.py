@@ -25,6 +25,7 @@ from fastapi import FastAPI  # noqa: E402
 
 from app import create_app  # noqa: E402
 from app.core.config import settings  # noqa: E402
+from app.workflow import models as _workflow_models  # noqa: E402,F401  (resolves workflow_versions FK targets)
 
 
 @pytest.fixture(scope="session", autouse=True)
