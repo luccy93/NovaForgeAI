@@ -72,6 +72,8 @@ async def _iam_check(user, tenant, perm):
 def _err(exc: Exception) -> HTTPException:
     if isinstance(exc, HTTPException):
         return exc
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=422, detail=f"{type(exc).__name__}: {exc}")
     msg = f"{type(exc).__name__}: {exc}"
     if "not found" in str(exc).lower():
         return HTTPException(status_code=404, detail=msg)

@@ -73,6 +73,8 @@ def _iam_check(user, tenant: str, perm: str) -> None:
 def _err(exc: Exception) -> HTTPException:
     if isinstance(exc, HTTPException):
         return exc
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=422, detail=f"{type(exc).__name__}: {exc}")
     msg = f"{type(exc).__name__}: {exc}"
     lowered = str(exc).lower()
     if "not found" in lowered:

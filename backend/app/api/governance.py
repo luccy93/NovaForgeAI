@@ -71,6 +71,8 @@ def _iam_check(user, tenant: str, perm: str) -> None:
 def _err(exc: Exception) -> HTTPException:
     if isinstance(exc, HTTPException):
         return exc
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=422, detail=f"{type(exc).__name__}: {exc}")
     from app.governance.plane_common import ValidationError as _ValidationError
     if isinstance(exc, _ValidationError):
         return HTTPException(status_code=422, detail=f"{type(exc).__name__}: {exc}")

@@ -22,7 +22,7 @@ from app.governance.compliance_frameworks import ComplianceManager
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/ai-governance", tags=["AI Governance"])
+router = APIRouter(tags=["AI Governance"])
 
 
 # ─── Request/Response Models ────────────────────────────────────────────---

@@ -51,9 +51,15 @@ class RepoImporter:
     async def _clone(self, git_url: str, dest: str, branch: str) -> Path:
         """Shell out to git clone."""
         import asyncio
+        from urllib.parse import urlparse
 
+        scheme = urlparse(git_url).scheme.lower()
+        if scheme not in ("https", "http", "ssh", "git"):
+            raise GitImportError(f"Unsupported git URL scheme: {scheme or '(none)'}")
+        # Strip leading dashes: branch names must not smuggle git flags.
+        safe_branch = branch.lstrip("-") or "main"
         proc = await asyncio.create_subprocess_exec(
-            "git", "clone", "--depth", "1", "--branch", branch, git_url, dest,
+            "git", "clone", "--depth", "1", "--branch", safe_branch, git_url, dest,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

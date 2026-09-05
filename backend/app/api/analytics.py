@@ -29,7 +29,7 @@ from app.analytics.schemas import (
     EngineeringQuery, DashboardQuery,
 )
 
-router = APIRouter(prefix="/api/v1/analytics", tags=["Analytics Platform"])
+router = APIRouter(tags=["Analytics Platform"])
 
 
 # ── Additional request models ──────────────────────────────────────────

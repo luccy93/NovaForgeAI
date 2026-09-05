@@ -14,21 +14,11 @@ router = APIRouter()
 
 
 # ─── Plans ───────────────────────────────────────────────────────────────────
-
-@router.get("/billing/plans")
-async def list_plans():
-    from app.billing.plan_service import plan_service
-    return await asyncio.to_thread(plan_service.list_plans)
-
-
-@router.get("/billing/plans/{plan_id}")
-async def get_plan(plan_id: str):
-    from app.billing.plan_service import plan_service
-    plan = await asyncio.to_thread(plan_service.get_plan, plan_id)
-    if not plan:
-        raise HTTPException(status_code=404, detail="Plan not found")
-    return plan
-
+#
+# NOTE (V72): GET /billing/plans and GET /billing/plans/{plan_id} are served
+# by the legacy billing router (registered first); the twins that lived here
+# were unreachable dead code and have been removed. POST/PUT/DELETE below
+# remain the managed write surface.
 
 @router.post("/billing/plans")
 async def create_plan(body: PlanCreate):

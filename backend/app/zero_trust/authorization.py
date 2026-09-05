@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.zero_trust.cache import cache_get, cache_set, cache_del
+from app.zero_trust.cache import cache_get, cache_set
 
 # Cache key includes policy_version to invalidate on permission change
 
@@ -158,4 +158,5 @@ def _to_uuid(v):
 
 
 async def invalidate_cache_for_tenant(tenant_id: str):
-    await cache_del(f"zero_trust:authz:{tenant_id}:*")
+    from app.zero_trust.cache import cache_del_pattern
+    await cache_del_pattern(f"zero_trust:authz:{tenant_id}:*")

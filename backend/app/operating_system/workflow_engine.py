@@ -258,9 +258,10 @@ class WorkflowEngine:
 
     def _evaluate_condition(self, condition: str, context: dict) -> bool:
         try:
-            return bool(eval(condition, {"__builtins__": {}}, context))
+            from app.workflow.expression import evaluate as _safe_evaluate
+            return bool(_safe_evaluate(condition, dict(context or {})))
         except Exception:
-            return True
+            return False
 
     def approve(self, instance_id: str, approved: bool = True) -> bool:
         instance = self.instances.get(instance_id)

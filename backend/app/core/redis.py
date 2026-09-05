@@ -103,11 +103,17 @@ async def cache_delete(key: str, namespace: str = "cache") -> bool:
         return False
 
 
-async def cached_result(ttl: int = 300, namespace: str = "cache"):
-    """Decorator: cache the result of an async function."""
+def cached_result(ttl: int = 300, namespace: str = "cache", tenant_kwarg: str = ""):
+    """Decorator factory: cache the result of an async function.
+
+    Pass tenant_kwarg="tenant" (or the relevant kwarg name) so the tenant
+    becomes part of the cache key. Never use the default (tenant-less)
+    form for tenant-scoped functions.
+    """
     def decorator(func: Callable) -> Callable:
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
-            cache_key = f"{func.__name__}:{str(args)}:{str(sorted(kwargs.items()))}"
+            tenant = str(kwargs.get(tenant_kwarg, "")) if tenant_kwarg else ""
+            cache_key = f"{tenant}:{func.__name__}:{str(args)}:{str(sorted(kwargs.items()))}"
             cached = await cache_get(cache_key, namespace)
             if cached is not None:
                 return json.loads(cached)

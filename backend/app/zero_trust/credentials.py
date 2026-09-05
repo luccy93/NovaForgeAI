@@ -55,7 +55,7 @@ async def create_credential_metadata(
     db.add(rec)
     await db.flush()
     # Cache
-    cache_key = f"zero_trust:cred:{credential_id}"
+    cache_key = f"zero_trust:cred:{tenant_id}:{credential_id}"
     import json
     await cache_set(cache_key, json.dumps({"credential_id": credential_id, "status": "ACTIVE", "fingerprint": fingerprint}), ttl=60)
     # Audit + event
@@ -73,7 +73,7 @@ async def create_credential_metadata(
 
 
 async def get_credential(db: AsyncSession, credential_id: str, tenant_id: str) -> IAMCredentialsMetadata | None:
-    cache_key = f"zero_trust:cred:{credential_id}"
+    cache_key = f"zero_trust:cred:{tenant_id}:{credential_id}"
     cached = await cache_get(cache_key)
     # Try DB
     q = select(IAMCredentialsMetadata).where(IAMCredentialsMetadata.credential_id == credential_id)
@@ -99,7 +99,7 @@ async def revoke_credential(db: AsyncSession, credential_id: str, tenant_id: str
         return False
     rec.credential_status = "REVOKED"
     await db.flush()
-    await cache_del(f"zero_trust:cred:{credential_id}")
+    await cache_del(f"zero_trust:cred:{tenant_id}:{credential_id}")
     try:
         from app.core.events import Event, EventType, event_bus
         await event_bus.publish_nowait(Event(EventType.CredentialRevoked, {"credential_id": credential_id, "tenant_id": tenant_id, "reason": reason}, source="zero_trust", organization_id=tenant_id))
@@ -159,9 +159,9 @@ async def rotate_credential(db: AsyncSession, credential_id: str, tenant_id: str
         rec.credential_status = "REVOKED"
         rec.rotation_state = "completed"
         await db.flush()
-        await cache_del(f"zero_trust:cred:{credential_id}")
+        await cache_del(f"zero_trust:cred:{tenant_id}:{credential_id}")
         import json
-        await cache_set(f"zero_trust:cred:{new_id}", json.dumps({"credential_id": new_id, "status": "ACTIVE"}), ttl=60)
+        await cache_set(f"zero_trust:cred:{tenant_id}:{new_id}", json.dumps({"credential_id": new_id, "status": "ACTIVE"}), ttl=60)
         try:
             from app.core.events import Event, EventType, event_bus
             await event_bus.publish_nowait(Event(EventType.CredentialRotationCompleted, {"old": credential_id, "new": new_id}, source="zero_trust", organization_id=tenant_id))

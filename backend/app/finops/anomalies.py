@@ -128,11 +128,11 @@ async def detect_anomalies(
                       "window_end": end.isoformat(), "history": baseline_vals[-BASELINE_DAYS:]},
             status="OPEN",
         )
-        db.add(row)
         try:
-            await db.flush()
+            async with db.begin_nested():
+                db.add(row)
+                await db.flush()
         except IntegrityError:
-            await db.rollback()
             continue
         created.append(_serialize(row))
         try:

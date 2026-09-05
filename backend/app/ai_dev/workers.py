@@ -67,10 +67,26 @@ async def _claim_next(db: AsyncSession, tenant: str, *, agent_type: Optional[str
     return None
 
 
+async def _claim_next_with_id(
+    db: AsyncSession, tenant: str, worker_id: str, *, agent_type: Optional[str] = None
+) -> Optional[CodeAgentRun]:
+    stmt = select(CodeAgentRun).where(CodeAgentRun.tenant == tenant, CodeAgentRun.status == agent_svc.STATUS_ENQUEUED)
+    if agent_type:
+        stmt = stmt.where(CodeAgentRun.agent_type == agent_type)
+    stmt = stmt.order_by(CodeAgentRun.created_at.asc()).limit(5)
+    rows = (await db.execute(stmt)).scalars().all()
+    for run in rows:
+        wid = run.worker_id or worker_id
+        if await acquire_agent_lease(tenant, str(run.id), wid):
+            run.worker_id = wid
+            return run
+    return None
+
+
 async def claim_agent(
     db: AsyncSession, tenant: str, worker_id: str, *, agent_type: Optional[str] = None
 ) -> Optional[CodeAgentRun]:
-    return await _claim_next(db, tenant, agent_type=agent_type)
+    return await _claim_next_with_id(db, tenant, worker_id, agent_type=agent_type)
 
 
 async def execute_agent(

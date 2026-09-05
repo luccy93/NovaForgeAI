@@ -60,10 +60,12 @@ async def decide_approval(db: AsyncSession, tenant: str, approval_id: str, appro
         raise ValueError("approval not found")
     if appr.status != "PENDING":
         raise ValueError(f"already {appr.status}")
-    if appr.expiry and datetime.now(timezone.utc) > appr.expiry.replace(tzinfo=timezone.utc) if appr.expiry.tzinfo is None else appr.expiry:
-        appr.status = "EXPIRED"
-        await db.flush()
-        raise ValueError("approval expired")
+    if appr.expiry is not None:
+        expiry = appr.expiry if appr.expiry.tzinfo else appr.expiry.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) > expiry:
+            appr.status = "EXPIRED"
+            await db.flush()
+            raise ValueError("approval expired")
     if binding_hash and appr.binding_hash != binding_hash:
         raise ValueError("binding mismatch")
     # Check approver authorized via Volume 64 Zero Trust JIT

@@ -263,7 +263,8 @@ class WorkflowEngine:
         ctx = {k: (v if not isinstance(v, dict) else v.get("value", v))
                for k, v in outputs.items()}
         try:
-            return bool(eval(condition, {"__builtins__": {}}, ctx))
+            from app.workflow.expression import evaluate as _safe_evaluate
+            return bool(_safe_evaluate(condition, {"output": ctx, **ctx}))
         except Exception:
             return False
 

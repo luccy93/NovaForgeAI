@@ -33,6 +33,71 @@ async def list_agents():
     return registry.list_agents()
 
 
+# Static routes before parameterized routes: otherwise
+# GET /runs would be captured by /{agent_name}.
+@router.get("/runs", response_model=list[dict[str, Any]])
+async def list_runs(
+    agent_name: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List agent run history."""
+    stmt = select(AgentRun).where(AgentRun.user_id == current_user.id)
+    if agent_name:
+        stmt = stmt.where(AgentRun.agent_name == agent_name)
+    stmt = stmt.order_by(AgentRun.created_at.desc()).offset(offset).limit(limit)
+    result = await db.execute(stmt)
+    runs = result.scalars().all()
+    return [
+        {
+            "id": str(r.id),
+            "agent": r.agent_name,
+            "status": r.status,
+            "duration_ms": r.duration_ms,
+            "tokens_used": r.tokens_used,
+            "model_used": r.model_used,
+            "error": r.error,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in runs
+    ]
+
+
+@router.get("/runs/{run_id}", response_model=dict[str, Any])
+async def get_run(
+    run_id: str,
+    current_user: User = Depends(_get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get detailed information about a specific agent run."""
+    try:
+        rid = uuid.UUID(run_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid run_id")
+    result = await db.execute(
+        select(AgentRun).where(AgentRun.id == rid, AgentRun.user_id == current_user.id)
+    )
+    run = result.scalar_one_or_none()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return {
+        "id": str(run.id),
+        "agent": run.agent_name,
+        "pipeline": run.pipeline_id,
+        "input": run.input,
+        "output": run.output,
+        "status": run.status,
+        "duration_ms": run.duration_ms,
+        "tokens_used": run.tokens_used,
+        "model_used": run.model_used,
+        "error": run.error,
+        "extra": run.extra,
+        "created_at": run.created_at.isoformat() if run.created_at else None,
+    }
+
+
 @router.get("/{agent_name}", response_model=dict[str, Any])
 async def get_agent_info(agent_name: str):
     """Get detailed information about a specific agent."""
@@ -142,67 +207,4 @@ async def run_pipeline(
         "status": final_state["status"],
         "steps": final_state["results"],
         "errors": final_state["errors"],
-    }
-
-
-@router.get("/runs", response_model=list[dict[str, Any]])
-async def list_runs(
-    agent_name: Optional[str] = Query(None),
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    current_user: User = Depends(_get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """List agent run history."""
-    stmt = select(AgentRun).where(AgentRun.user_id == current_user.id)
-    if agent_name:
-        stmt = stmt.where(AgentRun.agent_name == agent_name)
-    stmt = stmt.order_by(AgentRun.created_at.desc()).offset(offset).limit(limit)
-    result = await db.execute(stmt)
-    runs = result.scalars().all()
-    return [
-        {
-            "id": str(r.id),
-            "agent": r.agent_name,
-            "status": r.status,
-            "duration_ms": r.duration_ms,
-            "tokens_used": r.tokens_used,
-            "model_used": r.model_used,
-            "error": r.error,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
-        }
-        for r in runs
-    ]
-
-
-@router.get("/runs/{run_id}", response_model=dict[str, Any])
-async def get_run(
-    run_id: str,
-    current_user: User = Depends(_get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get detailed information about a specific agent run."""
-    try:
-        rid = uuid.UUID(run_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid run_id")
-    result = await db.execute(
-        select(AgentRun).where(AgentRun.id == rid, AgentRun.user_id == current_user.id)
-    )
-    run = result.scalar_one_or_none()
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
-    return {
-        "id": str(run.id),
-        "agent": run.agent_name,
-        "pipeline": run.pipeline_id,
-        "input": run.input,
-        "output": run.output,
-        "status": run.status,
-        "duration_ms": run.duration_ms,
-        "tokens_used": run.tokens_used,
-        "model_used": run.model_used,
-        "error": run.error,
-        "extra": run.extra,
-        "created_at": run.created_at.isoformat() if run.created_at else None,
     }

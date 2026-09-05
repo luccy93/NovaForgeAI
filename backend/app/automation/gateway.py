@@ -118,8 +118,8 @@ class AutomationGateway:
         condition = step.condition
         if condition:
             try:
-                return {"decision": bool(eval(
-                    condition, {"__builtins__": {}}, outputs))}
+                from app.workflow.expression import evaluate as _safe_evaluate
+                return {"decision": bool(_safe_evaluate(condition, {"output": dict(outputs or {}), **dict(outputs or {})}))}
             except Exception:
                 return {"decision": False, "error": "condition eval failed"}
         return {"decision": False, "error": "no condition"}

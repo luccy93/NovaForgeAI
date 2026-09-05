@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
-router = APIRouter(prefix="/api/v1/knowledge-graph", tags=["Knowledge Graph"])
+router = APIRouter(prefix="/knowledge-graph", tags=["Knowledge Graph"])
 
 
 class EntityCreateReq(BaseModel):

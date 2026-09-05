@@ -715,6 +715,12 @@ class ExternalAdapter(SourceAdapter):
                 logger.warning("ExternalAdapter: no URL configured for source %s", source)
                 return docs
 
+            from app.integrations.network_policy import validate_url
+            try:
+                validate_url(url)
+            except Exception as exc:
+                logger.warning("ExternalAdapter: blocked URL (%s)", type(exc).__name__)
+                return docs
             timeout = aiohttp.ClientTimeout(total=30)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(url) as resp:

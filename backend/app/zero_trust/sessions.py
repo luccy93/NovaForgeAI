@@ -101,7 +101,7 @@ async def create_session(
     await db.flush()
     # Synchronous persistence before effective (commit will be done by caller; we flush)
     # Cache
-    cache_key = f"zero_trust:session:{session_id_hash}"
+    cache_key = f"zero_trust:session:{tenant_id}:{session_id_hash}"
     cache_val = json.dumps({
         "session_id_hash": session_id_hash,
         "identity_id": identity_id,
@@ -133,7 +133,7 @@ async def create_session(
 
 
 async def get_session(db: AsyncSession, session_id_hash: str, tenant_id: str) -> dict | None:
-    cache_key = f"zero_trust:session:{session_id_hash}"
+    cache_key = f"zero_trust:session:{tenant_id}:{session_id_hash}"
     cached = await cache_get(cache_key)
     if cached:
         try:
@@ -230,10 +230,10 @@ async def revoke_session(db: AsyncSession, session_id_hash: str, tenant_id: str,
     sess.revocation_version = (sess.revocation_version or 0) + 1
     await db.flush()
     # Invalidate cache — must not restore revoked
-    cache_key = f"zero_trust:session:{session_id_hash}"
+    cache_key = f"zero_trust:session:{tenant_id}:{session_id_hash}"
     await cache_del(cache_key)
     # Also pattern delete for tenant identity
-    await cache_del_pattern(f"zero_trust:session:*")
+    await cache_del_pattern(f"zero_trust:session:{tenant_id}:*")
     try:
         from app.core.events import Event, EventType, event_bus
         await event_bus.publish_nowait(Event(EventType.SessionRevoked, {"session_id_hash": session_id_hash, "tenant_id": tenant_id, "reason": reason}, source="zero_trust", organization_id=tenant_id))
@@ -271,12 +271,12 @@ async def revoke_all_for_identity(db: AsyncSession, identity_id: str, tenant_id:
             sess.revocation_version = (sess.revocation_version or 0) + 1
             count += 1
             if sess.session_id_hash:
-                await cache_del(f"zero_trust:session:{sess.session_id_hash}")
+                await cache_del(f"zero_trust:session:{tenant_id}:{sess.session_id_hash}")
             elif sess.session_token:
-                await cache_del(f"zero_trust:session:{hashlib.sha256(sess.session_token.encode()).hexdigest()}")
+                await cache_del(f"zero_trust:session:{tenant_id}:{hashlib.sha256(sess.session_token.encode()).hexdigest()}")
     if count:
         await db.flush()
-        await cache_del_pattern(f"zero_trust:session:*")
+        await cache_del_pattern(f"zero_trust:session:{tenant_id}:*")
         try:
             from app.core.events import Event, EventType, event_bus
             await event_bus.publish_nowait(Event(EventType.SessionRevoked, {"identity_id": identity_id, "tenant_id": tenant_id, "count": count}, source="zero_trust", organization_id=tenant_id))
@@ -302,7 +302,7 @@ async def touch_session(db: AsyncSession, session_id_hash: str, tenant_id: str) 
     sess.idle_expires_at = now + timedelta(seconds=600)
     await db.flush()
     # update cache
-    cache_key = f"zero_trust:session:{session_id_hash}"
+    cache_key = f"zero_trust:session:{tenant_id}:{session_id_hash}"
     data["last_seen_at"] = now.isoformat()
     await cache_set(cache_key, json.dumps(data), ttl=60)
     return True

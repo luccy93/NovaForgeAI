@@ -99,7 +99,7 @@ async def test_recovery_lease_fencing(db, org_id):
     assert ok2 is False
     # Recover after lease expiry (simulate expiry by clearing)
     from app.workflow.recovery import _lease_store
-    _lease_store[f"workflow_lease:{run.id}"]["expires_at"] = datetime.now(timezone.utc) - timedelta(seconds=1)
+    _lease_store[f"workflow_lease:{org_id}:{run.id}"]["expires_at"] = datetime.now(timezone.utc) - timedelta(seconds=1)
     recovered = await recover_stale_execution(db, org_id, str(run.id), new_worker_id="worker2")
     assert recovered.id == run.id
 

@@ -168,6 +168,10 @@ class ToolRegistry:
 
     async def _run_terminal(self, command: str, timeout: int = 30) -> str:
         import subprocess
+        # Terminal execution is deny-by-default: arbitrary shell commands
+        # from agent output must be explicitly enabled by the operator.
+        if os.environ.get("NOVAFORGE_ENABLE_AGENT_SHELL", "false").lower() != "true":
+            return "Error: terminal execution is disabled by platform policy"
         try:
             proc = await asyncio.create_subprocess_shell(
                 command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
@@ -195,7 +199,9 @@ class ToolRegistry:
             headers["Authorization"] = f"Bearer {token}"
         url = f"https://api.github.com{endpoint}" if not endpoint.startswith("http") else endpoint
         try:
-            async with httpx.AsyncClient() as client:
+            from app.integrations.network_policy import validate_url
+            validate_url(url, allowlist=["api.github.com"])
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 if method.upper() == "GET":
                     resp = await client.get(url, headers=headers)
                 elif method.upper() == "POST":

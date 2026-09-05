@@ -71,6 +71,7 @@ def _simulate_step(step: WorkflowStep, outputs: dict,
 
 def _eval(condition: str, outputs: dict) -> bool:
     try:
-        return bool(eval(condition, {"__builtins__": {}}, outputs))
+        from app.workflow.expression import evaluate as _safe_evaluate
+        return bool(_safe_evaluate(condition, {"output": dict(outputs or {}), **dict(outputs or {})}))
     except Exception:
         return False

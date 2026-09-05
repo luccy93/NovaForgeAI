@@ -100,16 +100,16 @@ async def run_aggregation(
         )
         existing = (await db.execute(stmt)).scalar_one_or_none()
         if existing is None:
-            db.add(FinOpsCostAggregation(
-                id=uuid.uuid4(), tenant=tenant, granularity=granularity,
-                bucket_start=bstart, bucket_end=data["end"], dimensions_hash=dim_hash,
-                dimensions=dimensions, total_cents=data["total"],
-                record_count=data["count"], total_tokens=data["tokens"],
-            ))
             try:
-                await db.flush()
+                async with db.begin_nested():
+                    db.add(FinOpsCostAggregation(
+                        id=uuid.uuid4(), tenant=tenant, granularity=granularity,
+                        bucket_start=bstart, bucket_end=data["end"], dimensions_hash=dim_hash,
+                        dimensions=dimensions, total_cents=data["total"],
+                        record_count=data["count"], total_tokens=data["tokens"],
+                    ))
+                    await db.flush()
             except IntegrityError:
-                await db.rollback()
                 existing = (await db.execute(stmt)).scalar_one_or_none()
                 if existing is None:
                     raise
