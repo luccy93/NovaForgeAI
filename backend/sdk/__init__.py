@@ -36,6 +36,7 @@ from backend.sdk.workflow import WorkflowMixin, AsyncWorkflowMixin
 from backend.sdk.ai_dev import AIDevMixin, AsyncAIDevMixin
 from backend.sdk.finops import FinOpsMixin, AsyncFinOpsMixin
 from backend.sdk.integrations import IntegrationMixin, AsyncIntegrationMixin
+from backend.sdk.governance import GovernanceMixin, AsyncGovernanceMixin
 
 __all__ = [
     "NovaForgeClient", "AsyncNovaForgeClient",
@@ -70,4 +71,5 @@ __all__ = [
     "AIDevMixin", "AsyncAIDevMixin",
     "FinOpsMixin", "AsyncFinOpsMixin",
     "IntegrationMixin", "AsyncIntegrationMixin",
+    "GovernanceMixin", "AsyncGovernanceMixin",
 ]

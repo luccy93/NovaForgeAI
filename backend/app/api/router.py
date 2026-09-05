@@ -55,6 +55,7 @@ from app.finops.api_c2 import router as finops_intel_router
 from app.knowledge.api import router as knowledge_router
 from app.integrations.api import router as integrations_router
 from app.integrations.api_c2 import router as integrations_intel_router
+from app.api.governance import router as governance_router
 
 api_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_router.include_router(repos_router, prefix="/repositories", tags=["Repositories"])
@@ -111,4 +112,5 @@ api_router.include_router(knowledge_router, tags=["Knowledge"])
 # over the C1 /{integration_id} catch-all.
 api_router.include_router(integrations_intel_router, tags=["Integrations"])
 api_router.include_router(integrations_router, tags=["Integrations"])
+api_router.include_router(governance_router, tags=["Governance"])
 api_router.include_router(sre_router)

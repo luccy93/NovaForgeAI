@@ -659,6 +659,29 @@ class EventType(str, Enum):
     webhook_received = "webhook.received"
     webhook_replay_rejected = "webhook.replay.rejected"
 
+    # Central governance plane — Volume 71. Additive; existing events untouched.
+    GovernancePolicyCreated = "governance.policy.created"
+    GovernancePolicyActivated = "governance.policy.activated"
+    GovernancePolicyUpdated = "governance.policy.updated"
+    GovernancePolicyRetired = "governance.policy.retired"
+    GovernanceEvaluated = "governance.evaluated"
+    GovernanceViolation = "governance.violation"
+    GovernanceExceptionRequested = "governance.exception.requested"
+    GovernanceExceptionGranted = "governance.exception.granted"
+    GovernanceDriftDetected = "governance.drift.detected"
+    GovernancePostureRefreshed = "governance.posture.refreshed"
+    # snake_case aliases (backward compat, same values)
+    governance_policy_created = "governance.policy.created"
+    governance_policy_activated = "governance.policy.activated"
+    governance_policy_updated = "governance.policy.updated"
+    governance_policy_retired = "governance.policy.retired"
+    governance_evaluated = "governance.evaluated"
+    governance_violation = "governance.violation"
+    governance_exception_requested = "governance.exception.requested"
+    governance_exception_granted = "governance.exception.granted"
+    governance_drift_detected = "governance.drift.detected"
+    governance_posture_refreshed = "governance.posture.refreshed"
+
 
 class Event:
     def __init__(
