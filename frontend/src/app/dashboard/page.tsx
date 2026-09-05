@@ -9,16 +9,38 @@ import { BrutalEmptyState } from "@/components/ui/BrutalEmptyState";
 import { BrutalErrorState } from "@/components/ui/BrutalErrorState";
 import { BrutalInput } from "@/components/ui/BrutalInput";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
+import { CommandPalette } from "@/components/navigation/CommandPalette";
 import { api, clearToken, getToken } from "@/lib/api";
+import type { ApiUser, FinOpsSummary, KnowledgeHit } from "@/types/api";
+import { ApiError } from "@/lib/api-client";
+import { useToastStore } from "@/stores/toast";
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<Record<string, unknown> | null>(null);
-  const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
+  const [user, setUser] = useState<ApiUser | null>(null);
+  const [summary, setSummary] = useState<FinOpsSummary | null>(null);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Array<Record<string, unknown>>>([]);
+  const [results, setResults] = useState<Array<KnowledgeHit>>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const pushToast = useToastStore((state) => state.push);
+
+  useEffect(() => {
+    function onKeys(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen((value) => !value);
+      }
+    }
+    document.addEventListener("keydown", onKeys);
+    return () => document.removeEventListener("keydown", onKeys);
+  }, []);
+
+  function sessionExpired() {
+    clearToken();
+    window.location.href = "/auth/login";
+  }
 
   useEffect(() => {
     const token = getToken();
@@ -32,11 +54,18 @@ export default function DashboardPage() {
         setUser(me);
         setSummary(finops);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to load dashboard");
+        if (e instanceof ApiError && e.kind === "unauthorized") {
+          sessionExpired();
+          return;
+        }
+        const message = e instanceof Error ? e.message : "Failed to load dashboard";
+        setError(message);
+        pushToast("error", message);
       } finally {
         setLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function onSearch() {
@@ -48,7 +77,13 @@ export default function DashboardPage() {
       const res = await api.knowledgeSearch(token, query.trim());
       setResults(res.items ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Search failed");
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      const message = e instanceof Error ? e.message : "Search failed";
+      setError(message);
+      pushToast("error", message);
     } finally {
       setSearching(false);
     }
@@ -62,7 +97,14 @@ export default function DashboardPage() {
   const email = typeof user?.email === "string" ? user.email : null;
 
   return (
-    <AppShell email={email} workspaceLabel={email ? "Workspace" : null} onLogout={logout}>
+    <AppShell
+      email={email}
+      workspaceLabel={email ? "Workspace" : null}
+      onLogout={logout}
+      onOpenPalette={() => setPaletteOpen(true)}
+      onOpenSearch={() => setPaletteOpen(true)}
+    >
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <PageFrame
         eyebrow="Console"
         title="Dashboard"
