@@ -528,7 +528,8 @@ async def test_workers_recovery(db, org_id):
     assert evidence["status"] == "completed"
     drift = await run_drift_detection(db, org_id)
     assert drift["status"] == "completed"
-    assert drift["tampered_versions"] == []
+    assert drift["total"] == 0
+    assert drift["findings"] == []
     from app.governance.plane_workers import run_evaluation_sweep as _sweep
     bad = await _sweep(db, org_id, limit="NaN")
     assert bad["status"] in ("completed", "failed")

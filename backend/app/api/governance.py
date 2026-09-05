@@ -500,3 +500,388 @@ async def get_posture(
         return result
     except Exception as exc:
         raise _err(exc) from exc
+
+
+@router.get("/posture/history")
+async def get_posture_history(
+    scope_type: str = "tenant", scope_value: str = "", domain: str = "general",
+    limit: int = Query(20, ge=1, le=200),
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, READ_PERMISSION)
+        from app.governance.plane_posture import latest_posture as _history
+        return await _history(db, tenant, scope_type=scope_type,
+                              scope_value=scope_value, domain=domain, limit=limit)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+# ─── Evidence registry (C2) ──────────────────────────────────────────────────
+#
+# NOTE: control lifecycle (/controls, /controls/{id}/assess,
+# /controls/{id}/evidence, /controls/package) is owned by the existing
+# Data Governance router, which is registered first and stays
+# authoritative. This router only adds the central evidence registry
+# and coverage views, which have no pre-existing equivalents.
+
+
+class EvidenceIn(BaseModel):
+    control_key: str = Field(..., min_length=1, max_length=128)
+    source_system: str = Field(..., min_length=1, max_length=64)
+    source_ref: str = Field(..., min_length=1, max_length=256)
+    source_version: str = ""
+    result: str = "PASS"
+    validity_days: int = 90
+    metadata: Optional[dict] = None
+
+
+@router.post("/evidence/register", status_code=201)
+async def register_evidence(
+    payload: EvidenceIn,
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, ADMIN_PERMISSION)
+        from app.governance.plane_evidence import register_evidence as _register
+        result = await _register(db, tenant, payload.control_key, **{
+            k: v for k, v in payload.model_dump().items() if k != "control_key"
+        })
+        await db.commit()
+        return result
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.get("/evidence")
+async def get_evidence(
+    control_key: Optional[str] = None, expired_only: bool = False,
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, READ_PERMISSION)
+        from app.governance.plane_evidence import list_evidence as _list
+        return await _list(db, tenant, control_key=control_key or "",
+                           expired_only=expired_only)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.get("/evidence/coverage")
+async def get_evidence_coverage(
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, READ_PERMISSION)
+        from app.governance.plane_evidence import evidence_coverage as _coverage
+        return await _coverage(db, tenant)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+# ─── Drift ───────────────────────────────────────────────────────────────────
+
+
+@router.get("/drift")
+async def get_drift(
+    status: Optional[str] = None, severity: Optional[str] = None,
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, READ_PERMISSION)
+        from app.governance.plane_drift import list_drift as _list
+        return await _list(db, tenant, status=status or "", severity=severity or "")
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.post("/drift/detect")
+async def detect_drift(
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, ADMIN_PERMISSION)
+        from app.governance.plane_drift import detect_drift as _detect
+        result = await _detect(db, tenant)
+        await db.commit()
+        return result
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.post("/drift/{finding_id}/resolve")
+async def resolve_drift(
+    finding_id: str,
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, ADMIN_PERMISSION)
+        from app.governance.plane_drift import resolve_drift as _resolve
+        result = await _resolve(db, tenant, finding_id, actor=_user_id(current_user))
+        await db.commit()
+        return result
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+# ─── Reports & trends ────────────────────────────────────────────────────────
+
+
+class ReportIn(BaseModel):
+    report_type: str = "posture"
+    scope_type: str = "tenant"
+    scope_value: str = ""
+    days: int = 30
+
+
+@router.post("/reports", status_code=201)
+async def create_report(
+    payload: ReportIn,
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, READ_PERMISSION)
+        from app.governance.plane_reports import generate_report as _generate
+        result = await _generate(db, tenant, payload.report_type, **{
+            k: v for k, v in payload.model_dump().items() if k != "report_type"
+        }, actor=_user_id(current_user))
+        await db.commit()
+        return result
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.get("/reports")
+async def get_reports(
+    report_type: Optional[str] = None,
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, READ_PERMISSION)
+        from app.governance.plane_reports import list_reports as _list
+        return await _list(db, tenant, report_type=report_type or "")
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.get("/reports/trends")
+async def get_trends(
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, READ_PERMISSION)
+        from app.governance.plane_reports import trends as _trends
+        return await _trends(db, tenant, days=days)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+# ─── Explanation ─────────────────────────────────────────────────────────────
+
+
+@router.get("/decisions/{decision_id}/explain")
+async def explain_decision(
+    decision_id: str,
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, READ_PERMISSION)
+        from app.governance.plane_explain import explain_decision as _explain
+        return await _explain(db, tenant, decision_id)
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+# ─── Domain governance ───────────────────────────────────────────────────────
+
+
+class GovernAIIn(BaseModel):
+    model: str = ""
+    provider: str = ""
+    use_case: str = ""
+    action_class: str = ""
+    classification: str = "INTERNAL"
+    input_tokens: int = 0
+    estimated_cents: int = 0
+    operation: str = "ai.invoke"
+
+
+class GovernDataIn(BaseModel):
+    dataset: str = ""
+    project: str = ""
+    workspace: str = ""
+    classification: str = "INTERNAL"
+    region: str = ""
+    destination: str = ""
+    operation: str = "data.access"
+
+
+class GovernSecurityIn(BaseModel):
+    action: str = ""
+    resource: str = ""
+    classification: str = "INTERNAL"
+    auth_strength: str = ""
+    device_posture: str = ""
+    identity: str = ""
+
+
+class GovernSpendIn(BaseModel):
+    operation: str = "spend"
+    model: str = ""
+    provider: str = ""
+    workspace: str = ""
+    project: str = ""
+    estimated_cents: int = 0
+    budget_id: Optional[str] = None
+
+
+class GovernIntegrationIn(BaseModel):
+    connection_id: str = ""
+    operation: str = "integration.use"
+    destination: str = ""
+    classification: str = "INTERNAL"
+    region: str = ""
+    scopes: Optional[list] = None
+    estimated_cents: int = 0
+
+
+class GovernWorkflowIn(BaseModel):
+    workflow_id: str = ""
+    run_id: str = ""
+    executor: str = ""
+    environment: str = ""
+    classification: str = "INTERNAL"
+    fan_out: int = 1
+    max_fan_out: int = 5
+
+
+class GovernAgentIn(BaseModel):
+    agent: str = ""
+    tool: str = ""
+    step_number: int = 0
+    max_steps: int = 25
+    classification: str = "INTERNAL"
+
+
+@router.post("/govern/ai")
+async def govern_ai(
+    payload: GovernAIIn,
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, READ_PERMISSION)
+        from app.governance.plane_ai import govern_ai_request as _govern
+        result = await _govern(db, tenant, **payload.model_dump(), actor=_user_id(current_user))
+        await db.commit()
+        return result
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.post("/govern/data")
+async def govern_data(
+    payload: GovernDataIn,
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, READ_PERMISSION)
+        from app.governance.plane_data import govern_data_access as _govern
+        result = await _govern(db, tenant, **payload.model_dump(), actor=_user_id(current_user))
+        await db.commit()
+        return result
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.post("/govern/security")
+async def govern_security(
+    payload: GovernSecurityIn,
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, READ_PERMISSION)
+        from app.governance.plane_security import govern_security_action as _govern
+        result = await _govern(db, tenant, **payload.model_dump(), actor=_user_id(current_user))
+        await db.commit()
+        return result
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.post("/govern/spend")
+async def govern_spend(
+    payload: GovernSpendIn,
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, READ_PERMISSION)
+        from app.governance.plane_finops import govern_spend as _govern
+        result = await _govern(db, tenant, **payload.model_dump(), actor=_user_id(current_user))
+        await db.commit()
+        return result
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.post("/govern/integration")
+async def govern_integration(
+    payload: GovernIntegrationIn,
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, READ_PERMISSION)
+        from app.governance.plane_integrations import govern_integration_use as _govern
+        result = await _govern(db, tenant, **payload.model_dump(), actor=_user_id(current_user))
+        await db.commit()
+        return result
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.post("/govern/workflow")
+async def govern_workflow(
+    payload: GovernWorkflowIn,
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, READ_PERMISSION)
+        from app.governance.plane_workflow import govern_workflow_run as _govern
+        result = await _govern(db, tenant, **payload.model_dump(), actor=_user_id(current_user))
+        await db.commit()
+        return result
+    except Exception as exc:
+        raise _err(exc) from exc
+
+
+@router.post("/govern/agent")
+async def govern_agent(
+    payload: GovernAgentIn,
+    db: AsyncSession = Depends(_get_db), current_user=Depends(_resolve_user),
+):
+    try:
+        tenant = _tenant(current_user)
+        _iam_check(current_user, tenant, READ_PERMISSION)
+        from app.governance.plane_workflow import govern_agent_step as _govern
+        result = await _govern(db, tenant, **payload.model_dump(), actor=_user_id(current_user))
+        await db.commit()
+        return result
+    except Exception as exc:
+        raise _err(exc) from exc

@@ -20,7 +20,10 @@ sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(__file__), ".."
 
 from app.core.database import Base, async_engine, async_session
 from app.workflow import models as _wf  # noqa: E402,F401  (resolves workflow_versions FK targets)
+from app.datagov import models as _datagov  # noqa: E402,F401  (control/evidence tables reused by C2)
+from app.finops import governed_models as _finops  # noqa: E402,F401  (FinOps bridge target)
 from app.governance import plane_models as _gov  # noqa: E402,F401
+from app.governance import plane_models_c2 as _gov_c2  # noqa: E402,F401
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)

@@ -60,6 +60,13 @@ def handle_governance_command(argv=None):
     sub.add_parser("decisions")
     sub.add_parser("exceptions")
     sub.add_parser("posture")
+    sub.add_parser("controls")
+    sub.add_parser("evidence")
+    sub.add_parser("drift")
+    p_report = sub.add_parser("report")
+    p_report.add_argument("--type", default="posture")
+    p_explain = sub.add_parser("explain")
+    p_explain.add_argument("--decision-id", required=True)
 
     args = parser.parse_args(argv)
     base, key = _base(args.base_url), _key(args.api_key)
@@ -82,5 +89,17 @@ def handle_governance_command(argv=None):
         _out(_call("GET", "/governance/policy-exceptions", base, key), as_json)
     elif args.cmd == "posture":
         _out(_call("GET", "/governance/posture", base, key), as_json)
+    elif args.cmd == "controls":
+        _out(_call("GET", "/governance/controls", base, key), as_json)
+    elif args.cmd == "evidence":
+        _out(_call("GET", "/governance/evidence/coverage", base, key), as_json)
+    elif args.cmd == "drift":
+        _out(_call("GET", "/governance/drift", base, key), as_json)
+    elif args.cmd == "report":
+        _out(_call("POST", "/governance/reports", base, key,
+                   body={"report_type": args.type}), as_json)
+    elif args.cmd == "explain":
+        _out(_call("GET", f"/governance/decisions/{args.decision_id}/explain",
+                   base, key), as_json)
     else:
         parser.print_help()
