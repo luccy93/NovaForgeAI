@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Navigation } from "@/components/landing/Navigation";
-import { FooterSection } from "@/components/landing/FooterSection";
+import { AppShell } from "@/components/layout/AppShell";
+import { PageFrame } from "@/components/layout/PageFrame";
 import { BrutalButton } from "@/components/ui/BrutalButton";
+import { BrutalCard } from "@/components/ui/BrutalCard";
+import { BrutalEmptyState } from "@/components/ui/BrutalEmptyState";
+import { BrutalErrorState } from "@/components/ui/BrutalErrorState";
+import { BrutalInput } from "@/components/ui/BrutalInput";
+import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
 import { api, clearToken, getToken } from "@/lib/api";
-
-const cardCls = "border border-outline bg-surface-container p-6 text-left";
-const inputCls =
-  "w-full border border-outline bg-surface px-4 py-3 text-body-md text-on-surface placeholder:text-on-surface-variant/50 outline-none focus:border-primary-container transition-colors";
 
 export default function DashboardPage() {
   const [user, setUser] = useState<Record<string, unknown> | null>(null);
@@ -16,6 +17,7 @@ export default function DashboardPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Array<Record<string, unknown>>>([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
 
   useEffect(() => {
@@ -31,6 +33,8 @@ export default function DashboardPage() {
         setSummary(finops);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load dashboard");
+      } finally {
+        setLoading(false);
       }
     })();
   }, []);
@@ -55,72 +59,103 @@ export default function DashboardPage() {
     window.location.href = "/";
   }
 
+  const email = typeof user?.email === "string" ? user.email : null;
+
   return (
-    <main className="relative min-h-screen bg-surface overflow-hidden">
-      <Navigation />
-      <section className="pt-32 pb-24">
-        <div className="mx-auto max-w-[1400px] px-6 lg:px-12">
-          <div className="flex items-center justify-between mb-8">
-            <h1 className="text-4xl font-bold text-on-surface">Dashboard</h1>
-            <BrutalButton variant="ghost" size="sm" onClick={logout}>Log out</BrutalButton>
+    <AppShell email={email} workspaceLabel={email ? "Workspace" : null} onLogout={logout}>
+      <PageFrame
+        eyebrow="Console"
+        title="Dashboard"
+        description="Account, spend and knowledge — live from the NovaForge API."
+        crumbs={[{ label: "Home", href: "/" }, { label: "Dashboard" }]}
+      >
+        {error ? (
+          <div className="mb-6">
+            <BrutalErrorState title="Request failed" description={error} onRetry={() => window.location.reload()} />
           </div>
-          {error ? <p className="text-sm text-red-500 mb-6">{error}</p> : null}
-          <div className="grid gap-6 md:grid-cols-2 mb-6">
-            <div className={cardCls}>
-              <h2 className="text-sm uppercase tracking-widest text-on-surface-variant mb-4">Account</h2>
-              {user ? (
-                <div className="text-body-md text-on-surface space-y-1">
-                  <p><span className="text-on-surface-variant">Email: </span>{String(user.email ?? "—")}</p>
-                  <p><span className="text-on-surface-variant">Username: </span>{String(user.username ?? "—")}</p>
-                </div>
-              ) : (
-                <p className="text-on-surface-variant">Loading…</p>
-              )}
-            </div>
-            <div className={cardCls}>
-              <h2 className="text-sm uppercase tracking-widest text-on-surface-variant mb-4">FinOps usage</h2>
-              {summary ? (
-                <div className="text-body-md text-on-surface space-y-1">
-                  <p><span className="text-on-surface-variant">Spend (cents): </span>{String(summary.spend_cents ?? 0)}</p>
-                  <p><span className="text-on-surface-variant">Cost records: </span>{String(summary.cost_records ?? 0)}</p>
-                  <p><span className="text-on-surface-variant">Total tokens: </span>{String(summary.total_tokens ?? 0)}</p>
-                </div>
-              ) : (
-                <p className="text-on-surface-variant">Loading…</p>
-              )}
-            </div>
-          </div>
-          <div className={cardCls}>
-            <h2 className="text-sm uppercase tracking-widest text-on-surface-variant mb-4">Knowledge search</h2>
-            <div className="flex gap-4 mb-4">
-              <input
-                placeholder="Search the knowledge base…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") void onSearch(); }}
-                className={inputCls}
-              />
+        ) : null}
+        <div className="grid gap-6 md:grid-cols-2">
+          <BrutalCard eyebrow="Account" title={email ? String(user?.username ?? "Account") : "Account"}>
+            {loading ? (
+              <BrutalSkeleton className="h-16" />
+            ) : user ? (
+              <div className="space-y-1 text-body-md">
+                <p>
+                  <span className="text-on-surface-variant">Email: </span>
+                  {String(user.email ?? "—")}
+                </p>
+                <p>
+                  <span className="text-on-surface-variant">Username: </span>
+                  {String(user.username ?? "—")}
+                </p>
+              </div>
+            ) : (
+              <BrutalEmptyState title="Not signed in" description="Sign in to load your account." />
+            )}
+          </BrutalCard>
+          <BrutalCard eyebrow="FinOps" title="Usage">
+            {loading ? (
+              <BrutalSkeleton className="h-16" />
+            ) : summary ? (
+              <div className="space-y-1 text-body-md">
+                <p>
+                  <span className="text-on-surface-variant">Spend (cents): </span>
+                  {String(summary.spend_cents ?? 0)}
+                </p>
+                <p>
+                  <span className="text-on-surface-variant">Cost records: </span>
+                  {String(summary.cost_records ?? 0)}
+                </p>
+                <p>
+                  <span className="text-on-surface-variant">Total tokens: </span>
+                  {String(summary.total_tokens ?? 0)}
+                </p>
+              </div>
+            ) : (
+              <BrutalEmptyState title="No usage yet" description="Usage appears here once recorded." />
+            )}
+          </BrutalCard>
+        </div>
+        <div className="mt-6">
+          <BrutalCard eyebrow="Knowledge" title="Search">
+            <div className="mb-4 flex flex-col gap-4 sm:flex-row">
+              <div className="flex-1">
+                <BrutalInput
+                  aria-label="Search the knowledge base"
+                  placeholder="Search the knowledge base…"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void onSearch();
+                  }}
+                />
+              </div>
               <BrutalButton variant="yellow" size="md" onClick={() => void onSearch()}>
                 {searching ? "Searching…" : "Search"}
               </BrutalButton>
             </div>
-            {results.length > 0 ? (
+            {searching ? (
+              <BrutalSkeleton className="h-24" label="Searching" />
+            ) : results.length > 0 ? (
               <ul className="space-y-3">
                 {results.map((r, i) => (
-                  <li key={i} className="border border-outline p-4">
-                    <p className="font-bold text-on-surface">{String(r.title ?? r.document_id ?? "Result")}</p>
+                  <li key={String(r.document_id ?? r.chunk_id ?? i)} className="border border-outline p-4">
+                    <p className="font-bold text-on-surface">
+                      {String(r.title ?? r.document_id ?? "Result")}
+                    </p>
                     <p className="text-sm text-on-surface-variant">{String(r.snippet ?? r.citation ?? "")}</p>
-                    <p className="text-xs text-on-surface-variant mt-1">score: {String(r.score ?? "—")}</p>
+                    <p className="mt-1 font-mono text-xs text-on-surface-variant">
+                      score: {String(r.score ?? "—")}
+                    </p>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-on-surface-variant text-sm">No results yet — try a search above.</p>
+              <BrutalEmptyState title="No results yet" description="Try a search above." />
             )}
-          </div>
+          </BrutalCard>
         </div>
-      </section>
-      <FooterSection />
-    </main>
+      </PageFrame>
+    </AppShell>
   );
 }

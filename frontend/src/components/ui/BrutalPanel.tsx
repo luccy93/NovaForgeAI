@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import { useRef, type ReactNode, type RefObject } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +13,10 @@ interface BrutalPanelProps {
 
 export function BrutalPanel({ children, className, highlight, style }: BrutalPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref as any, offset: ["start end", "end start"] });
+  const { scrollYProgress } = useScroll({
+    target: ref as RefObject<HTMLElement>,
+    offset: ["start end", "end start"],
+  });
   const opacity = useTransform(scrollYProgress, [0, 0.15, 0.8, 1], [0, 1, 1, 0]);
 
   return (

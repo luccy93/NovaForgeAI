@@ -189,3 +189,33 @@
     background-size: 80px 80px;
   }
 }
+
+@theme inline {
+  /* Z-index layers (shell < overlay < dialog < toast). */
+  --z-nav: 50;
+  --z-overlay: 70;
+  --z-dialog: 80;
+  --z-toast: 90;
+
+  /* Motion timings: fast, subtle, purposeful. */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 280ms;
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-primary-container);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

@@ -7,14 +7,30 @@ import { EffectComposer, Bloom, ChromaticAberration } from "@react-three/postpro
 import { BlendFunction } from "postprocessing";
 import * as THREE from "three";
 
+/**
+ * Deterministic PRNG so static scene geometry is stable across renders
+ * (and satisfies the react-hooks/purity lint rule for memoized values).
+ */
+function mulberry32(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state |= 0;
+    state = (state + 0x6d2b79f5) | 0;
+    let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+    mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 function ParticleField({ count = 1200 }) {
   const ref = useRef<THREE.Points>(null!);
   const positions = useMemo(() => {
+    const rand = mulberry32(count);
     const pos = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 20;
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 20;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 20;
+      pos[i * 3] = (rand() - 0.5) * 20;
+      pos[i * 3 + 1] = (rand() - 0.5) * 20;
+      pos[i * 3 + 2] = (rand() - 0.5) * 20;
     }
     return pos;
   }, [count]);
@@ -29,7 +45,7 @@ function ParticleField({ count = 1200 }) {
   return (
     <points ref={ref}>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
       <pointsMaterial size={0.04} color="#FFD400" transparent opacity={0.6} sizeAttenuation blending={THREE.AdditiveBlending} depthWrite={false} />
     </points>
@@ -50,21 +66,23 @@ function NeuralNode({ position, color = "#FFD400" }: { position: [number, number
 function NeuralConnections() {
   const ref = useRef<THREE.Group>(null!);
   const nodes = useMemo(() => {
+    const rand = mulberry32(12);
     const n: [number, number, number][] = [];
     for (let i = 0; i < 12; i++) {
       const theta = (i / 12) * Math.PI * 2;
-      const phi = Math.random() * Math.PI;
-      const r = 2.5 + Math.random() * 1.5;
+      const phi = rand() * Math.PI;
+      const r = 2.5 + rand() * 1.5;
       n.push([Math.sin(phi) * Math.cos(theta) * r, Math.sin(phi) * Math.sin(theta) * r, Math.cos(phi) * r]);
     }
     return n;
   }, []);
 
   const lines = useMemo(() => {
+    const rand = mulberry32(nodes.length);
     const pairs: [number, number][] = [];
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
-        if (Math.random() > 0.7) pairs.push([i, j]);
+        if (rand() > 0.7) pairs.push([i, j]);
       }
     }
     return pairs;
@@ -89,7 +107,7 @@ function NeuralConnections() {
       ))}
       <lineSegments>
         <bufferGeometry>
-          <bufferAttribute attach="attributes-position" count={linePositions.length / 3} array={linePositions} itemSize={3} />
+          <bufferAttribute attach="attributes-position" args={[linePositions, 3]} />
         </bufferGeometry>
         <lineBasicMaterial color="#FFD400" transparent opacity={0.15} />
       </lineSegments>
