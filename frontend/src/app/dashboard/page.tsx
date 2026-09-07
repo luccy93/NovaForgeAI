@@ -368,7 +368,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
+          <div id="knowledge" className="lg:col-span-2">
             <BrutalCard eyebrow="Knowledge" title="Search">
               <div className="mb-4 flex flex-col gap-4 sm:flex-row">
                 <div className="flex-1">
