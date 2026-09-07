@@ -2,17 +2,26 @@
 
 import { apiRequest } from "@/lib/api-client";
 import type {
+  ApiKeyCreated,
+  ApiKeyOut,
   ApiUser,
   AuthTokens,
   CostsPage,
   FinOpsSummary,
   KnowledgePage,
+  LoginResponse,
+  MfaSetup,
+  MfaStatus,
+  SessionOut,
+  WhoAmI,
 } from "@/types/api";
 
-export type { AuthTokens, CostsPage, FinOpsSummary, KnowledgeHit, KnowledgePage, ApiUser, CostRecord } from "@/types/api";
+export type { AuthTokens, CostsPage, FinOpsSummary, KnowledgeHit, KnowledgePage, ApiUser, CostRecord, MfaSetup, MfaStatus, SessionOut, ApiKeyOut, ApiKeyCreated, WhoAmI, LoginResponse } from "@/types/api";
 export { ApiError, type ApiErrorKind } from "@/lib/api-client";
+export { isMfaChallenge } from "@/types/api";
 
 const TOKEN_KEY = "nf_token";
+const REFRESH_KEY = "nf_refresh";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -27,6 +36,24 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(REFRESH_KEY);
+}
+
+export function setRefreshToken(token: string): void {
+  if (token) localStorage.setItem(REFRESH_KEY, token);
+}
+
+export function clearRefreshToken(): void {
+  localStorage.removeItem(REFRESH_KEY);
+}
+
+export function clearAllTokens(): void {
+  clearToken();
+  clearRefreshToken();
+}
+
 export const api = {
   register: (email: string, username: string, password: string) =>
     apiRequest<AuthTokens>("/auth/register", {
@@ -35,13 +62,107 @@ export const api = {
     }),
 
   login: (email: string, password: string) =>
-    apiRequest<AuthTokens>("/auth/login", {
+    apiRequest<LoginResponse>("/auth/login", {
       method: "POST",
       body: { email, password },
     }),
 
+  mfaChallenge: (challenge_token: string, code: string) =>
+    apiRequest<AuthTokens>("/auth/mfa/challenge", {
+      method: "POST",
+      body: { challenge_token, code },
+    }),
+
+  refresh: (refresh_token: string) =>
+    apiRequest<AuthTokens>("/auth/refresh", {
+      method: "POST",
+      body: { refresh_token },
+    }),
+
   me: (token: string) => apiRequest<ApiUser>("/auth/me", { token }),
 
+  whoami: (token: string) => apiRequest<WhoAmI>("/auth/whoami", { token }),
+
+  // Password recovery
+  requestPasswordReset: (email: string) =>
+    apiRequest<{ status: string }>("/auth/password/reset", {
+      method: "POST",
+      body: { email },
+    }),
+
+  confirmPasswordReset: (token: string, new_password: string) =>
+    apiRequest<{ status: string }>("/auth/password/reset/confirm", {
+      method: "POST",
+      body: { token, new_password },
+    }),
+
+  changePassword: (token: string, current_password: string, new_password: string) =>
+    apiRequest<{ status: string }>("/auth/password/change", {
+      method: "POST",
+      token,
+      body: { current_password, new_password },
+    }),
+
+  // Email verification
+  verifyEmail: (token: string) =>
+    apiRequest<{ status: string }>(`/auth/email/verify?token=${encodeURIComponent(token)}`, {
+      method: "POST",
+    }),
+
+  resendVerification: (token: string) =>
+    apiRequest<{ status: string }>("/auth/email/resend-verification", {
+      method: "POST",
+      token,
+    }),
+
+  // MFA
+  setupMfa: (token: string) => apiRequest<MfaSetup>("/auth/mfa/setup", { token }),
+
+  verifyMfa: (token: string, code: string) =>
+    apiRequest<MfaStatus>("/auth/mfa/verify", {
+      method: "POST",
+      token,
+      body: { code },
+    }),
+
+  disableMfa: (token: string, code: string) =>
+    apiRequest<MfaStatus>("/auth/mfa/disable", {
+      method: "POST",
+      token,
+      body: { code },
+    }),
+
+  verifyBackupCode: (token: string, code: string) =>
+    apiRequest<{ status: string; remaining: number }>(
+      `/auth/mfa/verify-backup?code=${encodeURIComponent(code)}`,
+      { method: "POST", token },
+    ),
+
+  // Sessions
+  listSessions: (token: string) =>
+    apiRequest<SessionOut[]>("/auth/sessions", { token }),
+
+  revokeSession: (token: string, sessionId: string) =>
+    apiRequest<void>(`/auth/sessions/${sessionId}`, { method: "DELETE", token }),
+
+  revokeAllOtherSessions: (token: string) =>
+    apiRequest<void>("/auth/sessions", { method: "DELETE", token }),
+
+  // API Keys
+  listApiKeys: (token: string) =>
+    apiRequest<ApiKeyOut[]>("/auth/api-keys", { token }),
+
+  createApiKey: (token: string, name: string, scopes: string[] = []) =>
+    apiRequest<ApiKeyCreated>("/auth/api-keys", {
+      method: "POST",
+      token,
+      body: { name, scopes },
+    }),
+
+  deleteApiKey: (token: string, keyId: string) =>
+    apiRequest<void>(`/auth/api-keys/${keyId}`, { method: "DELETE", token }),
+
+  // Existing domain APIs
   finopsSummary: (token: string, start?: string, end?: string) => {
     const params = new URLSearchParams();
     if (start) params.set("start", start);

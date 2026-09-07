@@ -5,12 +5,76 @@ export interface AuthTokens {
   expires_in: number;
 }
 
+export interface MfaChallengeRequired {
+  mfa_required: true;
+  challenge_token: string;
+  mfa_methods: string[];
+  expires_in: number;
+}
+
+export type LoginResponse = AuthTokens | MfaChallengeRequired;
+
+export function isMfaChallenge(res: LoginResponse): res is MfaChallengeRequired {
+  return (res as MfaChallengeRequired).mfa_required === true;
+}
+
 export interface ApiUser {
   id: string;
   email: string;
   username: string;
   full_name?: string | null;
   is_active: boolean;
+  created_at?: string;
+  avatar_url?: string | null;
+}
+
+export interface WhoAmI {
+  user_id: string;
+  email: string;
+  username: string;
+  full_name?: string | null;
+  is_active: boolean;
+  is_superuser: boolean;
+  mfa_enabled: boolean;
+  auth_method: string;
+  organizations: Array<{ organization_id: string; role: string }>;
+  permissions: string[];
+}
+
+export interface MfaSetup {
+  secret: string;
+  uri: string;
+  backup_codes: string[];
+  recovery_code: string;
+}
+
+export interface MfaStatus {
+  enabled: boolean;
+  setup_required: boolean;
+}
+
+export interface SessionOut {
+  id: string;
+  ip_address?: string | null;
+  user_agent?: string | null;
+  created_at: string;
+  expires_at: string;
+  is_current: boolean;
+}
+
+export interface ApiKeyOut {
+  id: string;
+  name: string;
+  key_prefix: string;
+  scopes: string[];
+  is_active: boolean;
+  last_used_at?: string | null;
+  expires_at?: string | null;
+  created_at: string;
+}
+
+export interface ApiKeyCreated extends ApiKeyOut {
+  full_key: string;
 }
 
 export interface FinOpsSummary {
