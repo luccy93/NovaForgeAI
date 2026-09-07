@@ -117,3 +117,8 @@ export interface KnowledgePage {
   items: Array<KnowledgeHit>;
   total: number;
 }
+
+export interface Paginated<T> {
+  items: T[];
+  total?: number;
+}

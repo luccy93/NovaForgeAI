@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { Menu, Search } from "lucide-react";
 import { UserMenu } from "@/components/layout/UserMenu";
+import { OrgSwitcher } from "@/components/layout/OrgSwitcher";
+import { WorkspaceSwitcher } from "@/components/layout/WorkspaceSwitcher";
 
 export function TopHeader({
   email,
@@ -35,7 +37,12 @@ export function TopHeader({
         </span>
         <span className="hidden font-bold tracking-widest text-on-surface sm:block">NOVAFORGE</span>
       </Link>
-      {workspaceLabel ? (
+      {email ? (
+        <>
+          <OrgSwitcher />
+          <WorkspaceSwitcher />
+        </>
+      ) : workspaceLabel ? (
         <span className="hidden border border-outline px-2 py-1 font-mono text-[11px] uppercase tracking-widest text-on-surface-variant md:block">
           {workspaceLabel}
         </span>

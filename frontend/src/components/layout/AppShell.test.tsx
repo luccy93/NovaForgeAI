@@ -14,7 +14,6 @@ describe("AppShell", () => {
       </AppShell>,
     );
     expect(screen.getByText("NOVAFORGE")).toBeInTheDocument();
-    expect(screen.getByText("Acme")).toBeInTheDocument();
     expect(screen.getByText("Content")).toBeInTheDocument();
   });
 

@@ -15,6 +15,7 @@ import type {
   SessionOut,
   WhoAmI,
 } from "@/types/api";
+import type { Organization, OrganizationMember, InviteResult, Workspace, Role } from "@/types/org";
 
 export type { AuthTokens, CostsPage, FinOpsSummary, KnowledgeHit, KnowledgePage, ApiUser, CostRecord, MfaSetup, MfaStatus, SessionOut, ApiKeyOut, ApiKeyCreated, WhoAmI, LoginResponse } from "@/types/api";
 export { ApiError, type ApiErrorKind } from "@/lib/api-client";
@@ -179,4 +180,68 @@ export const api = {
       `/knowledge/search?query=${encodeURIComponent(query)}&limit=${limit}`,
       { token },
     ),
+
+  // Organizations
+  listOrganizations: (token: string) =>
+    apiRequest<Organization[]>("/organizations", { token }),
+  listMyOrganizations: (token: string) =>
+    apiRequest<Organization[]>("/organizations/my", { token }),
+  getOrganization: (token: string, id: string) =>
+    apiRequest<Organization>(`/organizations/${id}`, { token }),
+  createOrganization: (token: string, name: string, slug: string, description?: string) =>
+    apiRequest<Organization>("/organizations", {
+      method: "POST",
+      token,
+      body: { name, slug, description },
+    }),
+  updateOrganization: (token: string, id: string, name?: string, description?: string) => {
+    const params = new URLSearchParams();
+    if (name) params.set("name", name);
+    if (description !== undefined) params.set("description", description || "");
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    return apiRequest<Organization>(`/organizations/${id}${qs}`, { method: "PATCH", token });
+  },
+  deleteOrganization: (token: string, id: string) =>
+    apiRequest<void>(`/organizations/${id}`, { method: "DELETE", token }),
+
+  // Members & invitations
+  listMembers: (token: string, orgId: string) =>
+    apiRequest<OrganizationMember[]>(`/organizations/${orgId}/members`, { token }),
+  inviteMember: (token: string, orgId: string, email: string, role: string = "member") =>
+    apiRequest<InviteResult>(`/organizations/${orgId}/members`, {
+      method: "POST",
+      token,
+      body: { email, role },
+    }),
+  removeMember: (token: string, orgId: string, userId: string) =>
+    apiRequest<void>(`/organizations/${orgId}/members/${userId}`, { method: "DELETE", token }),
+  updateMemberRole: (token: string, orgId: string, userId: string, role: string) =>
+    apiRequest<{ status: string }>(`/organizations/${orgId}/members/${userId}/role?role=${encodeURIComponent(role)}`, {
+      method: "PUT",
+      token,
+    }),
+
+  // Workspaces (IAM)
+  listWorkspaces: (token: string, orgId: string) =>
+    apiRequest<Workspace[]>(`/iam/workspaces?org_id=${encodeURIComponent(orgId)}`, { token }),
+  createWorkspace: (token: string, orgId: string, name: string, slug: string) =>
+    apiRequest<Workspace>("/iam/workspaces", {
+      method: "POST",
+      token,
+      body: { org_id: orgId, name, slug },
+    }),
+  getWorkspace: (token: string, id: string) =>
+    apiRequest<Workspace>(`/iam/workspaces/${id}`, { token }),
+  deleteWorkspace: (token: string, id: string) =>
+    apiRequest<{ deleted: boolean }>(`/iam/workspaces/${id}`, { method: "DELETE", token }),
+
+  // Roles & permissions
+  listRoles: (token: string, orgId: string) =>
+    apiRequest<Role[]>(`/iam/roles?org_id=${encodeURIComponent(orgId)}`, { token }),
+  authorize: (token: string, orgId: string, permission: string) =>
+    apiRequest<{ allowed: boolean; decision: string }>(`/iam/authorization/authorize`, {
+      method: "POST",
+      token,
+      body: { org_id: orgId, permission },
+    }),
 };

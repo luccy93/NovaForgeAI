@@ -9,7 +9,7 @@ export interface BrutalColumn<T> {
   render: (row: T) => ReactNode;
 }
 
-export function BrutalTable<T extends { id?: string | number }>({
+export function BrutalTable<T>({
   columns,
   rows,
   emptyMessage = "No rows yet.",
@@ -46,7 +46,7 @@ export function BrutalTable<T extends { id?: string | number }>({
         <tbody>
           {rows.map((row, i) => (
             <tr
-              key={row.id ?? i}
+              key={(row as unknown as { id?: string | number }).id ?? i}
               className="border-b border-outline-variant bg-surface-container last:border-b-0"
             >
               {columns.map((col) => (
