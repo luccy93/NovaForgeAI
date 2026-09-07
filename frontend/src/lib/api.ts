@@ -205,11 +205,22 @@ export const api = {
     apiRequest<{ items: import("@/types/api").IntegrationItem[]; total: number }>("/integrations", { token }),
   observabilityDashboard: (token: string) =>
     apiRequest<import("@/types/api").ObservabilityDashboard>("/observability/dashboard", { token }),
-  recentActivity: (token: string, limit = 20) =>
-    apiRequest<{ events: import("@/types/api").RecentActivityItem[]; count: number }>(
-      `/analytics/events?limit=${limit}`,
+  recentActivity: (
+    token: string,
+    limit = 20,
+    filters?: { eventType?: string; source?: string; startTime?: string; endTime?: string },
+  ) => {
+    const params = new URLSearchParams();
+    params.set("limit", String(limit));
+    if (filters?.eventType) params.set("event_type", filters.eventType);
+    if (filters?.source) params.set("source", filters.source);
+    if (filters?.startTime) params.set("start_time", filters.startTime);
+    if (filters?.endTime) params.set("end_time", filters.endTime);
+    return apiRequest<{ events: import("@/types/api").RecentActivityItem[]; count: number }>(
+      `/analytics/events?${params.toString()}`,
       { token },
-    ),
+    );
+  },
   knowledgeHistory: (token: string, limit = 5) =>
     apiRequest<{ items: unknown[]; total: number }>(`/knowledge/audit/history?limit=${limit}`, { token }),
 

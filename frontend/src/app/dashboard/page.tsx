@@ -25,6 +25,7 @@ import type { ApiUser, FinOpsSummary, KnowledgeHit, HealthDependencies, Workflow
 import { ApiError } from "@/lib/api-client";
 import { useToastStore } from "@/stores/toast";
 import { useTenantStore } from "@/stores/tenant";
+import { useDashboardRealtime } from "@/lib/use-dashboard-realtime";
 
 export default function DashboardPage() {
   const [user, setUser] = useState<ApiUser | null>(null);
@@ -79,6 +80,10 @@ export default function DashboardPage() {
   const [activity, setActivity] = useState<RecentActivityItem[] | null>(null);
   const [actLoading, setActLoading] = useState(true);
   const [actError, setActError] = useState<string | null>(null);
+  const [activityType, setActivityType] = useState("");
+  const [activitySource, setActivitySource] = useState("");
+  const [activityStart, setActivityStart] = useState("");
+  const [activityEnd, setActivityEnd] = useState("");
 
   // Knowledge metric
   const [knowledgeCount, setKnowledgeCount] = useState<number | null>(null);
@@ -265,6 +270,25 @@ export default function DashboardPage() {
     };
   }, [fetchAll, organizationId, workspaceId]);
 
+  // Honest realtime state. With no backend SSE subscription endpoint the
+  // adapter stays `unavailable` and no connection is attempted.
+  const realtime = useDashboardRealtime(organizationId, workspaceId, {
+    onNotify: (message, tone) => pushToast(tone, message),
+    onEvent: (event) => {
+      setActivity((prev) => {
+        const current = prev ?? [];
+        if (current.some((it) => it.id === event.id)) return current;
+        const entry: RecentActivityItem = {
+          id: event.id ?? `${event.type}:${event.timestamp ?? String(Date.now())}`,
+          event_type: event.type,
+          source: event.source ?? "realtime",
+          created_at: event.timestamp,
+        };
+        return [entry, ...current].slice(0, 16);
+      });
+    },
+  });
+
   async function onSearch() {
     const token = getToken();
     if (!token || !query.trim()) return;
@@ -283,6 +307,30 @@ export default function DashboardPage() {
       pushToast("error", message);
     } finally {
       setSearching(false);
+    }
+  }
+
+  async function fetchActivity() {
+    const token = getToken();
+    if (!token) {
+      window.location.href = "/auth/login";
+      return;
+    }
+    setActLoading(true);
+    setActError(null);
+    try {
+      const res = await api.recentActivity(token, 8, {
+        eventType: activityType || undefined,
+        source: activitySource || undefined,
+        startTime: activityStart || undefined,
+        endTime: activityEnd || undefined,
+      });
+      setActivity(res.events ?? []);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) setActivity([]);
+      else setActError(e instanceof Error ? e.message : "Activity unavailable");
+    } finally {
+      setActLoading(false);
     }
   }
 
@@ -313,6 +361,16 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <span
+              className="inline-flex items-center gap-2 border border-outline bg-surface-container px-2 py-1 font-mono text-xs uppercase tracking-widest text-on-surface-variant"
+              aria-live="polite"
+            >
+              <span
+                className={realtime.unavailable ? "h-2 w-2 bg-muted" : "h-2 w-2 bg-primary-container"}
+                aria-hidden="true"
+              />
+              Realtime: {realtime.unavailable ? "unavailable" : realtime.status}
+            </span>
             <BrutalButton variant="ghost" size="sm" onClick={() => void fetchAll()}>Refresh</BrutalButton>
             <span className="font-mono text-xs text-on-surface-variant">{new Date().toLocaleDateString()}</span>
           </div>
@@ -391,6 +449,20 @@ export default function DashboardPage() {
             </BrutalCard>
           </div>
           <div className="space-y-6">
+            <div className="border border-outline bg-surface-container p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="activity-type" className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">Type</label>
+                <BrutalInput id="activity-type" aria-label="Filter activity by type" placeholder="event type" value={activityType} onChange={(e) => setActivityType(e.target.value)} className="w-40" />
+                <label htmlFor="activity-source" className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">Source</label>
+                <BrutalInput id="activity-source" aria-label="Filter activity by source" placeholder="source" value={activitySource} onChange={(e) => setActivitySource(e.target.value)} className="w-32" />
+                <label htmlFor="activity-start" className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">From</label>
+                <BrutalInput id="activity-start" aria-label="Activity start" type="datetime-local" value={activityStart} onChange={(e) => setActivityStart(e.target.value)} className="w-44" />
+                <label htmlFor="activity-end" className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">To</label>
+                <BrutalInput id="activity-end" aria-label="Activity end" type="datetime-local" value={activityEnd} onChange={(e) => setActivityEnd(e.target.value)} className="w-44" />
+                <BrutalButton variant="yellow" size="sm" onClick={() => void fetchActivity()}>Apply</BrutalButton>
+              </div>
+              <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Filters apply server-side to the analytics event feed.</p>
+            </div>
             <RecentActivityPanel items={activity} loading={actLoading} error={actError} />
             <QuickActions />
           </div>
