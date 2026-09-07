@@ -29,16 +29,20 @@ export function ConversationList({
   conversations,
   activeId,
   loading,
+  hasMore,
   onSelect,
   onNew,
   onDelete,
+  onLoadMore,
 }: {
   conversations: ConversationSummary[];
   activeId: string | null;
   loading: boolean;
+  hasMore: boolean;
   onSelect: (id: string) => void;
   onNew: () => void;
   onDelete: (id: string) => void;
+  onLoadMore: () => void;
 }) {
   return (
     <div className="flex h-full flex-col">
@@ -59,40 +63,55 @@ export function ConversationList({
             <BrutalEmptyState title="No conversations yet" description="Start a new conversation to begin." />
           </div>
         ) : (
-          <ul className="space-y-1">
-            {conversations.map((convo) => (
-              <li key={convo.id}>
-                <div
-                  className={cn(
-                    "group flex items-center justify-between border px-3 py-2 transition-colors",
-                    activeId === convo.id
-                      ? "border-primary-container bg-surface-container-high"
-                      : "border-transparent hover:border-outline hover:bg-surface-container",
-                  )}
+          <>
+            <ul className="space-y-1">
+              {conversations.map((convo) => (
+                <li key={convo.id}>
+                  <div
+                    className={cn(
+                      "group flex items-center justify-between border px-3 py-2 transition-colors",
+                      activeId === convo.id
+                        ? "border-primary-container bg-surface-container-high"
+                        : "border-transparent hover:border-outline hover:bg-surface-container",
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onSelect(convo.id)}
+                      aria-current={activeId === convo.id ? "true" : undefined}
+                      className="flex-1 text-left"
+                    >
+                      <p className="truncate text-sm font-bold text-on-surface">{convo.title}</p>
+                      <p className="mt-0.5 font-mono text-[10px] text-on-surface-variant">
+                        {convo.message_count} msg · {formatRelative(convo.updated_at)}
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(convo.id)}
+                      aria-label={`Delete ${convo.title}`}
+                      className="ml-2 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant opacity-0 transition-opacity group-hover:opacity-100 hover:text-error"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {hasMore && (
+              <div className="p-2">
+                <BrutalButton
+                  variant="default"
+                  size="sm"
+                  onClick={onLoadMore}
+                  className="w-full"
+                  disabled={loading}
                 >
-                  <button
-                    type="button"
-                    onClick={() => onSelect(convo.id)}
-                    aria-current={activeId === convo.id ? "true" : undefined}
-                    className="flex-1 text-left"
-                  >
-                    <p className="truncate text-sm font-bold text-on-surface">{convo.title}</p>
-                    <p className="mt-0.5 font-mono text-[10px] text-on-surface-variant">
-                      {convo.message_count} msg · {formatRelative(convo.updated_at)}
-                    </p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(convo.id)}
-                    aria-label={`Delete ${convo.title}`}
-                    className="ml-2 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant opacity-0 transition-opacity group-hover:opacity-100 hover:text-error"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+                  {loading ? "Loading…" : "Load more"}
+                </BrutalButton>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

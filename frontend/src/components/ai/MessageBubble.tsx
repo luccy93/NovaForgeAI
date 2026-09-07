@@ -49,6 +49,15 @@ export const MessageBubble = memo(function MessageBubble({
   sources?: ChatSource[];
 }) {
   const isUser = message.role === "user";
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(message.content);
+    } catch {
+      // Clipboard API unavailable — silent no-op.
+    }
+  }
+
   return (
     <article
       role={isUser ? "note" : "article"}
@@ -60,12 +69,22 @@ export const MessageBubble = memo(function MessageBubble({
     >
       <div
         className={cn(
-          "max-w-[75%] border px-4 py-3 text-body-md",
+          "relative max-w-[75%] border px-4 py-3 text-body-md",
           isUser
             ? "border-primary-container bg-primary-container/10 text-on-surface"
             : "border-outline bg-surface-container text-on-surface",
         )}
       >
+        {!isUser && (
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="absolute right-2 top-2 rounded-sm border border-outline px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant opacity-0 transition-opacity hover:border-on-surface hover:text-on-surface group-hover:opacity-100"
+            aria-label="Copy message"
+          >
+            Copy
+          </button>
+        )}
         {isUser ? (
           <p className="whitespace-pre-wrap">{message.content}</p>
         ) : (

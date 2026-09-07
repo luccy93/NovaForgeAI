@@ -24,6 +24,8 @@ export function AiWorkspace() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversationsLoading, setConversationsLoading] = useState(true);
   const [conversationsError, setConversationsError] = useState<string | null>(null);
+  const [conversationsOffset, setConversationsOffset] = useState(0);
+  const [hasMoreConversations, setHasMoreConversations] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sendState, setSendState] = useState<ComposerState>("idle");
@@ -46,7 +48,7 @@ export function AiWorkspace() {
 
   const pushToast = useToastStore((s) => s.push);
 
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (offset = 0, append = false) => {
     const token = getToken();
     if (!token) {
       window.location.href = "/auth/login";
@@ -55,8 +57,16 @@ export function AiWorkspace() {
     setConversationsLoading(true);
     setConversationsError(null);
     try {
-      const res = await api.listConversations(token, 50, 0);
-      setConversations(Array.isArray(res) ? res : []);
+      const PAGE_SIZE = 50;
+      const res = await api.listConversations(token, PAGE_SIZE, offset);
+      const items = Array.isArray(res) ? res : [];
+      if (append) {
+        setConversations((prev) => [...prev, ...items]);
+      } else {
+        setConversations(items);
+      }
+      setConversationsOffset(offset + items.length);
+      setHasMoreConversations(items.length >= PAGE_SIZE);
     } catch (e) {
       if (e instanceof ApiError && e.kind === "unauthorized") {
         sessionExpired();
@@ -86,7 +96,13 @@ export function AiWorkspace() {
     setDetailError(null);
     setContextLoading(false);
     setStreamedWithoutMetadata(false);
+    setConversationsOffset(0);
+    setHasMoreConversations(false);
   }, []);
+
+  const loadMoreConversations = useCallback(() => {
+    void loadConversations(conversationsOffset, true);
+  }, [loadConversations, conversationsOffset]);
 
   useEffect(() => {
     void loadConversations();
@@ -324,6 +340,7 @@ export function AiWorkspace() {
           conversations={conversations}
           activeId={activeId}
           loading={conversationsLoading}
+          hasMore={hasMoreConversations}
           onSelect={(id) => void loadConversation(id)}
           onNew={() => {
             resetAllState();
@@ -332,6 +349,7 @@ export function AiWorkspace() {
             const convo = conversations.find((c) => c.id === id);
             if (convo) setPendingDelete(convo);
           }}
+          onLoadMore={loadMoreConversations}
         />
       </aside>
 

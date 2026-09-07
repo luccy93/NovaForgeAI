@@ -37,7 +37,9 @@ export function MessageTimeline({
   return (
     <section
       aria-label="Conversation messages"
-      aria-live="polite"
+      aria-live={streaming ? "polite" : "off"}
+      aria-relevant="additions"
+      role="log"
       className="flex-1 overflow-y-auto"
     >
       <div className="flex flex-col py-4">
