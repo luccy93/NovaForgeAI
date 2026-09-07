@@ -122,3 +122,87 @@ export interface Paginated<T> {
   items: T[];
   total?: number;
 }
+
+export interface HealthDependencies {
+  status: string;
+  checks: Record<string, { status: string; latency_ms?: number; detail?: string }>;
+  measured_at?: number;
+}
+
+export interface WorkflowHealth {
+  tenant?: string;
+  total: number;
+  success: number;
+  failed: number;
+  success_rate?: number;
+}
+
+export interface WorkflowRun {
+  run_id?: string;
+  id?: string;
+  status: string;
+  execution_id?: string;
+  workflow_version_id?: string;
+  workflow_id?: string;
+  created_at?: string;
+}
+
+export interface AiUsageItem {
+  id: string;
+  action: string;
+  model?: string;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  cost_cents?: number;
+  created_at?: string;
+}
+
+export interface AiUsagePage {
+  items: AiUsageItem[];
+  count: number;
+  totals?: Record<string, unknown>;
+}
+
+export interface SecurityDashboard {
+  tenant?: string;
+  total_scans?: number;
+  open_findings?: number;
+  risk?: unknown;
+  [key: string]: unknown;
+}
+
+export interface GovernancePosture {
+  scope_type?: string;
+  scope_value?: string;
+  domain?: string;
+  violations?: unknown[];
+  posture_score?: number;
+  compliance?: unknown;
+  controls_passing?: number;
+  [key: string]: unknown;
+}
+
+export interface IntegrationItem {
+  id: string;
+  name?: string;
+  provider?: string;
+  status?: string;
+  health?: string;
+}
+
+export interface ObservabilityDashboard {
+  tenant?: string;
+  services?: number;
+  health?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface RecentActivityItem {
+  id: string;
+  tenant?: string;
+  event_type: string;
+  source?: string;
+  payload?: unknown;
+  created_at?: string;
+}

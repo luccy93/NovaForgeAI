@@ -181,6 +181,38 @@ export const api = {
       { token },
     ),
 
+  // Dashboard — real backend signals
+  healthDependencies: () =>
+    apiRequest<import("@/types/api").HealthDependencies>("/health/dependencies", { retryGet: false }),
+  healthReady: () =>
+    apiRequest<{ status: string; checks: Record<string, boolean> }>("/health/ready"),
+  workflowHealth: (token: string) =>
+    apiRequest<import("@/types/api").WorkflowHealth>("/workflows/health", { token }),
+  listWorkflowRuns: (token: string, limit = 5) =>
+    apiRequest<{ items: import("@/types/api").WorkflowRun[] }>("/workflows/runs?limit=" + limit, { token }),
+  // Fallback: list workflows then runs per workflow if needed
+  aiUsage: (token: string, limit = 10) =>
+    apiRequest<import("@/types/api").AiUsagePage>(`/ai-dev/usage?limit=${limit}`, { token }),
+  securityDashboard: (token: string) =>
+    apiRequest<import("@/types/api").SecurityDashboard>("/security/dashboard", { token }),
+  secOpsDashboard: (token: string) =>
+    apiRequest<Record<string, unknown>>("/secops/dashboard", { token }),
+  governancePosture: (token: string) =>
+    apiRequest<import("@/types/api").GovernancePosture>("/governance/posture", { token }),
+  governanceDecisions: (token: string, limit = 5) =>
+    apiRequest<{ items: unknown[]; total: number }>(`/governance/decisions?limit=${limit}`, { token }),
+  integrationsList: (token: string) =>
+    apiRequest<{ items: import("@/types/api").IntegrationItem[]; total: number }>("/integrations", { token }),
+  observabilityDashboard: (token: string) =>
+    apiRequest<import("@/types/api").ObservabilityDashboard>("/observability/dashboard", { token }),
+  recentActivity: (token: string, limit = 20) =>
+    apiRequest<{ events: import("@/types/api").RecentActivityItem[]; count: number }>(
+      `/analytics/events?limit=${limit}`,
+      { token },
+    ),
+  knowledgeHistory: (token: string, limit = 5) =>
+    apiRequest<{ items: unknown[]; total: number }>(`/knowledge/audit/history?limit=${limit}`, { token }),
+
   // Organizations
   listOrganizations: (token: string) =>
     apiRequest<Organization[]>("/organizations", { token }),
