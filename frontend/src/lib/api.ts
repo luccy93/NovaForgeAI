@@ -6,6 +6,9 @@ import type {
   ApiKeyOut,
   ApiUser,
   AuthTokens,
+  ChatResponse,
+  ConversationDetail,
+  ConversationSummary,
   CostsPage,
   FinOpsSummary,
   KnowledgePage,
@@ -18,7 +21,9 @@ import type {
 import type { Organization, OrganizationMember, InviteResult, Workspace, Role } from "@/types/org";
 
 export type { AuthTokens, CostsPage, FinOpsSummary, KnowledgeHit, KnowledgePage, ApiUser, CostRecord, MfaSetup, MfaStatus, SessionOut, ApiKeyOut, ApiKeyCreated, WhoAmI, LoginResponse } from "@/types/api";
+export type { ChatMessage, ChatResponse, ChatSource, ConversationSummary, ConversationDetail, StreamEvent, AiModel } from "@/types/api";
 export { ApiError, type ApiErrorKind } from "@/lib/api-client";
+export { streamChatResponse, type StreamChatEvent } from "@/lib/api-client";
 export { isMfaChallenge } from "@/types/api";
 
 const TOKEN_KEY = "nf_token";
@@ -287,4 +292,20 @@ export const api = {
       token,
       body: { org_id: orgId, permission },
     }),
+
+  // Chat & Conversations
+  chat: (token: string, body: { message: string; conversation_id?: string; repo_id?: string }) =>
+    apiRequest<ChatResponse>("/chat", {
+      method: "POST",
+      body,
+    }),
+
+  listConversations: (token: string, limit = 20, offset = 0) =>
+    apiRequest<ConversationSummary[]>(`/chat/conversations?limit=${limit}&offset=${offset}`),
+
+  getConversation: (token: string, conversationId: string) =>
+    apiRequest<ConversationDetail>(`/chat/conversations/${conversationId}`),
+
+  deleteConversation: (token: string, conversationId: string) =>
+    apiRequest<void>(`/chat/conversations/${conversationId}`, { method: "DELETE" }),
 };

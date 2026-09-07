@@ -18,7 +18,7 @@ export interface QuickAction {
  */
 export const QUICK_ACTIONS: QuickAction[] = [
   { id: "search-knowledge", label: "Search Knowledge", href: "/dashboard#knowledge", variant: "yellow", description: "Search the knowledge base" },
-  { id: "open-ai", label: "Open AI", href: "/ai-kit", variant: "default", description: "Agents, tools and playground" },
+  { id: "open-ai", label: "Open AI", href: "/ai", variant: "default", description: "AI workspace and conversations" },
 ];
 
 export function QuickActions() {

@@ -9,6 +9,7 @@ describe("QuickActions route capability", () => {
     const realRoutes = new Set<string>([
       "/dashboard",
       "/ai-kit",
+      "/ai",
       // Future modules (/workflows, /integrations, /security, /governance)
       // intentionally omitted until they exist.
     ]);
@@ -38,6 +39,6 @@ describe("QuickActions route capability", () => {
       </div>,
     );
     expect(screen.getByRole("link", { name: /search knowledge/i })).toHaveAttribute("href", "/dashboard#knowledge");
-    expect(screen.getByRole("link", { name: /open ai/i })).toHaveAttribute("href", "/ai-kit");
+    expect(screen.getByRole("link", { name: /open ai/i })).toHaveAttribute("href", "/ai");
   });
 });

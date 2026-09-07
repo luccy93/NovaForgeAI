@@ -18,7 +18,7 @@ describe("SideNav", () => {
   it("hides authenticated entries from visitors", () => {
     render(<SideNav authenticated={false} />);
     expect(screen.queryByRole("link", { name: "FinOps" })).toBeNull();
-    expect(screen.getByRole("link", { name: "AI" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "AI" })).toBeNull();
   });
 
   it("marks the current page and notifies on navigate", () => {

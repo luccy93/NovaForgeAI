@@ -206,3 +206,64 @@ export interface RecentActivityItem {
   payload?: unknown;
   created_at?: string;
 }
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  created_at?: string;
+}
+
+export interface ChatSource {
+  text?: string;
+  source?: string;
+  score?: number;
+  type?: string;
+}
+
+export interface ChatResponse {
+  answer: string;
+  conversation_id: string;
+  confidence: number;
+  model_used: string;
+  sources: ChatSource[];
+}
+
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  message_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationDetail {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  messages: ChatMessage[];
+}
+
+export interface StreamChunkEvent {
+  type: "chunk";
+  content: string;
+}
+
+export interface StreamDoneEvent {
+  type: "done";
+  conversation_id: string;
+}
+
+export type StreamEvent = StreamChunkEvent | StreamDoneEvent;
+
+export interface AiModel {
+  id: string;
+  provider: string;
+  name: string;
+  version: string;
+  type: string;
+  capabilities: Record<string, unknown>;
+  status: string;
+  risk_level: string;
+}

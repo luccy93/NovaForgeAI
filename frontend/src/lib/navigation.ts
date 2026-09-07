@@ -16,11 +16,11 @@ export interface NavItem {
  */
 export const NAV_ITEMS: Array<NavItem> = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", section: "main", auth: true, description: "Account, usage and search overview" },
-  { id: "ai", label: "AI", href: "/ai-kit", section: "main", auth: false, description: "Agents, tools and playground" },
+  { id: "ai", label: "AI", href: "/ai", section: "main", auth: true, description: "AI workspace and conversations" },
   { id: "code", label: "Code", href: "/examples", section: "main", auth: false, description: "Code search and examples" },
   { id: "knowledge", label: "Knowledge", href: "/dashboard", section: "main", auth: true, description: "Search the knowledge base" },
   { id: "workflows", label: "Workflows", href: "/dashboard", section: "platform", auth: true, description: "Automation runs" },
-  { id: "agents", label: "Agents", href: "/ai-kit", section: "platform", auth: false, description: "Agent registry" },
+  { id: "agents", label: "Agents", href: "/ai", section: "platform", auth: true, description: "AI agent workspace" },
   { id: "finops", label: "FinOps", href: "/dashboard", section: "platform", auth: true, description: "Spend and budgets" },
   { id: "integrations", label: "Integrations", href: "/dashboard", section: "platform", auth: true, description: "Connected systems" },
   { id: "security", label: "Security", href: "/docs", section: "system", auth: false, description: "Posture and findings" },
