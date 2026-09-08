@@ -13,6 +13,7 @@ export const PERMISSIONS = {
   billingAdmin: "billing:admin",
   auditRead: "audit:read",
   admin: "settings:admin",
+  opsAdmin: "admin:all",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

@@ -9,6 +9,7 @@ import { BrutalCard } from "@/components/ui/BrutalCard";
 import { BrutalEmptyState } from "@/components/ui/BrutalEmptyState";
 import { BrutalErrorState } from "@/components/ui/BrutalErrorState";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
+import { OperationsIntelligence } from "@/components/observability/OperationsIntelligence";
 import { api, clearToken, getToken } from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
 import type { ObservabilityDashboard } from "@/types/api";
@@ -478,6 +479,12 @@ export function ObservabilityWorkspace() {
           These surfaces have no authenticated read endpoint in the current backend. Use the manual refresh control above.
         </p>
       </BrutalCard>
+
+      <OperationsIntelligence
+        alerts={alerts}
+        fatigue={fatigue}
+        onAlertsChanged={() => void loadAll()}
+      />
     </div>
   );
 }
