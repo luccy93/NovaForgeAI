@@ -10,8 +10,7 @@ describe("QuickActions route capability", () => {
       "/dashboard",
       "/ai-kit",
       "/ai",
-      // Future modules (/workflows, /integrations, /security, /governance)
-      // intentionally omitted until they exist.
+      "/code",
     ]);
     for (const action of QUICK_ACTIONS) {
       const base = action.href.split("#")[0];
@@ -40,5 +39,6 @@ describe("QuickActions route capability", () => {
     );
     expect(screen.getByRole("link", { name: /search knowledge/i })).toHaveAttribute("href", "/dashboard#knowledge");
     expect(screen.getByRole("link", { name: /open ai/i })).toHaveAttribute("href", "/ai");
+    expect(screen.getByRole("link", { name: /open code/i })).toHaveAttribute("href", "/code");
   });
 });

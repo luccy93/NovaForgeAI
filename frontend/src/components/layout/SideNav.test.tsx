@@ -19,6 +19,7 @@ describe("SideNav", () => {
     render(<SideNav authenticated={false} />);
     expect(screen.queryByRole("link", { name: "FinOps" })).toBeNull();
     expect(screen.queryByRole("link", { name: "AI" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Code" })).toBeNull();
   });
 
   it("marks the current page and notifies on navigate", () => {

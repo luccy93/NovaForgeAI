@@ -17,7 +17,7 @@ export interface NavItem {
 export const NAV_ITEMS: Array<NavItem> = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", section: "main", auth: true, description: "Account, usage and search overview" },
   { id: "ai", label: "AI", href: "/ai", section: "main", auth: true, description: "AI workspace and conversations" },
-  { id: "code", label: "Code", href: "/examples", section: "main", auth: false, description: "Code search and examples" },
+  { id: "code", label: "Code", href: "/code", section: "main", auth: true, description: "Code intelligence workspace" },
   { id: "knowledge", label: "Knowledge", href: "/dashboard", section: "main", auth: true, description: "Search the knowledge base" },
   { id: "workflows", label: "Workflows", href: "/dashboard", section: "platform", auth: true, description: "Automation runs" },
   { id: "agents", label: "Agents", href: "/ai", section: "platform", auth: true, description: "AI agent workspace" },

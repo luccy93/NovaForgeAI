@@ -22,6 +22,73 @@ import type { Organization, OrganizationMember, InviteResult, Workspace, Role } 
 
 export type { AuthTokens, CostsPage, FinOpsSummary, KnowledgeHit, KnowledgePage, ApiUser, CostRecord, MfaSetup, MfaStatus, SessionOut, ApiKeyOut, ApiKeyCreated, WhoAmI, LoginResponse } from "@/types/api";
 export type { ChatMessage, ChatResponse, ChatSource, ConversationSummary, ConversationDetail, StreamEvent, AiModel } from "@/types/api";
+export type {
+  RepositoryOut,
+  CodeIndexOut,
+  IndexVersionOut,
+  IndexDiffOut,
+  IndexHealthOut,
+  CodeFileOut,
+  FileContentOut,
+  CodeMetricsOut,
+  SymbolOut,
+  SymbolDetailOut,
+  SymbolSearchOut,
+  GraphOut,
+  GraphNodeOut,
+  GraphEdgeOut,
+  ModuleInfo,
+  CyclesOut,
+  CodeSmellOut,
+  SmellScanOut,
+  QualitySummary,
+  SecurityVulnerabilityOut,
+  SecurityScanOut,
+  SecretOut,
+  SecretScanOut,
+  ImpactAnalysisOut,
+  DownstreamOut,
+  DependencyOut,
+  SearchResultItem,
+  SearchOut,
+  RAGContextOut,
+  TestCoverageOut,
+  TestQualityOut,
+  TestGapOut,
+  OwnershipSummaryOut,
+  ContributorStatsOut,
+  BusRiskOut,
+  OwnerOut,
+  HotspotOut,
+  ChurnMetricsOut,
+  AuthorActivityOut,
+  ChangeSummaryOut,
+  RepositoryProfileOut,
+  LanguageOut,
+  ArchitectureOverviewOut,
+  DependencyGraphOut,
+  DevCapabilities,
+  AiDevContextItem,
+  AiDevContextOut,
+  ExplainIn,
+  ExplainOut,
+  ReviewFinding,
+  AiReviewOut,
+  AiReviewDetail,
+  PatchFileEdit,
+  PatchOut,
+  PatchListOut,
+  ChangeSummaryIn,
+  ChangeSummaryOut2,
+  AgentOut,
+  AgentListOut,
+  AgentPlanOut,
+  AgentPlanListOut,
+  AgentCheckpointOut,
+  AgentCheckpointListOut,
+  SecurityBlock,
+  SecurityGateOut,
+} from "@/types/code";
 export { ApiError, type ApiErrorKind } from "@/lib/api-client";
 export { streamChatResponse, type StreamChatEvent } from "@/lib/api-client";
 export { isMfaChallenge } from "@/types/api";
@@ -308,4 +375,221 @@ export const api = {
 
   deleteConversation: (token: string, conversationId: string) =>
     apiRequest<void>(`/chat/conversations/${conversationId}`, { method: "DELETE" }),
+
+  // ─── Repositories ────────────────────────────────────────────────────────
+  listRepositories: (token: string, limit = 50, offset = 0, language?: string) => {
+    const params = new URLSearchParams();
+    params.set("limit", String(limit));
+    params.set("offset", String(offset));
+    if (language) params.set("language", language);
+    return apiRequest<import("@/types/code").RepositoryOut[]>(`/repositories?${params.toString()}`, { token });
+  },
+  getRepository: (token: string, repositoryId: string) =>
+    apiRequest<import("@/types/code").RepositoryOut>(`/repositories/${repositoryId}`, { token }),
+
+  // ─── Code Intelligence: Index ────────────────────────────────────────────
+  ciGetIndex: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").CodeIndexOut>(`/code-intelligence/${repoId}/index`, { token }),
+  ciCreateIndex: (token: string, repoId: string, branch = "main", forceRebuild = false) =>
+    apiRequest<import("@/types/code").CodeIndexOut>(`/code-intelligence/${repoId}/index`, {
+      method: "POST",
+      token,
+      body: { branch, force_rebuild: forceRebuild },
+    }),
+  ciIndexHealth: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").IndexHealthOut>(`/code-intelligence/${repoId}/index/health`, { token }),
+  ciIndexVersions: (token: string, repoId: string, limit = 20, offset = 0) =>
+    apiRequest<import("@/types/code").IndexVersionOut[]>(
+      `/code-intelligence/${repoId}/index/versions?limit=${limit}&offset=${offset}`,
+      { token },
+    ),
+  ciRebuildIndex: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").CodeIndexOut>(`/code-intelligence/${repoId}/index/rebuild`, {
+      method: "POST",
+      token,
+    }),
+
+  // ─── Code Intelligence: Files ────────────────────────────────────────────
+  ciFiles: (token: string, repoId: string, opts?: { language?: string; pathPrefix?: string; limit?: number; offset?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.language) params.set("language", opts.language);
+    if (opts?.pathPrefix) params.set("path_prefix", opts.pathPrefix);
+    params.set("limit", String(opts?.limit ?? 50));
+    params.set("offset", String(opts?.offset ?? 0));
+    return apiRequest<import("@/types/code").CodeFileOut[]>(
+      `/code-intelligence/${repoId}/files?${params.toString()}`,
+      { token },
+    );
+  },
+  ciFileDetail: (token: string, repoId: string, fileId: string) =>
+    apiRequest<import("@/types/code").FileContentOut>(
+      `/code-intelligence/${repoId}/files/${fileId}?include_symbols=true&include_references=true`,
+      { token },
+    ),
+  ciFileMetrics: (token: string, repoId: string, fileId: string) =>
+    apiRequest<import("@/types/code").CodeMetricsOut>(`/code-intelligence/${repoId}/files/${fileId}/metrics`, { token }),
+
+  // ─── Code Intelligence: Symbols ──────────────────────────────────────────
+  ciSymbols: (token: string, repoId: string, opts?: { symbolType?: string; fileId?: string; limit?: number; offset?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.symbolType) params.set("symbol_type", opts.symbolType);
+    if (opts?.fileId) params.set("file_id", opts.fileId);
+    params.set("limit", String(opts?.limit ?? 50));
+    params.set("offset", String(opts?.offset ?? 0));
+    return apiRequest<import("@/types/code").SymbolOut[]>(
+      `/code-intelligence/${repoId}/symbols?${params.toString()}`,
+      { token },
+    );
+  },
+  ciSymbolDetail: (token: string, repoId: string, symbolId: string) =>
+    apiRequest<import("@/types/code").SymbolDetailOut>(`/code-intelligence/${repoId}/symbols/${symbolId}`, { token }),
+  ciSymbolSearch: (token: string, repoId: string, name: string, symbolTypes?: string[]) =>
+    apiRequest<import("@/types/code").SymbolSearchOut>(`/code-intelligence/${repoId}/search/symbols`, {
+      method: "POST",
+      token,
+      body: { name, symbol_types: symbolTypes ?? [], fuzzy: true },
+    }),
+
+  // ─── Code Intelligence: Search ───────────────────────────────────────────
+  ciSearch: (token: string, repoId: string, query: string, opts?: { fileTypes?: string[]; symbolTypes?: string[]; maxResults?: number }) =>
+    apiRequest<import("@/types/code").SearchOut>(`/code-intelligence/${repoId}/search`, {
+      method: "POST",
+      token,
+      body: {
+        query,
+        file_types: opts?.fileTypes ?? [],
+        symbol_types: opts?.symbolTypes ?? [],
+        max_results: opts?.maxResults ?? 20,
+        include_context: true,
+      },
+    }),
+
+  // ─── Code Intelligence: Graph ────────────────────────────────────────────
+  ciGraph: (token: string, repoId: string, limit = 200) =>
+    apiRequest<import("@/types/code").GraphOut>(`/code-intelligence/${repoId}/graph?limit=${limit}`, { token }),
+  ciGraphTraverse: (token: string, repoId: string, symbolId: string, direction = "both", maxDepth = 3) =>
+    apiRequest<import("@/types/code").GraphOut>(`/code-intelligence/${repoId}/graph/traverse`, {
+      method: "POST",
+      token,
+      body: { symbol_id: symbolId, direction, max_depth: maxDepth, edge_types: [] },
+    }),
+  ciGraphModules: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").ModuleInfo[]>(`/code-intelligence/${repoId}/graph/modules`, { token }),
+  ciGraphCycles: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").CyclesOut>(`/code-intelligence/${repoId}/graph/cycles`, { token }),
+
+  // ─── Code Intelligence: Impact / Quality / Security ──────────────────────
+  ciImpactAnalyze: (token: string, repoId: string, body: { symbol_id?: string; file_path?: string; change_type?: string }) =>
+    apiRequest<import("@/types/code").ImpactAnalysisOut>(`/code-intelligence/${repoId}/impact/analyze`, {
+      method: "POST",
+      token,
+      body: { symbol_id: body.symbol_id, file_path: body.file_path, change_type: body.change_type ?? "modify" },
+    }),
+  ciDownstream: (token: string, repoId: string, symbolId: string, maxDepth = 5) =>
+    apiRequest<import("@/types/code").DownstreamOut>(`/code-intelligence/${repoId}/impact/downstream`, {
+      method: "POST",
+      token,
+      body: { symbol_id: symbolId, max_depth: maxDepth },
+    }),
+  ciUnused: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").UnusedItemOut[]>(`/code-intelligence/${repoId}/impact/unused`, {
+      method: "POST",
+      token,
+    }),
+  ciSmellsScan: (token: string, repoId: string, body?: { file_paths?: string[]; smell_types?: string[] }) =>
+    apiRequest<import("@/types/code").SmellScanOut>(`/code-intelligence/${repoId}/quality/smells`, {
+      method: "POST",
+      token,
+      body: { file_paths: body?.file_paths ?? [], smell_types: body?.smell_types ?? [] },
+    }),
+  ciQualitySummary: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").QualitySummary>(`/code-intelligence/${repoId}/quality/summary`, { token }),
+  ciSecurityScan: (token: string, repoId: string, body?: { file_paths?: string[]; vulnerability_types?: string[] }) =>
+    apiRequest<import("@/types/code").SecurityScanOut>(`/code-intelligence/${repoId}/security/scan`, {
+      method: "POST",
+      token,
+      body: { file_paths: body?.file_paths ?? [], vulnerability_types: body?.vulnerability_types ?? [] },
+    }),
+  ciSecretsScan: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").SecretScanOut>(`/code-intelligence/${repoId}/security/secrets`, {
+      method: "POST",
+      token,
+    }),
+
+  // ─── Code Intelligence: Tests ────────────────────────────────────────────
+  ciTests: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").TestCoverageOut>(`/code-intelligence/${repoId}/tests`, { token }),
+  ciTestQuality: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").TestQualityOut[]>(`/code-intelligence/${repoId}/tests/quality`, { token }),
+  ciTestGaps: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").TestGapOut[]>(`/code-intelligence/${repoId}/tests/gaps`, { token }),
+
+  // ─── Code Intelligence: Ownership / History / Summary ────────────────────
+  ciOwnership: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").OwnershipSummaryOut>(`/code-intelligence/${repoId}/ownership`, { token }),
+  ciContributors: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").ContributorStatsOut[]>(`/code-intelligence/${repoId}/ownership/contributors`, { token }),
+  ciBusRisk: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").BusRiskOut[]>(`/code-intelligence/${repoId}/ownership/bus-risk`, { token }),
+  ciHotspots: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").HotspotOut[]>(`/code-intelligence/${repoId}/history/hotspots?top_n=20`, { token }),
+  ciChurn: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").ChurnMetricsOut>(`/code-intelligence/${repoId}/history/churn`, { token }),
+  ciAuthors: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").AuthorActivityOut[]>(`/code-intelligence/${repoId}/history/authors`, { token }),
+  ciChangeSummary: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").ChangeSummaryOut>(`/code-intelligence/${repoId}/history/summary`, { token }),
+  ciRepoSummary: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").RepositoryProfileOut>(`/code-intelligence/${repoId}/summary`, { token }),
+  ciLanguages: (token: string, repoId: string) =>
+    apiRequest<import("@/types/code").LanguageOut[]>(`/code-intelligence/${repoId}/summary/languages`, { token }),
+  ciRagContext: (token: string, repoId: string, query: string, opts?: { maxTokens?: number }) =>
+    apiRequest<import("@/types/code").RAGContextOut>(`/code-intelligence/${repoId}/rag/context`, {
+      method: "POST",
+      token,
+      body: { query, max_tokens: opts?.maxTokens ?? 4096, include_graph: true },
+    }),
+
+  // ─── DevTools capabilities (C2 gate) ─────────────────────────────────────
+  devCapabilities: (token: string, clientType = "browser") =>
+    apiRequest<import("@/types/code").DevCapabilities>(`/devtools/capabilities?client_type=${clientType}`, { token }),
+
+  // ─── AI Developer (C2) ───────────────────────────────────────────────────
+  aiDevContext: (token: string, repoId: string, query: string, tokenBudget = 4000) =>
+    apiRequest<import("@/types/code").AiDevContextOut>(
+      `/ai-dev/repositories/${repoId}/context?q=${encodeURIComponent(query)}&token_budget=${tokenBudget}`,
+      { token },
+    ),
+  aiDevExplain: (token: string, body: import("@/types/code").ExplainIn) =>
+    apiRequest<import("@/types/code").ExplainOut>("/ai-dev/explain", { method: "POST", token, body }),
+  aiDevReviewCreate: (token: string, body: { repository_id: string; files: Array<{ path: string; content: string }>; branch?: string | null; commit_sha?: string | null; rules_version?: string }) =>
+    apiRequest<import("@/types/code").AiReviewOut>("/ai-dev/review", { method: "POST", token, body }),
+  aiDevGetReview: (token: string, reviewId: string) =>
+    apiRequest<import("@/types/code").AiReviewDetail>(`/ai-dev/reviews/${reviewId}`, { token }),
+  aiDevListPatches: (token: string, repositoryId?: string, status?: string, limit = 50) => {
+    const params = new URLSearchParams();
+    if (repositoryId) params.set("repository_id", repositoryId);
+    if (status) params.set("status", status);
+    params.set("limit", String(limit));
+    return apiRequest<import("@/types/code").PatchListOut>(`/ai-dev/patches?${params.toString()}`, { token });
+  },
+  aiDevGetPatch: (token: string, patchId: string) =>
+    apiRequest<import("@/types/code").PatchOut>(`/ai-dev/patches/${patchId}`, { token }),
+  aiDevChangesSummary: (token: string, body: import("@/types/code").ChangeSummaryIn) =>
+    apiRequest<import("@/types/code").ChangeSummaryOut2>("/ai-dev/changes/summary", { method: "POST", token, body }),
+  aiDevListAgents: (token: string, opts?: { repositoryId?: string; status?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.repositoryId) params.set("repository_id", opts.repositoryId);
+    if (opts?.status) params.set("status", opts.status);
+    params.set("limit", String(opts?.limit ?? 50));
+    return apiRequest<import("@/types/code").AgentListOut>(`/ai-dev/agents?${params.toString()}`, { token });
+  },
+  aiDevGetAgent: (token: string, runId: string) =>
+    apiRequest<import("@/types/code").AgentOut>(`/ai-dev/agents/${runId}`, { token }),
+  aiDevAgentPlans: (token: string, runId: string) =>
+    apiRequest<import("@/types/code").AgentPlanListOut>(`/ai-dev/agents/${runId}/plans`, { token }),
+  aiDevAgentCheckpoints: (token: string, runId: string) =>
+    apiRequest<import("@/types/code").AgentCheckpointListOut>(`/ai-dev/agents/${runId}/checkpoints`, { token }),
+  aiDevSecurityGate: (token: string, body: { repository_id?: string | null; review_id?: string | null; files?: Array<{ path: string; content: string }> | null; findings?: Array<Record<string, unknown>> | null; branch?: string }) =>
+    apiRequest<import("@/types/code").SecurityGateOut>("/ai-dev/security-gate", { method: "POST", token, body }),
 };
