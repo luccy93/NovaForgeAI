@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CodeSearchBar } from "@/components/code/CodeSearchBar";
 import { CodeViewer } from "@/components/code/CodeViewer";
+import { DeveloperPanel } from "@/components/code/DeveloperPanel";
 import { IntelligencePanel } from "@/components/code/IntelligencePanel";
 import { RepositoryList, type RepositoryListItem } from "@/components/code/RepositoryList";
 import { SearchResults } from "@/components/code/SearchResults";
@@ -425,6 +426,11 @@ export function CodeWorkspace() {
                 onRetry={() => void handleSearch(search?.query ?? "", false)}
               />
             </div>
+            <DeveloperPanel
+              key={activeRepoId}
+              repoId={activeRepoId}
+              defaultBranch={index?.branch ?? activeRepo?.default_branch}
+            />
           </>
         )}
       </main>

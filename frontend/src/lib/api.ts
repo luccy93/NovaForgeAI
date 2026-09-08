@@ -592,4 +592,10 @@ export const api = {
     apiRequest<import("@/types/code").AgentCheckpointListOut>(`/ai-dev/agents/${runId}/checkpoints`, { token }),
   aiDevSecurityGate: (token: string, body: { repository_id?: string | null; review_id?: string | null; files?: Array<{ path: string; content: string }> | null; findings?: Array<Record<string, unknown>> | null; branch?: string }) =>
     apiRequest<import("@/types/code").SecurityGateOut>("/ai-dev/security-gate", { method: "POST", token, body }),
+  aiDevTestGenerate: (token: string, body: import("@/types/code").TestGenerateIn) =>
+    apiRequest<import("@/types/code").AiDevTestRunOut>("/ai-dev/tests/generate", { method: "POST", token, body }),
+  aiDevAgentCancel: (token: string, runId: string, reason?: string) =>
+    apiRequest<import("@/types/code").AgentOut>(`/ai-dev/agents/${runId}/cancel`, { method: "POST", token, body: { reason } }),
+  aiDevAgentApprovePlan: (token: string, runId: string, planId: string, body: { approved: boolean; approved_by: string; reason?: string }) =>
+    apiRequest<import("@/types/code").AgentPlanOut>(`/ai-dev/agents/${runId}/plans/${planId}/approve`, { method: "POST", token, body }),
 };

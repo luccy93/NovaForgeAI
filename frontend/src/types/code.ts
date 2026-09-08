@@ -569,6 +569,31 @@ export interface ChangeSummaryOut2 {
   notes: string[];
 }
 
+export interface TestGenerateIn {
+  repository_id: string;
+  patch_id?: string | null;
+  commit_sha?: string | null;
+  branch?: string | null;
+  framework?: string | null;
+}
+
+export interface AiDevTestRunOut {
+  id: string;
+  repository_id?: string | null;
+  branch?: string | null;
+  commit_sha?: string | null;
+  patch_id?: string | null;
+  status: string;
+  framework?: string | null;
+  command?: string | null;
+  test_plan?: unknown;
+  test_results?: unknown;
+  failures_analysis?: string | null;
+  duration_ms?: number | null;
+  ci_pipeline_run_id?: string | null;
+  [key: string]: unknown;
+}
+
 export interface AgentOut {
   id: string;
   repository_id: string;
