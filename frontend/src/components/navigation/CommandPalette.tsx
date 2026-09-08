@@ -54,7 +54,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     const snapshot = value.trim();
     timerRef.current = window.setTimeout(() => {
       api
-        .knowledgeSearch(token, snapshot, 5)
+        .knowledgeSearch(token, snapshot, { limit: 5 })
         .then((res) =>
           setHits(
             (res.items ?? []).map((item) => ({

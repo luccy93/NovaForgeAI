@@ -11,6 +11,7 @@ describe("QuickActions route capability", () => {
       "/ai-kit",
       "/ai",
       "/code",
+      "/knowledge",
     ]);
     for (const action of QUICK_ACTIONS) {
       const base = action.href.split("#")[0];
@@ -37,7 +38,7 @@ describe("QuickActions route capability", () => {
         ))}
       </div>,
     );
-    expect(screen.getByRole("link", { name: /search knowledge/i })).toHaveAttribute("href", "/dashboard#knowledge");
+    expect(screen.getByRole("link", { name: /search knowledge/i })).toHaveAttribute("href", "/knowledge");
     expect(screen.getByRole("link", { name: /open ai/i })).toHaveAttribute("href", "/ai");
     expect(screen.getByRole("link", { name: /open code/i })).toHaveAttribute("href", "/code");
   });

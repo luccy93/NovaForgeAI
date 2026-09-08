@@ -11,7 +11,6 @@ import type {
   ConversationSummary,
   CostsPage,
   FinOpsSummary,
-  KnowledgePage,
   LoginResponse,
   MfaSetup,
   MfaStatus,
@@ -19,6 +18,19 @@ import type {
   WhoAmI,
 } from "@/types/api";
 import type { Organization, OrganizationMember, InviteResult, Workspace, Role } from "@/types/org";
+import type {
+  KnowledgeAuditHistoryResponse,
+  KnowledgeDocument,
+  KnowledgeEntitiesResponse,
+  KnowledgeEntityDetail,
+  KnowledgeFreshnessStats,
+  KnowledgeIngestionJobDetail,
+  KnowledgeIngestionJobsResponse,
+  KnowledgeSearchResponse,
+  KnowledgeSource,
+  KnowledgeSourcesResponse,
+  KnowledgeUsageStats,
+} from "@/types/knowledge";
 
 export type { AuthTokens, CostsPage, FinOpsSummary, KnowledgeHit, KnowledgePage, ApiUser, CostRecord, MfaSetup, MfaStatus, SessionOut, ApiKeyOut, ApiKeyCreated, WhoAmI, LoginResponse } from "@/types/api";
 export type { ChatMessage, ChatResponse, ChatSource, ConversationSummary, ConversationDetail, StreamEvent, AiModel } from "@/types/api";
@@ -92,6 +104,31 @@ export type {
 export { ApiError, type ApiErrorKind } from "@/lib/api-client";
 export { streamChatResponse, type StreamChatEvent } from "@/lib/api-client";
 export { isMfaChallenge } from "@/types/api";
+export type {
+  KnowledgeCitation,
+  KnowledgeSearchItem,
+  KnowledgeSearchResponse,
+  KnowledgeSource,
+  KnowledgeSourcesResponse,
+  KnowledgeSourceCreated,
+  KnowledgeDocument,
+  KnowledgeDocumentCreated,
+  KnowledgeIngestionJob,
+  KnowledgeIngestionJobsResponse,
+  KnowledgeIngestionJobDetail,
+  KnowledgeIngestionJobCreated,
+  KnowledgeEntity,
+  KnowledgeEntityDetail,
+  KnowledgeEntityLink,
+  KnowledgeEntitiesResponse,
+  KnowledgeEntityCreated,
+  KnowledgeLinkCreated,
+  KnowledgeFreshnessStats,
+  KnowledgeUsageStats,
+  KnowledgeAuditEntry,
+  KnowledgeAuditHistoryResponse,
+  KnowledgeSearchFilterState,
+} from "@/types/knowledge";
 
 const TOKEN_KEY = "nf_token";
 const REFRESH_KEY = "nf_refresh";
@@ -247,11 +284,68 @@ export const api = {
   finopsCosts: (token: string, limit = 10) =>
     apiRequest<CostsPage>(`/finops/costs?limit=${limit}`, { token }),
 
-  knowledgeSearch: (token: string, query: string, limit = 5) =>
-    apiRequest<KnowledgePage>(
-      `/knowledge/search?query=${encodeURIComponent(query)}&limit=${limit}`,
-      { token },
-    ),
+  knowledgeSearch: (token: string, query: string, opts?: {
+    source_type?: string;
+    doc_type?: string;
+    classification?: string;
+    limit?: number;
+    offset?: number;
+    signal?: AbortSignal;
+  }) => {
+    const params = new URLSearchParams({ query });
+    if (opts?.source_type) params.set("source_type", opts.source_type);
+    if (opts?.doc_type) params.set("doc_type", opts.doc_type);
+    if (opts?.classification) params.set("classification", opts.classification);
+    params.set("limit", String(opts?.limit ?? 20));
+    params.set("offset", String(opts?.offset ?? 0));
+    return apiRequest<KnowledgeSearchResponse>(`/knowledge/search?${params.toString()}`, {
+      token,
+      signal: opts?.signal,
+    });
+  },
+
+  // ─── Knowledge: sources ─────────────────────────────────────────────────
+  knowledgeListSources: (token: string, opts?: { status?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    params.set("limit", String(opts?.limit ?? 100));
+    return apiRequest<KnowledgeSourcesResponse>(`/knowledge/sources?${params.toString()}`, { token });
+  },
+  knowledgeGetSource: (token: string, sourceId: string) =>
+    apiRequest<KnowledgeSource>(`/knowledge/sources/${sourceId}`, { token }),
+
+  // ─── Knowledge: documents ───────────────────────────────────────────────
+  knowledgeGetDocument: (token: string, documentId: string) =>
+    apiRequest<KnowledgeDocument>(`/knowledge/documents/${documentId}`, { token }),
+
+  // ─── Knowledge: ingestion ───────────────────────────────────────────────
+  knowledgeListIngestionJobs: (token: string, opts?: { source_id?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.source_id) params.set("source_id", opts.source_id);
+    params.set("limit", String(opts?.limit ?? 100));
+    return apiRequest<KnowledgeIngestionJobsResponse>(`/knowledge/ingestion/jobs?${params.toString()}`, { token });
+  },
+  knowledgeGetIngestionJob: (token: string, jobId: string) =>
+    apiRequest<KnowledgeIngestionJobDetail>(`/knowledge/ingestion/jobs/${jobId}`, { token }),
+
+  // ─── Knowledge: entities ────────────────────────────────────────────────
+  knowledgeListEntities: (token: string, opts?: { entity_type?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.entity_type) params.set("entity_type", opts.entity_type);
+    params.set("limit", String(opts?.limit ?? 100));
+    return apiRequest<KnowledgeEntitiesResponse>(`/knowledge/entities?${params.toString()}`, { token });
+  },
+  knowledgeGetEntity: (token: string, entityId: string) =>
+    apiRequest<KnowledgeEntityDetail>(`/knowledge/entities/${entityId}`, { token }),
+
+  // ─── Knowledge: freshness / audit ───────────────────────────────────────
+  knowledgeFreshnessStats: (token: string) =>
+    apiRequest<KnowledgeFreshnessStats>("/knowledge/freshness/stats", { token }),
+  knowledgeUsageStats: (token: string, opts?: { since_hours?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.since_hours) params.set("since_hours", String(opts.since_hours));
+    return apiRequest<KnowledgeUsageStats>(`/knowledge/audit/usage?${params.toString()}`, { token });
+  },
 
   // Dashboard — real backend signals
   healthDependencies: () =>
@@ -294,7 +388,7 @@ export const api = {
     );
   },
   knowledgeHistory: (token: string, limit = 5) =>
-    apiRequest<{ items: unknown[]; total: number }>(`/knowledge/audit/history?limit=${limit}`, { token }),
+    apiRequest<KnowledgeAuditHistoryResponse>(`/knowledge/audit/history?limit=${limit}`, { token }),
 
   // Organizations
   listOrganizations: (token: string) =>

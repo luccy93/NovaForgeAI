@@ -17,7 +17,7 @@ export interface QuickAction {
  * never render a link to a route that does not exist.
  */
 export const QUICK_ACTIONS: QuickAction[] = [
-  { id: "search-knowledge", label: "Search Knowledge", href: "/dashboard#knowledge", variant: "yellow", description: "Search the knowledge base" },
+  { id: "search-knowledge", label: "Search Knowledge", href: "/knowledge", variant: "yellow", description: "Search the knowledge base" },
   { id: "open-ai", label: "Open AI", href: "/ai", variant: "default", description: "AI workspace and conversations" },
   { id: "open-code", label: "Open Code", href: "/code", variant: "default", description: "Code intelligence workspace" },
 ];

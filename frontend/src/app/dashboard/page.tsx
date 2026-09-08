@@ -21,7 +21,8 @@ import { IntegrationsPanel } from "@/components/dashboard/IntegrationsPanel";
 import { RecentActivityPanel } from "@/components/dashboard/RecentActivityPanel";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { api, clearToken, getToken } from "@/lib/api";
-import type { ApiUser, FinOpsSummary, KnowledgeHit, HealthDependencies, WorkflowHealth, WorkflowRun, AiUsageItem, IntegrationItem, RecentActivityItem } from "@/types/api";
+import type { ApiUser, FinOpsSummary, HealthDependencies, WorkflowHealth, WorkflowRun, AiUsageItem, IntegrationItem, RecentActivityItem } from "@/types/api";
+import type { KnowledgeSearchItem } from "@/types/knowledge";
 import { ApiError } from "@/lib/api-client";
 import { useToastStore } from "@/stores/toast";
 import { useTenantStore } from "@/stores/tenant";
@@ -31,7 +32,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<ApiUser | null>(null);
   const [summary, setSummary] = useState<FinOpsSummary | null>(null);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Array<KnowledgeHit>>([]);
+  const [results, setResults] = useState<Array<KnowledgeSearchItem>>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
@@ -439,7 +440,7 @@ export default function DashboardPage() {
                   {results.map((r, i) => (
                     <li key={String(r.document_id ?? r.chunk_id ?? i)} className="border border-outline p-4">
                       <p className="font-bold text-on-surface">{String(r.title ?? r.document_id ?? "Result")}</p>
-                      <p className="text-sm text-on-surface-variant">{String(r.snippet ?? r.citation ?? "")}</p>
+                      <p className="text-sm text-on-surface-variant">{String(r.snippet ?? r.citations?.[0]?.source_name ?? "")}</p>
                       <p className="mt-1 font-mono text-xs text-on-surface-variant">score: {String(r.score ?? "—")}</p>
                     </li>
                   ))}
