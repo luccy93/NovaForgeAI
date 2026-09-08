@@ -32,6 +32,23 @@ import type {
   KnowledgeSourcesResponse,
   KnowledgeUsageStats,
 } from "@/types/knowledge";
+import type {
+  AiopsStatus,
+  AlertFatigueReport,
+  AlertMutationResult,
+  IncidentTransitionBody,
+  ObservabilityAlertsResponse,
+  ObservabilityQuality,
+  SreAnalytics,
+  SreIncident,
+  SreIncidentTimeline,
+  SreIncidentsResponse,
+  SreService,
+  SreServiceDependencies,
+  SreServicesResponse,
+  SreStatusComponentsResponse,
+  SreStatusSummary,
+} from "@/types/observability";
 
 export type { AuthTokens, CostsPage, FinOpsSummary, KnowledgeHit, KnowledgePage, ApiUser, CostRecord, MfaSetup, MfaStatus, SessionOut, ApiKeyOut, ApiKeyCreated, WhoAmI, LoginResponse } from "@/types/api";
 export type { ChatMessage, ChatResponse, ChatSource, ConversationSummary, ConversationDetail, StreamEvent, AiModel } from "@/types/api";
@@ -372,6 +389,69 @@ export const api = {
     apiRequest<{ items: import("@/types/api").IntegrationItem[]; total: number }>("/integrations", { token }),
   observabilityDashboard: (token: string) =>
     apiRequest<import("@/types/api").ObservabilityDashboard>("/observability/dashboard", { token }),
+
+  // ─── Observability & SRE (Operations) ───────────────────────────────────
+  observabilityAlerts: (token: string, opts?: { status?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    params.set("limit", String(opts?.limit ?? 100));
+    return apiRequest<ObservabilityAlertsResponse>(`/observability/alerts?${params.toString()}`, { token });
+  },
+  observabilityQuality: (token: string, opts?: { service?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.service) params.set("service", opts.service);
+    const qs = params.toString();
+    return apiRequest<ObservabilityQuality>(
+      `/observability/observability-quality${qs ? `?${qs}` : ""}`,
+      { token },
+    );
+  },
+  observabilityAiopsStatus: (token: string) =>
+    apiRequest<AiopsStatus>("/observability/aiops/status", { token }),
+  observabilityAlertFatigue: (token: string) =>
+    apiRequest<AlertFatigueReport>("/observability/alerts/fatigue/report", { token }),
+  sreStatusSummary: (token: string) =>
+    apiRequest<SreStatusSummary>("/sre/status/summary", { token }),
+  sreStatusComponents: (token: string, opts?: { limit?: number }) =>
+    apiRequest<SreStatusComponentsResponse>(`/sre/status/components?limit=${opts?.limit ?? 100}`, { token }),
+  sreAnalytics: (token: string, days = 30) =>
+    apiRequest<SreAnalytics>(`/sre/analytics?days=${days}`, { token }),
+  sreListIncidents: (token: string, opts?: { status?: string; offset?: number; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    params.set("offset", String(opts?.offset ?? 0));
+    params.set("limit", String(opts?.limit ?? 50));
+    return apiRequest<SreIncidentsResponse>(`/sre/incidents?${params.toString()}`, { token });
+  },
+  sreGetIncident: (token: string, incidentId: string) =>
+    apiRequest<SreIncident>(`/sre/incidents/${encodeURIComponent(incidentId)}`, { token }),
+  sreIncidentTimeline: (token: string, incidentId: string) =>
+    apiRequest<SreIncidentTimeline>(`/sre/incidents/${encodeURIComponent(incidentId)}/timeline`, { token }),
+  sreListServices: (token: string, opts?: { limit?: number }) =>
+    apiRequest<SreServicesResponse>(`/sre/services?limit=${opts?.limit ?? 100}`, { token }),
+  sreGetService: (token: string, serviceId: string) =>
+    apiRequest<SreService>(`/sre/services/${encodeURIComponent(serviceId)}`, { token }),
+  sreServiceDependencies: (token: string, serviceId: string) =>
+    apiRequest<SreServiceDependencies>(`/sre/services/${encodeURIComponent(serviceId)}/dependencies`, { token }),
+  acknowledgeAlert: (token: string, alertId: string) =>
+    apiRequest<AlertMutationResult>(`/observability/alerts/${encodeURIComponent(alertId)}/acknowledge`, {
+      method: "POST",
+      token,
+      body: {},
+    }),
+  resolveAlert: (token: string, alertId: string) =>
+    apiRequest<AlertMutationResult>(`/observability/alerts/${encodeURIComponent(alertId)}/resolve`, {
+      method: "POST",
+      token,
+      body: {},
+    }),
+  incidentTransition: (token: string, incidentId: string, body: IncidentTransitionBody) =>
+    apiRequest<SreIncident>(`/sre/incidents/${encodeURIComponent(incidentId)}/transition`, {
+      method: "POST",
+      token,
+      body: { target: body.target, note: body.note ?? "" },
+    }),
+
   recentActivity: (
     token: string,
     limit = 20,

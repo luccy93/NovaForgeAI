@@ -25,7 +25,7 @@ export const NAV_ITEMS: Array<NavItem> = [
   { id: "integrations", label: "Integrations", href: "/dashboard", section: "platform", auth: true, description: "Connected systems" },
   { id: "security", label: "Security", href: "/docs", section: "system", auth: false, description: "Posture and findings" },
   { id: "governance", label: "Governance", href: "/docs", section: "system", auth: false, description: "Policies and posture" },
-  { id: "observability", label: "Observability", href: "/docs", section: "system", auth: false, description: "Metrics and traces" },
+  { id: "observability", label: "Observability", href: "/observability", section: "system", auth: true, description: "Operational status and health" },
   { id: "admin", label: "Administration", href: "/settings/organization", section: "system", auth: true, description: "Workspace administration" },
   { id: "settings", label: "Settings", href: "/settings", section: "system", auth: true, description: "Account settings" },
 ];
