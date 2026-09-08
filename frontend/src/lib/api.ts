@@ -17,6 +17,7 @@ import type {
   SessionOut,
   WhoAmI,
 } from "@/types/api";
+import type { CatalogSearchResponse } from "@/types/universal";
 import type { Organization, OrganizationMember, InviteResult, Workspace, Role } from "@/types/org";
 import type {
   KnowledgeAuditHistoryResponse,
@@ -389,6 +390,17 @@ export const api = {
   },
   knowledgeHistory: (token: string, limit = 5) =>
     apiRequest<KnowledgeAuditHistoryResponse>(`/knowledge/audit/history?limit=${limit}`, { token }),
+
+  dataCatalogSearch: (token: string, query: string, opts?: { limit?: number }) => {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (opts?.limit) params.set("limit", String(opts.limit));
+    const qs = params.toString();
+    return apiRequest<CatalogSearchResponse>(
+      `/data-platform/catalog/search${qs ? `?${qs}` : ""}`,
+      { token },
+    );
+  },
 
   // Organizations
   listOrganizations: (token: string) =>

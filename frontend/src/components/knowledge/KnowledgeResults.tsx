@@ -14,6 +14,10 @@ function freshnessLabel(score: number | null | undefined): string {
   return `stale ${Math.round(score * 100)}`;
 }
 
+function filterLabel(value: string | null | undefined): string {
+  return value ?? "none";
+}
+
 export function KnowledgeResults({
   results,
   loading,
@@ -78,6 +82,7 @@ export function KnowledgeResults({
   }
 
   const totalPages = Math.max(1, Math.ceil(results.total / pageSize));
+  const filtersApplied = results.filters_applied ?? {};
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -89,6 +94,38 @@ export function KnowledgeResults({
           page {page} of {totalPages}
         </p>
       </div>
+
+      <details className="border-b border-outline-variant px-4 py-2" aria-label="Retrieval trace">
+        <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">
+          Retrieval trace / explanation
+        </summary>
+        <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-on-surface-variant sm:grid-cols-3">
+          <div>
+            <dt className="font-mono uppercase tracking-wider">query_id</dt>
+            <dd className="font-mono">{results.query_id}</dd>
+          </div>
+          <div>
+            <dt className="font-mono uppercase tracking-wider">latency</dt>
+            <dd className="font-mono">{results.latency_ms} ms</dd>
+          </div>
+          <div>
+            <dt className="font-mono uppercase tracking-wider">filters_applied</dt>
+            <dd className="font-mono">
+              {[
+                filtersApplied.source_type ? `source:${filterLabel(filtersApplied.source_type)}` : null,
+                filtersApplied.doc_type ? `doc:${filterLabel(filtersApplied.doc_type)}` : null,
+                filtersApplied.classification ? `class:${filterLabel(filtersApplied.classification)}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "none"}
+            </dd>
+          </div>
+        </dl>
+        <p className="mt-2 text-xs text-on-surface-variant">
+          Each result below reports the backend&apos;s retrieval method, freshness score, score and
+          citation provenance exactly as returned by <code className="font-mono">/knowledge/search</code>.
+        </p>
+      </details>
 
       <ul className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4" aria-label="Knowledge results">
         {results.items.map((item, index) => {
