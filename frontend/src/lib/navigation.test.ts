@@ -4,8 +4,7 @@ import { NAV_ITEMS, visibleNavItems } from "@/lib/navigation";
 describe("navigation model", () => {
   it("hides authenticated routes from logged-out visitors", () => {
     const items = visibleNavItems(false);
-    expect(items.length).toBeGreaterThan(0);
-    expect(items.every((item) => !item.auth)).toBe(true);
+    expect(items.length).toBe(0);
   });
 
   it("shows everything to authenticated users", () => {

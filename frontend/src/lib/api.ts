@@ -49,6 +49,22 @@ import type {
   SreStatusComponentsResponse,
   SreStatusSummary,
 } from "@/types/observability";
+import type {
+  AccessApproveResult,
+  AccessRequestsResponse,
+  AlertStatusResult,
+  PrivilegedAccessResponse,
+  SecOpsAlertsResponse,
+  SecOpsCoverage,
+  SecOpsDashboard,
+  SecOpsEventsResponse,
+  SecOpsFindingsResponse,
+  SecOpsPosture,
+  SecOpsResponsesResponse,
+  SecOpsRiskSnapshot,
+  SecOpsSlo,
+  ZeroTrustPosture,
+} from "@/types/security";
 
 export type { AuthTokens, CostsPage, FinOpsSummary, KnowledgeHit, KnowledgePage, ApiUser, CostRecord, MfaSetup, MfaStatus, SessionOut, ApiKeyOut, ApiKeyCreated, WhoAmI, LoginResponse } from "@/types/api";
 export type { ChatMessage, ChatResponse, ChatSource, ConversationSummary, ConversationDetail, StreamEvent, AiModel } from "@/types/api";
@@ -380,7 +396,7 @@ export const api = {
   securityDashboard: (token: string) =>
     apiRequest<import("@/types/api").SecurityDashboard>("/security/dashboard", { token }),
   secOpsDashboard: (token: string) =>
-    apiRequest<Record<string, unknown>>("/secops/dashboard", { token }),
+    apiRequest<SecOpsDashboard>("/secops/dashboard", { token }),
   governancePosture: (token: string) =>
     apiRequest<import("@/types/api").GovernancePosture>("/governance/posture", { token }),
   governanceDecisions: (token: string, limit = 5) =>
@@ -451,6 +467,96 @@ export const api = {
       token,
       body: { target: body.target, note: body.note ?? "" },
     }),
+
+  // ─── Security Operations (secops) ─────────────────────────────────────
+  secOpsPosture: (token: string) =>
+    apiRequest<SecOpsPosture>("/secops/posture", { token }),
+  secOpsCoverage: (token: string) =>
+    apiRequest<SecOpsCoverage>("/secops/coverage", { token }),
+  secOpsSlo: (token: string) =>
+    apiRequest<SecOpsSlo>("/secops/slo", { token }),
+  secOpsRisk: (token: string) =>
+    apiRequest<SecOpsRiskSnapshot>("/secops/risk", { token }),
+  secOpsEvents: (token: string, opts?: { category?: string; severity?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.category) params.set("category", opts.category);
+    if (opts?.severity) params.set("severity", opts.severity);
+    params.set("limit", String(opts?.limit ?? 50));
+    return apiRequest<SecOpsEventsResponse>(`/secops/security-events?${params.toString()}`, { token });
+  },
+  secOpsAlerts: (token: string, opts?: { status?: string; severity?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    if (opts?.severity) params.set("severity", opts.severity);
+    params.set("limit", String(opts?.limit ?? 50));
+    return apiRequest<SecOpsAlertsResponse>(`/secops/security-alerts?${params.toString()}`, { token });
+  },
+  secOpsFindings: (token: string, opts?: { status?: string; severity?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    if (opts?.severity) params.set("severity", opts.severity);
+    params.set("limit", String(opts?.limit ?? 50));
+    return apiRequest<SecOpsFindingsResponse>(`/secops/findings?${params.toString()}`, { token });
+  },
+  secOpsResponses: (token: string, opts?: { limit?: number }) => {
+    const params = new URLSearchParams();
+    params.set("limit", String(opts?.limit ?? 20));
+    return apiRequest<SecOpsResponsesResponse>(`/secops/responses?${params.toString()}`, { token });
+  },
+  secOpsUpdateAlertStatus: (token: string, alertId: string, status: string, reason?: string) =>
+    apiRequest<AlertStatusResult>(`/secops/security-alerts/${encodeURIComponent(alertId)}/status`, {
+      method: "POST",
+      token,
+      body: { status, reason },
+    }),
+  secOpsUpdateFindingStatus: (token: string, findingId: string, status: string) =>
+    apiRequest<AlertStatusResult>(`/secops/findings/${encodeURIComponent(findingId)}/status`, {
+      method: "POST",
+      token,
+      body: { status },
+    }),
+  secOpsApproveResponse: (token: string, responseId: string) =>
+    apiRequest<Record<string, unknown>>(`/secops/responses/${encodeURIComponent(responseId)}/approve`, {
+      method: "POST",
+      token,
+      body: {},
+    }),
+  secOpsExecuteResponse: (token: string, responseId: string) =>
+    apiRequest<Record<string, unknown>>(`/secops/responses/${encodeURIComponent(responseId)}/execute`, {
+      method: "POST",
+      token,
+      body: {},
+    }),
+  secOpsVerifyResponse: (token: string, responseId: string) =>
+    apiRequest<Record<string, unknown>>(`/secops/responses/${encodeURIComponent(responseId)}/verify`, {
+      method: "POST",
+      token,
+      body: {},
+    }),
+
+  // ─── Zero Trust (zero-trust) ──────────────────────────────────────────
+  zeroTrustPosture: (token: string) =>
+    apiRequest<ZeroTrustPosture>("/zero-trust/posture", { token }),
+  zeroTrustPrivilegedAccess: (token: string, opts?: { limit?: number }) => {
+    const params = new URLSearchParams();
+    params.set("limit", String(opts?.limit ?? 20));
+    return apiRequest<PrivilegedAccessResponse>(`/zero-trust/privileged-access?${params.toString()}`, { token });
+  },
+  zeroTrustAccessRequests: (token: string, opts?: { status?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    params.set("limit", String(opts?.limit ?? 20));
+    return apiRequest<AccessRequestsResponse>(`/zero-trust/access-requests?${params.toString()}`, { token });
+  },
+  zeroTrustApproveAccessRequest: (token: string, requestId: string, bindingHash?: string) =>
+    apiRequest<AccessApproveResult>(
+      `/zero-trust/access-requests/${encodeURIComponent(requestId)}/approve`,
+      {
+        method: "POST",
+        token,
+        body: bindingHash ? { binding_hash: bindingHash } : {},
+      },
+    ),
 
   recentActivity: (
     token: string,
