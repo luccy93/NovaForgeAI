@@ -65,6 +65,19 @@ import type {
   SecOpsSlo,
   ZeroTrustPosture,
 } from "@/types/security";
+import type {
+  GovernanceBindingsResponse,
+  GovernanceDecisionsResponse,
+  GovernanceDriftResolveResult,
+  GovernanceDriftResponse,
+  GovernanceEvidence,
+  GovernanceEvidenceCoverage,
+  GovernanceEvidenceResponse,
+  GovernanceExceptionsResponse,
+  GovernancePoliciesResponse,
+  GovernancePosture,
+  GovernanceTrendsResponse,
+} from "@/types/governance";
 
 export type { AuthTokens, CostsPage, FinOpsSummary, KnowledgeHit, KnowledgePage, ApiUser, CostRecord, MfaSetup, MfaStatus, SessionOut, ApiKeyOut, ApiKeyCreated, WhoAmI, LoginResponse } from "@/types/api";
 export type { ChatMessage, ChatResponse, ChatSource, ConversationSummary, ConversationDetail, StreamEvent, AiModel } from "@/types/api";
@@ -397,10 +410,6 @@ export const api = {
     apiRequest<import("@/types/api").SecurityDashboard>("/security/dashboard", { token }),
   secOpsDashboard: (token: string) =>
     apiRequest<SecOpsDashboard>("/secops/dashboard", { token }),
-  governancePosture: (token: string) =>
-    apiRequest<import("@/types/api").GovernancePosture>("/governance/posture", { token }),
-  governanceDecisions: (token: string, limit = 5) =>
-    apiRequest<{ items: unknown[]; total: number }>(`/governance/decisions?limit=${limit}`, { token }),
   integrationsList: (token: string) =>
     apiRequest<{ items: import("@/types/api").IntegrationItem[]; total: number }>("/integrations", { token }),
   observabilityDashboard: (token: string) =>
@@ -557,6 +566,99 @@ export const api = {
         body: bindingHash ? { binding_hash: bindingHash } : {},
       },
     ),
+
+  // ─── Governance plane (governance) ────────────────────────────────────
+  governancePolicies: (token: string, opts?: { status?: string; domain?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    if (opts?.domain) params.set("domain", opts.domain);
+    params.set("limit", String(opts?.limit ?? 100));
+    return apiRequest<GovernancePoliciesResponse>(`/governance/policies?${params.toString()}`, { token });
+  },
+  governanceBindings: (token: string, opts?: { policy_id?: string; scope_type?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.policy_id) params.set("policy_id", opts.policy_id);
+    if (opts?.scope_type) params.set("scope_type", opts.scope_type);
+    params.set("limit", String(opts?.limit ?? 100));
+    return apiRequest<GovernanceBindingsResponse>(`/governance/bindings?${params.toString()}`, { token });
+  },
+  governanceDecisions: (token: string, opts?: { decision?: string; operation?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.decision) params.set("decision", opts.decision);
+    if (opts?.operation) params.set("operation", opts.operation);
+    params.set("limit", String(opts?.limit ?? 50));
+    return apiRequest<GovernanceDecisionsResponse>(`/governance/decisions?${params.toString()}`, { token });
+  },
+  governanceExceptions: (token: string, opts?: { status?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    params.set("limit", String(opts?.limit ?? 50));
+    return apiRequest<GovernanceExceptionsResponse>(`/governance/policy-exceptions?${params.toString()}`, { token });
+  },
+  governancePosture: (token: string, opts?: { scope_type?: string; scope_value?: string; domain?: string }) => {
+    const params = new URLSearchParams();
+    params.set("scope_type", opts?.scope_type ?? "tenant");
+    if (opts?.scope_value) params.set("scope_value", opts.scope_value);
+    params.set("domain", opts?.domain ?? "general");
+    return apiRequest<GovernancePosture>(`/governance/posture?${params.toString()}`, { token });
+  },
+  governanceEvidence: (token: string, opts?: { control_key?: string; expired_only?: boolean; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.control_key) params.set("control_key", opts.control_key);
+    if (opts?.expired_only) params.set("expired_only", "true");
+    params.set("limit", String(opts?.limit ?? 50));
+    return apiRequest<GovernanceEvidenceResponse>(`/governance/evidence?${params.toString()}`, { token });
+  },
+  governanceEvidenceCoverage: (token: string) =>
+    apiRequest<GovernanceEvidenceCoverage>("/governance/evidence/coverage", { token }),
+  governanceDrift: (token: string, opts?: { status?: string; severity?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    if (opts?.severity) params.set("severity", opts.severity);
+    params.set("limit", String(opts?.limit ?? 50));
+    return apiRequest<GovernanceDriftResponse>(`/governance/drift?${params.toString()}`, { token });
+  },
+  governanceTrends: (token: string, days = 30) =>
+    apiRequest<GovernanceTrendsResponse>(`/governance/reports/trends?days=${days}`, { token }),
+  governanceRegisterEvidence: (
+    token: string,
+    body: { control_key: string; source_system: string; source_ref: string; source_version?: string; result?: string; validity_days?: number },
+  ) =>
+    apiRequest<GovernanceEvidence>("/governance/evidence/register", {
+      method: "POST",
+      token,
+      body,
+    }),
+  governanceDetectDrift: (token: string) =>
+    apiRequest<Record<string, unknown>>("/governance/drift/detect", {
+      method: "POST",
+      token,
+      body: {},
+    }),
+  governanceResolveDrift: (token: string, findingId: string) =>
+    apiRequest<GovernanceDriftResolveResult>(`/governance/drift/${encodeURIComponent(findingId)}/resolve`, {
+      method: "POST",
+      token,
+      body: {},
+    }),
+  governanceApproveException: (token: string, exceptionId: string, body: { approver: string; approval_id?: string; approval_type?: string }) =>
+    apiRequest<Record<string, unknown>>(`/governance/policy-exceptions/${encodeURIComponent(exceptionId)}/approve`, {
+      method: "POST",
+      token,
+      body,
+    }),
+  governanceDenyException: (token: string, exceptionId: string, body: { approver: string; approval_id?: string; approval_type?: string }) =>
+    apiRequest<Record<string, unknown>>(`/governance/policy-exceptions/${encodeURIComponent(exceptionId)}/deny`, {
+      method: "POST",
+      token,
+      body,
+    }),
+  governanceRevokeException: (token: string, exceptionId: string) =>
+    apiRequest<Record<string, unknown>>(`/governance/policy-exceptions/${encodeURIComponent(exceptionId)}/revoke`, {
+      method: "POST",
+      token,
+      body: {},
+    }),
 
   recentActivity: (
     token: string,
