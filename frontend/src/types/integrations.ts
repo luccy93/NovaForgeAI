@@ -86,16 +86,14 @@ export interface ConnectorDefinition {
   auth_kind: string;
 }
 
-export interface ConnectorSync {
-  id: string;
-  tenant: string;
-  connection_id: string;
+/** One sync run record (backend list shape: sync_key/status/pages/records/error). */
+export interface ConnectorSyncRecord {
   sync_key: string;
   status: string;
-  pages?: number;
-  items_synced?: number;
-  error?: string;
-  created_at?: string;
+  pages: number;
+  records: number;
+  error: string;
+  deduplicated?: boolean;
 }
 
 export interface OAuthConnection {
@@ -151,7 +149,8 @@ export interface InboundEvent {
   delivery_id: string;
   event_type: string;
   status: string;
-  received_at?: string;
+  approval_id: string;
+  deduplicated?: boolean;
 }
 
 export interface IntegrationPolicy {
@@ -173,9 +172,14 @@ export interface IntegrationPolicy {
 
 export interface TransferEvaluation {
   decision: string;
-  action?: string;
-  reasons?: string[];
-  matched_policies?: Array<{ id: string; name: string; action: string }>;
+  reasons: string[];
+  allowed: boolean;
+  evaluation: {
+    classification: string;
+    region: string;
+    fields: string[];
+    estimated_cents: number;
+  };
 }
 
 export interface HealthSummary {

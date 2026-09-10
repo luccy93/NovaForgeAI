@@ -1,4 +1,4 @@
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, waitFor, cleanup, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { IntegrationsWorkspace } from "@/components/integrations/IntegrationsWorkspace";
 import * as apiModule from "@/lib/api";
@@ -62,6 +62,44 @@ const connectionsResponse = {
 
 const oauthResponse = { items: [], total: 0 };
 
+const webhooksResponse = {
+  items: [
+    {
+      id: "wh-1",
+      tenant: "t1",
+      name: "deploy-events",
+      integration_id: "int-1",
+      url: "https://hooks.example.com/deploy",
+      events: ["deploy.finished"],
+      credential_id: null,
+      status: "ACTIVE",
+    },
+  ],
+  total: 1,
+};
+
+const policiesResponse = {
+  items: [
+    {
+      id: "pol-1",
+      tenant: "t1",
+      name: "eu-pii-guard",
+      workspace: "",
+      project: "",
+      provider: "github",
+      operation: "sync",
+      action: "block",
+      allowed_classifications: ["internal"],
+      allowed_regions: ["eu-west"],
+      allowed_fields: ["id", "name"],
+      max_estimated_cents: 1000,
+      enabled: true,
+      owner: "",
+    },
+  ],
+  total: 1,
+};
+
 function installApiMock(overrides: Record<string, unknown> = {}, permissions: string[] = []): void {
   const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
   const defaults: Record<string, ReturnType<typeof vi.fn>> = {
@@ -71,6 +109,11 @@ function installApiMock(overrides: Record<string, unknown> = {}, permissions: st
     integrationConnections: vi.fn().mockResolvedValue(connectionsResponse),
     integrationOAuthList: vi.fn().mockResolvedValue(oauthResponse),
     integrationVersions: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+    integrationWebhooks: vi.fn().mockResolvedValue(webhooksResponse),
+    integrationPolicies: vi.fn().mockResolvedValue(policiesResponse),
+    integrationWebhookDeliveries: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+    integrationWebhookInboundList: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+    integrationConnectorSyncs: vi.fn().mockResolvedValue({ items: [], total: 0 }),
   };
   Object.assign(api, defaults, overrides);
 }
@@ -121,5 +164,24 @@ describe("IntegrationsWorkspace (C1)", () => {
     // No secret/token material anywhere in the workspace chrome
     expect(screen.queryByText(/access_token/i)).toBeNull();
     expect(screen.queryByText(/client_secret/i)).toBeNull();
+  });
+
+  it("renders webhooks and policies tabs backed by real list endpoints", async () => {
+    installApiMock({}, ["organization:read", "settings:admin"]);
+    const { getByRole } = render(<IntegrationsWorkspace />);
+    await waitFor(() => {
+      expect(screen.getByText("github-prod")).toBeTruthy();
+    });
+    fireEvent.click(getByRole("tab", { name: "Webhooks" }));
+    await waitFor(() => {
+      expect(screen.getByText("deploy-events")).toBeTruthy();
+    });
+    fireEvent.click(getByRole("tab", { name: "Policies" }));
+    await waitFor(() => {
+      expect(screen.getByText("eu-pii-guard")).toBeTruthy();
+    });
+    const api = apiModule.api;
+    expect(api.integrationWebhooks).toHaveBeenCalled();
+    expect(api.integrationPolicies).toHaveBeenCalled();
   });
 });

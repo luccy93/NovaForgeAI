@@ -19,13 +19,20 @@ import { PERMISSIONS } from "@/types/auth";
 import { useToastStore } from "@/stores/toast";
 import type {
   ConnectorDefinition,
+  ConnectorSyncRecord,
+  HealthSummary,
+  InboundEvent,
   Integration,
   IntegrationConnection,
   IntegrationCredentialMeta,
+  IntegrationPolicy,
   IntegrationVersion,
+  IntegrationWebhook,
   OAuthConnection,
+  TransferEvaluation,
+  WebhookDelivery,
 } from "@/types/integrations";
-import { CAPABILITIES_BY_TYPE, INTEGRATION_STATUSES, INTEGRATION_TYPES } from "@/types/integrations";
+import { CAPABILITIES_BY_TYPE, INTEGRATION_STATUSES, INTEGRATION_TYPES, POLICY_ACTIONS } from "@/types/integrations";
 
 function sessionExpired() {
   clearToken();
@@ -127,7 +134,7 @@ function parseJsonObject(raw: string, field: string): Record<string, unknown> {
   }
 }
 
-type TabId = "registry" | "connectors" | "connections" | "oauth" | "health";
+type TabId = "registry" | "connectors" | "connections" | "oauth" | "webhooks" | "policies" | "health" | "advanced";
 
 type PendingModal =
   | { kind: "integration-create" }
@@ -140,6 +147,16 @@ type PendingModal =
   | { kind: "credential-create"; connection: IntegrationConnection }
   | { kind: "credential-rotate"; credential: IntegrationCredentialMeta }
   | { kind: "oauth-start" }
+  | { kind: "oauth-callback" }
+  | { kind: "oauth-refresh"; oauth: OAuthConnection }
+  | { kind: "oauth-revoke"; oauth: OAuthConnection }
+  | { kind: "webhook-create" }
+  | { kind: "webhook-status"; webhook: IntegrationWebhook }
+  | { kind: "webhook-deliver"; webhook: IntegrationWebhook }
+  | { kind: "webhook-inbound"; webhook: IntegrationWebhook }
+  | { kind: "subscription-create" }
+  | { kind: "policy-create" }
+  | { kind: "policy-update"; policy: IntegrationPolicy }
   | null;
 
 function connectionItems(value: unknown): IntegrationConnection[] {
@@ -186,6 +203,64 @@ export function IntegrationsWorkspace() {
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [oauthStatusFilter, setOauthStatusFilter] = useState("ALL");
   const [oauthStartResult, setOauthStartResult] = useState<{ authorize_url: string; id: string } | null>(null);
+  const [selectedOAuthId, setSelectedOAuthId] = useState<string | null>(null);
+
+  const [webhooks, setWebhooks] = useState<IntegrationWebhook[] | null>(null);
+  const [webhooksError, setWebhooksError] = useState<string | null>(null);
+  const [webhookStatusFilter, setWebhookStatusFilter] = useState("ALL");
+  const [selectedWebhookId, setSelectedWebhookId] = useState<string | null>(null);
+  const [deliveries, setDeliveries] = useState<WebhookDelivery[] | null>(null);
+  const [deliveriesError, setDeliveriesError] = useState<string | null>(null);
+  const [deliveriesLoading, setDeliveriesLoading] = useState(false);
+  const [inboundEvents, setInboundEvents] = useState<InboundEvent[] | null>(null);
+  const [inboundError, setInboundError] = useState<string | null>(null);
+  const [inboundLoading, setInboundLoading] = useState(false);
+  const [lastSubscription, setLastSubscription] = useState<{ id: string; status: string; target_url: string } | null>(null);
+
+  const [policies, setPolicies] = useState<IntegrationPolicy[] | null>(null);
+  const [policiesError, setPoliciesError] = useState<string | null>(null);
+  const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
+  const [evalResult, setEvalResult] = useState<TransferEvaluation | null>(null);
+  const [evalError, setEvalError] = useState<string | null>(null);
+  const [evaluating, setEvaluating] = useState(false);
+  const [evalDraft, setEvalDraft] = useState({
+    workspace: "",
+    project: "",
+    provider: "",
+    operation: "",
+    classification: "",
+    region: "",
+    fields: "",
+    estimated_cents: "",
+  });
+
+  const [syncs, setSyncs] = useState<ConnectorSyncRecord[] | null>(null);
+  const [syncsError, setSyncsError] = useState<string | null>(null);
+  const [syncsLoading, setSyncsLoading] = useState(false);
+  const [syncResult, setSyncResult] = useState<Record<string, unknown> | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncDraft, setSyncDraft] = useState({ sync_key: "", paths: "" });
+
+  const [healthSummary, setHealthSummary] = useState<HealthSummary | null>(null);
+  const [healthSummaryError, setHealthSummaryError] = useState<string | null>(null);
+  const [healthSummaryLoading, setHealthSummaryLoading] = useState(false);
+  const [summaryDays, setSummaryDays] = useState("7");
+
+  const [bridgeResult, setBridgeResult] = useState<Record<string, unknown> | null>(null);
+  const [bridgeError, setBridgeError] = useState<string | null>(null);
+  const [bridgeRunning, setBridgeRunning] = useState(false);
+  const [bridgeDraft, setBridgeDraft] = useState({
+    operation: "",
+    requests: "1",
+    bytes_out: "0",
+    estimated_cents: "0",
+    provider: "",
+    source_type: "external",
+    name: "",
+    target_url: "",
+    method: "GET",
+    model: "",
+  });
 
   const [healthResult, setHealthResult] = useState<Record<string, unknown> | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
@@ -229,6 +304,31 @@ export function IntegrationsWorkspace() {
     contract: "",
     compatibility: "compatible",
     migration_notes: "",
+    webhook_name: "",
+    webhook_url: "",
+    webhook_events: "",
+    signing_secret: "",
+    state: "",
+    code: "",
+    token_endpoint: "",
+    event_type: "",
+    payload: "",
+    delivery_id: "",
+    headers: "",
+    target_url: "",
+    event_filter: "",
+    policy_name: "",
+    policy_workspace: "",
+    policy_project: "",
+    policy_provider: "",
+    policy_operation: "",
+    policy_action: "alert",
+    allowed_classifications: "",
+    allowed_regions: "",
+    allowed_fields: "",
+    max_estimated_cents: "",
+    policy_owner: "",
+    policy_enabled: "true",
   });
 
   const abortRef = useRef<AbortController | null>(null);
@@ -270,6 +370,8 @@ export function IntegrationsWorkspace() {
     setCatalogError(null);
     setConnectionsError(null);
     setOauthError(null);
+    setWebhooksError(null);
+    setPoliciesError(null);
 
     async function settle<T>(load: () => Promise<T>, set: (value: T | null) => void, onError: (message: string) => void) {
       try {
@@ -312,13 +414,23 @@ export function IntegrationsWorkspace() {
         (value) => setOauthList(oauthItems(value)),
         setOauthError,
       ),
+      settle(
+        () => api.integrationWebhooks(token, { status: webhookStatusFilter !== "ALL" ? webhookStatusFilter : undefined }),
+        (value) => setWebhooks(value?.items ?? []),
+        setWebhooksError,
+      ),
+      settle(
+        () => api.integrationPolicies(token),
+        (value) => setPolicies(value?.items ?? []),
+        setPoliciesError,
+      ),
     ]);
 
     if (!controller.signal.aborted && seq === seqRef.current) {
       setUpdatedAt(new Date().toLocaleTimeString());
       setLoading(false);
     }
-  }, [statusFilter, providerFilter, oauthStatusFilter]);
+  }, [statusFilter, providerFilter, oauthStatusFilter, webhookStatusFilter]);
 
   const loadVersions = useCallback(
     async (integrationId: string) => {
@@ -377,6 +489,18 @@ export function IntegrationsWorkspace() {
       setCatalog(null);
       setConnections(null);
       setOauthList(null);
+      setWebhooks(null);
+      setPolicies(null);
+      setDeliveries(null);
+      setInboundEvents(null);
+      setSyncs(null);
+      setHealthSummary(null);
+      setEvalResult(null);
+      setBridgeResult(null);
+      setLastSubscription(null);
+      setSelectedWebhookId(null);
+      setSelectedPolicyId(null);
+      setSelectedOAuthId(null);
       setHealthResult(null);
       setConnectorHealthResult(null);
       setExecuteResult(null);
@@ -388,6 +512,8 @@ export function IntegrationsWorkspace() {
       setCatalogError(null);
       setConnectionsError(null);
       setOauthError(null);
+      setWebhooksError(null);
+      setPoliciesError(null);
       setLoading(true);
       void loadAll();
     };
@@ -443,6 +569,31 @@ export function IntegrationsWorkspace() {
       contract: "",
       compatibility: "compatible",
       migration_notes: "",
+      webhook_name: "",
+      webhook_url: "",
+      webhook_events: "",
+      signing_secret: "",
+      state: "",
+      code: "",
+      token_endpoint: "",
+      event_type: "",
+      payload: "",
+      delivery_id: "",
+      headers: "",
+      target_url: "",
+      event_filter: "",
+      policy_name: "",
+      policy_workspace: "",
+      policy_project: "",
+      policy_provider: "",
+      policy_operation: "",
+      policy_action: "alert",
+      allowed_classifications: "",
+      allowed_regions: "",
+      allowed_fields: "",
+      max_estimated_cents: "",
+      policy_owner: "",
+      policy_enabled: "true",
     });
     setModal(next);
   }
@@ -837,12 +988,556 @@ export function IntegrationsWorkspace() {
     }
   }
 
+  const loadDeliveries = useCallback(async (webhookId: string) => {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setDeliveriesLoading(true);
+    setDeliveriesError(null);
+    try {
+      const res = await api.integrationWebhookDeliveries(token, webhookId);
+      setDeliveries(res.items ?? []);
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      setDeliveriesError(e instanceof Error ? e.message : "Deliveries unavailable");
+    } finally {
+      setDeliveriesLoading(false);
+    }
+  }, []);
+
+  const loadInbound = useCallback(async (webhookId: string) => {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setInboundLoading(true);
+    setInboundError(null);
+    try {
+      const res = await api.integrationWebhookInboundList(token, webhookId);
+      setInboundEvents(res.items ?? []);
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      setInboundError(e instanceof Error ? e.message : "Inbound events unavailable");
+    } finally {
+      setInboundLoading(false);
+    }
+  }, []);
+
+  const loadSyncs = useCallback(async (connectionId: string) => {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSyncsLoading(true);
+    setSyncsError(null);
+    try {
+      const res = await api.integrationConnectorSyncs(token, connectionId);
+      setSyncs(res.items ?? []);
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      setSyncsError(e instanceof Error ? e.message : "Sync history unavailable");
+    } finally {
+      setSyncsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedWebhookId) {
+      void loadDeliveries(selectedWebhookId);
+      void loadInbound(selectedWebhookId);
+    } else {
+      setDeliveries(null);
+      setInboundEvents(null);
+    }
+  }, [selectedWebhookId, loadDeliveries, loadInbound]);
+
+  useEffect(() => {
+    if (selectedConnectionId && active === "connections") {
+      void loadSyncs(selectedConnectionId);
+    }
+  }, [selectedConnectionId, active, loadSyncs]);
+
+  async function handleOAuthCallback() {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    if (!draft.state.trim() || !draft.code.trim() || !draft.token_endpoint.trim()) {
+      pushToast("warning", "State, code and token endpoint are required");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.integrationOAuthCallback(token, {
+        state: draft.state.trim(),
+        code: draft.code.trim(),
+        token_endpoint: draft.token_endpoint.trim(),
+      });
+      setModal(null);
+      pushToast("success", "OAuth callback exchanged — tokens stored server-side, never displayed");
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "OAuth callback failed", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleOAuthRefresh() {
+    if (!modal || modal.kind !== "oauth-refresh") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    if (!draft.token_endpoint.trim()) {
+      pushToast("warning", "Token endpoint is required");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.integrationOAuthRefresh(token, modal.oauth.id, draft.token_endpoint.trim());
+      setModal(null);
+      pushToast("success", "OAuth token refreshed");
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "OAuth refresh failed", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleOAuthRevoke() {
+    if (!modal || modal.kind !== "oauth-revoke") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.integrationOAuthRevoke(token, modal.oauth.id);
+      setModal(null);
+      pushToast("success", "OAuth connection revoked");
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "OAuth revocation failed", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleWebhookCreate() {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    if (!draft.webhook_name.trim() || !draft.webhook_url.trim()) {
+      pushToast("warning", "Name and URL are required");
+      return;
+    }
+    const scheme = draft.webhook_url.trim().split(":")[0]?.toLowerCase();
+    if (scheme !== "http" && scheme !== "https") {
+      pushToast("warning", "Webhook URL must use http or https");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.integrationWebhookCreate(token, {
+        name: draft.webhook_name.trim(),
+        url: draft.webhook_url.trim(),
+        integration_id: selectedIntegrationId ?? undefined,
+        events: draft.webhook_events.split(",").map((s) => s.trim()).filter(Boolean),
+        signing_secret: draft.signing_secret,
+      });
+      setModal(null);
+      pushToast("success", "Webhook registered — signing secret stored encrypted, never shown");
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Failed to register webhook", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleWebhookStatus() {
+    if (!modal || modal.kind !== "webhook-status") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.integrationWebhookSetStatus(token, modal.webhook.id, draft.status);
+      setModal(null);
+      pushToast("success", `Webhook status set to ${draft.status}`);
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Failed to update webhook status", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleWebhookDeliver() {
+    if (!modal || modal.kind !== "webhook-deliver") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    if (!draft.event_type.trim()) {
+      pushToast("warning", "Event type is required");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const payload = parseJsonObject(draft.payload, "Payload");
+      await api.integrationWebhookDeliver(token, modal.webhook.id, {
+        event_type: draft.event_type.trim(),
+        payload,
+        delivery_id: draft.delivery_id.trim() || undefined,
+      });
+      setModal(null);
+      pushToast("success", "Delivery enqueued — retries are bounded with dead-letter on exhaustion");
+      void loadDeliveries(modal.webhook.id);
+    } catch (e) {
+      notifyError(e, "Failed to enqueue delivery", () => selectedWebhookId && void loadDeliveries(selectedWebhookId));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleWebhookInboundTest() {
+    if (!modal || modal.kind !== "webhook-inbound") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const body = parseJsonObject(draft.payload, "Body");
+      const headers = parseJsonObject(draft.headers, "Headers") as Record<string, string>;
+      const result = await api.integrationWebhookInboundReceive(token, modal.webhook.id, {
+        headers,
+        body,
+        event_type: draft.event_type.trim(),
+        delivery_id: draft.delivery_id.trim(),
+      });
+      setModal(null);
+      pushToast(
+        "success",
+        (result as { deduplicated?: boolean }).deduplicated
+          ? "Inbound deduplicated — delivery already recorded"
+          : `Inbound recorded with status ${(result as { status?: string }).status ?? "RECEIVED"}`,
+      );
+      void loadInbound(modal.webhook.id);
+    } catch (e) {
+      notifyError(e, "Inbound test failed", () => selectedWebhookId && void loadInbound(selectedWebhookId));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSubscriptionCreate() {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    if (!selectedConnectionId || !draft.target_url.trim()) {
+      pushToast("warning", "Select a connection and provide a target URL");
+      return;
+    }
+    const scheme = draft.target_url.trim().split(":")[0]?.toLowerCase();
+    if (scheme !== "http" && scheme !== "https") {
+      pushToast("warning", "Target URL must use http or https");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const eventFilter = parseJsonObject(draft.event_filter, "Event filter");
+      const result = await api.integrationSubscriptionCreate(token, {
+        connection_id: selectedConnectionId,
+        event_filter: eventFilter,
+        target_url: draft.target_url.trim(),
+      });
+      setLastSubscription({ id: result.id, status: result.status, target_url: result.target_url });
+      setModal(null);
+      pushToast("success", "Subscription created");
+    } catch (e) {
+      notifyError(e, "Failed to create subscription");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSyncRun() {
+    if (!selectedConnectionId) {
+      pushToast("warning", "Select a connection first");
+      return;
+    }
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSyncing(true);
+    try {
+      const paths = syncDraft.paths.split(",").map((s) => s.trim()).filter(Boolean);
+      const result = await api.integrationConnectorSync(token, selectedConnectionId, {
+        sync_key: syncDraft.sync_key.trim() || undefined,
+        paths: paths.length > 0 ? paths : undefined,
+      });
+      setSyncResult(result);
+      pushToast(
+        "success",
+        (result as { deduplicated?: boolean }).deduplicated
+          ? "Sync deduplicated — this sync key already ran"
+          : `Sync ${String((result as { status?: unknown }).status ?? "finished")}: ${String((result as { records?: unknown }).records ?? 0)} records`,
+      );
+      void loadSyncs(selectedConnectionId);
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      if (e instanceof ApiError && e.kind === "forbidden") {
+        pushToast("warning", "You don't have permission to perform this action");
+        return;
+      }
+      pushToast("error", e instanceof Error ? e.message : "Sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handlePolicyCreate() {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    if (!draft.policy_name.trim()) {
+      pushToast("warning", "Policy name is required");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const maxCents = draft.max_estimated_cents.trim() ? Number(draft.max_estimated_cents.trim()) : undefined;
+      await api.integrationPolicyCreate(token, {
+        name: draft.policy_name.trim(),
+        workspace: draft.policy_workspace.trim(),
+        project: draft.policy_project.trim(),
+        provider: draft.policy_provider.trim(),
+        operation: draft.policy_operation.trim(),
+        action: draft.policy_action,
+        allowed_classifications: draft.allowed_classifications.split(",").map((s) => s.trim()).filter(Boolean),
+        allowed_regions: draft.allowed_regions.split(",").map((s) => s.trim()).filter(Boolean),
+        allowed_fields: draft.allowed_fields.split(",").map((s) => s.trim()).filter(Boolean),
+        max_estimated_cents: maxCents,
+        owner: draft.policy_owner.trim(),
+      });
+      setModal(null);
+      pushToast("success", "Policy created");
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Failed to create policy", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handlePolicyUpdate() {
+    if (!modal || modal.kind !== "policy-update") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const body: Record<string, unknown> = {
+        action: draft.policy_action,
+        enabled: draft.policy_enabled === "true",
+      };
+      if (draft.policy_workspace.trim()) body.workspace = draft.policy_workspace.trim();
+      if (draft.policy_project.trim()) body.project = draft.policy_project.trim();
+      if (draft.policy_provider.trim()) body.provider = draft.policy_provider.trim();
+      if (draft.policy_operation.trim()) body.operation = draft.policy_operation.trim();
+      if (draft.policy_owner.trim()) body.owner = draft.policy_owner.trim();
+      if (draft.allowed_classifications.trim()) body.allowed_classifications = draft.allowed_classifications.split(",").map((s) => s.trim()).filter(Boolean);
+      if (draft.allowed_regions.trim()) body.allowed_regions = draft.allowed_regions.split(",").map((s) => s.trim()).filter(Boolean);
+      if (draft.allowed_fields.trim()) body.allowed_fields = draft.allowed_fields.split(",").map((s) => s.trim()).filter(Boolean);
+      if (draft.max_estimated_cents.trim()) body.max_estimated_cents = Number(draft.max_estimated_cents.trim());
+      await api.integrationPolicyUpdate(token, modal.policy.id, body);
+      setModal(null);
+      pushToast("success", "Policy updated");
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Failed to update policy", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleEvaluate() {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setEvaluating(true);
+    setEvalError(null);
+    try {
+      const result = await api.integrationPolicyEvaluate(token, {
+        workspace: evalDraft.workspace.trim(),
+        project: evalDraft.project.trim(),
+        provider: evalDraft.provider.trim(),
+        operation: evalDraft.operation.trim(),
+        classification: evalDraft.classification.trim(),
+        region: evalDraft.region.trim(),
+        fields: evalDraft.fields.split(",").map((s) => s.trim()).filter(Boolean),
+        estimated_cents: evalDraft.estimated_cents.trim() ? Number(evalDraft.estimated_cents.trim()) : 0,
+      });
+      setEvalResult(result);
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      setEvalError(e instanceof Error ? e.message : "Evaluation failed");
+    } finally {
+      setEvaluating(false);
+    }
+  }
+
+  async function loadHealthSummary() {
+    if (!selectedIntegrationId) {
+      pushToast("warning", "Select an integration in the Registry tab first");
+      return;
+    }
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    const days = Math.min(Math.max(Number(summaryDays) || 7, 1), 90);
+    setHealthSummaryLoading(true);
+    setHealthSummaryError(null);
+    try {
+      const result = await api.integrationHealthSummary(token, selectedIntegrationId, days);
+      setHealthSummary(result);
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      setHealthSummaryError(e instanceof Error ? e.message : "Health summary unavailable");
+    } finally {
+      setHealthSummaryLoading(false);
+    }
+  }
+
+  async function runBridge(kind: "finops" | "knowledge" | "workflow" | "ai") {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setBridgeRunning(true);
+    setBridgeError(null);
+    try {
+      let result: Record<string, unknown>;
+      if (kind === "finops") {
+        if (!selectedConnectionId) {
+          pushToast("warning", "Select a connection in the Connections tab first");
+          setBridgeRunning(false);
+          return;
+        }
+        result = await api.integrationFinopsUsage(token, selectedConnectionId, {
+          operation: bridgeDraft.operation.trim(),
+          requests: Number(bridgeDraft.requests) || 1,
+          bytes_out: Number(bridgeDraft.bytes_out) || 0,
+          estimated_cents: Number(bridgeDraft.estimated_cents) || 0,
+          provider: bridgeDraft.provider.trim(),
+        });
+      } else if (kind === "knowledge") {
+        if (!selectedIntegrationId) {
+          pushToast("warning", "Select an integration in the Registry tab first");
+          setBridgeRunning(false);
+          return;
+        }
+        result = await api.integrationKnowledgeSource(token, selectedIntegrationId, {
+          source_type: bridgeDraft.source_type,
+          name: bridgeDraft.name.trim(),
+        });
+      } else if (kind === "workflow") {
+        if (!selectedConnectionId) {
+          pushToast("warning", "Select a connection in the Connections tab first");
+          setBridgeRunning(false);
+          return;
+        }
+        result = await api.integrationWorkflowInvoke(token, selectedConnectionId, {
+          operation: bridgeDraft.operation.trim(),
+        });
+      } else {
+        if (!bridgeDraft.target_url.trim()) {
+          pushToast("warning", "Target URL is required for AI actions");
+          setBridgeRunning(false);
+          return;
+        }
+        result = await api.integrationAiRequestAction(token, {
+          operation: bridgeDraft.operation.trim(),
+          target_url: bridgeDraft.target_url.trim(),
+          method: bridgeDraft.method,
+          model: bridgeDraft.model.trim(),
+          provider: bridgeDraft.provider.trim(),
+        });
+      }
+      setBridgeResult(result);
+      pushToast("success", "Bridge operation completed");
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      if (e instanceof ApiError && e.kind === "forbidden") {
+        pushToast("warning", "You don't have permission to perform this action");
+        return;
+      }
+      setBridgeError(e instanceof Error ? e.message : "Bridge operation failed");
+    } finally {
+      setBridgeRunning(false);
+    }
+  }
+
   const tabs: Array<{ id: TabId; label: string }> = [
     { id: "registry", label: "Registry" },
     { id: "connectors", label: "Connectors" },
     { id: "connections", label: "Connections" },
     { id: "oauth", label: "OAuth" },
+    { id: "webhooks", label: "Webhooks" },
+    { id: "policies", label: "Policies" },
     { id: "health", label: "Health" },
+    { id: "advanced", label: "Advanced" },
   ];
 
   return (
@@ -1126,6 +1821,62 @@ export function IntegrationsWorkspace() {
                 <PrimitiveRows data={executeResult} />
               </div>
             ) : null}
+            <div className="mt-4 border-t border-outline pt-3">
+              <p className="mb-2 font-mono text-xs uppercase tracking-widest text-on-surface-variant">Connector sync (bounded, idempotent by key)</p>
+              <div className="space-y-2">
+                <BrutalInput label="Sync key (optional)" value={syncDraft.sync_key} onChange={(e) => setSyncDraft((d) => ({ ...d, sync_key: e.target.value }))} placeholder="auto-generated per hour if empty" />
+                <BrutalInput label="Paths (comma-separated, optional)" value={syncDraft.paths} onChange={(e) => setSyncDraft((d) => ({ ...d, paths: e.target.value }))} placeholder="defaults to connector sync_paths" />
+                {canAdmin ? (
+                  <BrutalButton variant="ghost" size="sm" onClick={() => void handleSyncRun()} disabled={syncing || !selectedConnectionId}>
+                    {syncing ? "Syncing…" : "Run sync"}
+                  </BrutalButton>
+                ) : (
+                  <p className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">Sync requires admin</p>
+                )}
+              </div>
+              {syncResult ? (
+                <div className="mt-2 border-t border-outline pt-2">
+                  <PrimitiveRows data={syncResult} />
+                </div>
+              ) : null}
+              <div className="mt-2">
+                <div className="mb-1 flex items-center justify-between">
+                  <p className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">Sync history</p>
+                  <BrutalButton variant="ghost" size="sm" onClick={() => selectedConnectionId && void loadSyncs(selectedConnectionId)} disabled={!selectedConnectionId}>Reload</BrutalButton>
+                </div>
+                {syncsLoading ? (
+                  <LoadingPanel rows={2} />
+                ) : syncsError ? (
+                  <p className="text-xs text-error">{syncsError}</p>
+                ) : syncs && syncs.length > 0 ? (
+                  <ul className="space-y-1">
+                    {syncs.slice(0, 5).map((s) => (
+                      <li key={s.sync_key} className="flex items-center justify-between gap-2 border border-outline-variant bg-surface px-2 py-1">
+                        <span className="truncate font-mono text-xs text-on-surface">{s.sync_key.slice(0, 16)}… · {s.records} records · {s.pages} pages</span>
+                        <BrutalBadge tone={s.status === "COMPLETED" ? "yellow" : s.status === "FAILED" ? "error" : "default"}>{s.status}</BrutalBadge>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="font-mono text-xs text-on-surface-variant">No syncs recorded.</p>
+                )}
+              </div>
+            </div>
+            <div className="mt-4 border-t border-outline pt-3">
+              <p className="mb-2 font-mono text-xs uppercase tracking-widest text-on-surface-variant">Event subscription</p>
+              <p className="mb-2 text-xs text-on-surface-variant">Delivers connection events to an allowlisted https target. There is no browser realtime feed — realtime stays UNAVAILABLE.</p>
+              {canAdmin ? (
+                <BrutalButton variant="ghost" size="sm" onClick={() => openModal({ kind: "subscription-create" })} disabled={!selectedConnectionId}>Subscribe</BrutalButton>
+              ) : (
+                <p className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">Subscriptions require admin</p>
+              )}
+              {lastSubscription ? (
+                <div className="mt-2">
+                  <StatRow label="Subscription" value={lastSubscription.id} />
+                  <StatRow label="Target" value={lastSubscription.target_url} />
+                </div>
+              ) : null}
+            </div>
           </BrutalCard>
         </div>
       ) : null}
@@ -1140,7 +1891,10 @@ export function IntegrationsWorkspace() {
               <div className="flex items-end gap-2">
                 <BrutalButton variant="ghost" size="sm" onClick={() => void loadAll()}>Apply</BrutalButton>
                 {canAdmin ? (
-                  <BrutalButton variant="primary" size="sm" onClick={() => openModal({ kind: "oauth-start" })} disabled={!selectedIntegrationId}>Start flow</BrutalButton>
+                  <>
+                    <BrutalButton variant="primary" size="sm" onClick={() => openModal({ kind: "oauth-start" })} disabled={!selectedIntegrationId}>Start flow</BrutalButton>
+                    <BrutalButton variant="ghost" size="sm" onClick={() => openModal({ kind: "oauth-callback" })}>Finish callback</BrutalButton>
+                  </>
                 ) : null}
               </div>
             </div>
@@ -1151,14 +1905,26 @@ export function IntegrationsWorkspace() {
               {oauthList && oauthList.length > 0 ? (
                 <ul className="space-y-2">
                   {oauthList.map((row) => (
-                    <li key={row.id} className="border border-outline-variant bg-surface px-3 py-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-bold text-on-surface">{row.provider || "oauth"}</span>
-                        <BrutalBadge tone={statusTone(row.status)}>{row.status}</BrutalBadge>
-                      </div>
-                      <StatRow label="Client" value={row.client_id || "—"} />
-                      <StatRow label="Token ref" value={row.token_ref || "—"} />
-                      <StatRow label="Expires" value={formatDateTime(row.expires_at)} />
+                    <li key={row.id}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOAuthId(row.id)}
+                        className={`block w-full border px-3 py-2 text-left ${row.id === selectedOAuthId ? "border-primary-container bg-surface" : "border-outline-variant bg-surface hover:border-outline"}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-bold text-on-surface">{row.provider || "oauth"}</span>
+                          <BrutalBadge tone={statusTone(row.status)}>{row.status}</BrutalBadge>
+                        </div>
+                        <StatRow label="Client" value={row.client_id || "—"} />
+                        <StatRow label="Token ref" value={row.token_ref || "—"} />
+                        <StatRow label="Expires" value={formatDateTime(row.expires_at)} />
+                      </button>
+                      {canAdmin && row.id === selectedOAuthId ? (
+                        <div className="flex flex-wrap gap-2 border border-t-0 border-outline-variant bg-surface px-3 py-2">
+                          <BrutalButton variant="ghost" size="sm" onClick={() => openModal({ kind: "oauth-refresh", oauth: row })}>Refresh</BrutalButton>
+                          <BrutalButton variant="ghost" size="sm" onClick={() => openModal({ kind: "oauth-revoke", oauth: row })}>Revoke</BrutalButton>
+                        </div>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -1167,7 +1933,7 @@ export function IntegrationsWorkspace() {
           </BrutalCard>
 
           <BrutalCard eyebrow="Flow" title="Authorization handoff">
-            <p className="mb-3 text-xs text-on-surface-variant">Start returns an authorize URL. Complete it in the provider, then finish with the callback step (full callback UI ships in the operations commit). No token is ever rendered here — only references and expiry metadata.</p>
+            <p className="mb-3 text-xs text-on-surface-variant">Start returns an authorize URL. Complete it in the provider, then paste the returned state + code with Finish callback. Refresh renews tokens; revoke disables the connection. No token is ever rendered here — only references and expiry metadata.</p>
             {oauthStartResult ? (
               <div className="space-y-2 border border-outline bg-surface px-3 py-2">
                 <StatRow label="OAuth ID" value={oauthStartResult.id} />
@@ -1208,6 +1974,283 @@ export function IntegrationsWorkspace() {
                 <PrimitiveRows data={connectorHealthResult} />
               </div>
             ) : null}
+          </BrutalCard>
+        </div>
+      ) : null}
+
+      {active === "health" && selectedIntegrationId ? (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <BrutalCard eyebrow="Summary" title="Health summary">
+            <p className="mb-3 text-xs text-on-surface-variant">Aggregates health checks and execution outcomes for the selected integration. Window is bounded to 1–90 days.</p>
+            <div className="mb-3 flex flex-wrap items-end gap-2">
+              <div className="w-32">
+                <BrutalInput label="Days" value={summaryDays} onChange={(e) => setSummaryDays(e.target.value)} placeholder="7" />
+              </div>
+              <BrutalButton variant="ghost" size="sm" onClick={() => void loadHealthSummary()} disabled={healthSummaryLoading}>
+                {healthSummaryLoading ? "Loading…" : "Load summary"}
+              </BrutalButton>
+            </div>
+            {healthSummaryLoading ? (
+              <LoadingPanel />
+            ) : healthSummaryError ? (
+              <BrutalErrorState title="Unavailable" description={healthSummaryError} onRetry={() => void loadHealthSummary()} />
+            ) : healthSummary ? (
+              <div className="space-y-3">
+                <StatRow label="Current health" value={healthSummary.current_health} />
+                <StatRow label="Current status" value={healthSummary.current_status} />
+                <StatRow label="Window" value={`${healthSummary.window_days} days`} />
+                <StatRow label="Checks" value={String(healthSummary.checks)} />
+                <StatRow label="Last check" value={formatDateTime(healthSummary.last_check)} />
+                <StatRow label="Avg latency" value={healthSummary.avg_latency_ms !== null ? `${healthSummary.avg_latency_ms} ms` : "—"} />
+                <StatRow label="Executions" value={String(healthSummary.executions)} />
+                <StatRow label="Error rate" value={String(healthSummary.error_rate)} />
+                <StatRow label="Auth failures" value={String(healthSummary.authentication_failures)} />
+                <StatRow label="Rate-limit hits" value={String(healthSummary.rate_limit_hits)} />
+              </div>
+            ) : (
+              <BrutalEmptyState title="No summary loaded" description="Load a summary for the selected integration." />
+            )}
+          </BrutalCard>
+        </div>
+      ) : null}
+
+      {active === "webhooks" ? (
+        <div className="grid gap-6 lg:grid-cols-3">
+          <BrutalCard eyebrow="Outbound" title="Webhooks">
+            <div className="mb-3 flex flex-wrap gap-2">
+              <div className="min-w-32 flex-1">
+                <BrutalSelect label="Status" value={webhookStatusFilter} onChange={(e) => setWebhookStatusFilter(e.target.value)} options={[{ value: "ALL", label: "All statuses" }, ...INTEGRATION_STATUSES.map((s) => ({ value: s, label: s }))]} />
+              </div>
+              <div className="flex items-end gap-2">
+                <BrutalButton variant="ghost" size="sm" onClick={() => void loadAll()}>Apply</BrutalButton>
+                {canAdmin ? (
+                  <BrutalButton variant="primary" size="sm" onClick={() => openModal({ kind: "webhook-create" })}>Register</BrutalButton>
+                ) : null}
+              </div>
+            </div>
+            <PanelBody loading={loading} error={webhooksError} onRetry={() => void loadAll()} emptyTitle="No webhooks" emptyDescription="Register an outbound webhook with an http(s) URL. Secrets live encrypted server-side.">
+              {webhooks && webhooks.length > 0 ? (
+                <ul className="space-y-2">
+                  {webhooks.map((wh) => (
+                    <li key={wh.id}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedWebhookId(wh.id)}
+                        className={`flex w-full items-center justify-between gap-2 border px-3 py-2 text-left ${wh.id === selectedWebhookId ? "border-primary-container bg-surface" : "border-outline-variant bg-surface hover:border-outline"}`}
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-bold text-on-surface">{wh.name}</span>
+                          <span className="block truncate font-mono text-xs text-on-surface-variant">{wh.url} · {(wh.events ?? []).join(", ") || "all events"}</span>
+                        </span>
+                        <BrutalBadge tone={statusTone(wh.status)}>{wh.status}</BrutalBadge>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </PanelBody>
+            {canAdmin && selectedWebhookId ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <BrutalButton variant="ghost" size="sm" onClick={() => { const wh = webhooks?.find((w) => w.id === selectedWebhookId); if (wh) { setDraft((d) => ({ ...d, status: wh.status })); setModal({ kind: "webhook-status", webhook: wh }); } }}>Set status</BrutalButton>
+                <BrutalButton variant="ghost" size="sm" onClick={() => { const wh = webhooks?.find((w) => w.id === selectedWebhookId); if (wh) setModal({ kind: "webhook-deliver", webhook: wh }); }}>Send test delivery</BrutalButton>
+                <BrutalButton variant="ghost" size="sm" onClick={() => { const wh = webhooks?.find((w) => w.id === selectedWebhookId); if (wh) setModal({ kind: "webhook-inbound", webhook: wh }); }}>Simulate inbound</BrutalButton>
+              </div>
+            ) : null}
+          </BrutalCard>
+
+          <BrutalCard eyebrow="Deliveries" title="Delivery history">
+            <PanelBody loading={deliveriesLoading} error={deliveriesError} onRetry={() => selectedWebhookId && void loadDeliveries(selectedWebhookId)} emptyTitle="No deliveries" emptyDescription="Outbound deliveries with bounded retries and dead-letter state appear here.">
+              {deliveries && deliveries.length > 0 ? (
+                <ul className="space-y-2">
+                  {deliveries.map((d) => (
+                    <li key={d.id} className="border border-outline-variant bg-surface px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate font-mono text-xs text-on-surface">{d.event_type} · {d.attempts} attempts</span>
+                        <BrutalBadge tone={d.status === "DELIVERED" ? "yellow" : d.status === "DEAD_LETTER" ? "error" : "default"}>{d.status}</BrutalBadge>
+                      </div>
+                      <StatRow label="Delivery ID" value={d.delivery_id} />
+                      <StatRow label="Response" value={d.response_code !== null ? String(d.response_code) : "—"} />
+                      {d.error ? <StatRow label="Error" value={d.error} /> : null}
+                      <StatRow label="Next retry" value={formatDateTime(d.next_retry_at)} />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </PanelBody>
+          </BrutalCard>
+
+          <BrutalCard eyebrow="Inbound" title="Received events">
+            <PanelBody loading={inboundLoading} error={inboundError} onRetry={() => selectedWebhookId && void loadInbound(selectedWebhookId)} emptyTitle="No inbound events" emptyDescription="Verified inbound calls are deduplicated by delivery ID. Privileged operations become approval requests, never direct execution.">
+              {inboundEvents && inboundEvents.length > 0 ? (
+                <ul className="space-y-2">
+                  {inboundEvents.map((ev) => (
+                    <li key={ev.id} className="border border-outline-variant bg-surface px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate font-mono text-xs text-on-surface">{ev.event_type || "event"}</span>
+                        <BrutalBadge tone={ev.status === "PENDING_APPROVAL" ? "error" : "default"}>{ev.status}</BrutalBadge>
+                      </div>
+                      <StatRow label="Delivery ID" value={ev.delivery_id} />
+                      {ev.approval_id ? <StatRow label="Approval" value={ev.approval_id} /> : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </PanelBody>
+          </BrutalCard>
+        </div>
+      ) : null}
+
+      {active === "policies" ? (
+        <div className="grid gap-6 lg:grid-cols-3">
+          <BrutalCard eyebrow="Governance" title="Transfer policies">
+            <div className="mb-3 flex gap-2">
+              {canAdmin ? (
+                <BrutalButton variant="primary" size="sm" onClick={() => openModal({ kind: "policy-create" })}>New policy</BrutalButton>
+              ) : null}
+            </div>
+            <PanelBody loading={loading} error={policiesError} onRetry={() => void loadAll()} emptyTitle="No policies" emptyDescription="Policies govern outbound transfers. Matching BLOCK wins; secrets and tenant mismatch always block.">
+              {policies && policies.length > 0 ? (
+                <ul className="space-y-2">
+                  {policies.map((p) => (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPolicyId(p.id)}
+                        className={`flex w-full items-center justify-between gap-2 border px-3 py-2 text-left ${p.id === selectedPolicyId ? "border-primary-container bg-surface" : "border-outline-variant bg-surface hover:border-outline"}`}
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-bold text-on-surface">{p.name}</span>
+                          <span className="block truncate font-mono text-xs text-on-surface-variant">{p.provider || "*"} · {p.operation || "*"} · {p.action}</span>
+                        </span>
+                        <BrutalBadge tone={p.enabled ? (p.action === "block" ? "error" : "yellow") : "muted"}>{p.enabled ? p.action : "disabled"}</BrutalBadge>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </PanelBody>
+          </BrutalCard>
+
+          <BrutalCard eyebrow="Detail" title="Selected policy">
+            <PanelBody loading={loading} error={policiesError} onRetry={() => void loadAll()} emptyTitle="Nothing selected" emptyDescription="Select a policy to inspect its allowlists and limits.">
+              {(() => {
+                const policy = policies?.find((p) => p.id === selectedPolicyId) ?? null;
+                if (!policy) return null;
+                return (
+                  <div className="space-y-3">
+                    <StatRow label="Name" value={policy.name} />
+                    <StatRow label="Action" value={policy.action} />
+                    <StatRow label="Workspace" value={policy.workspace || "—"} />
+                    <StatRow label="Project" value={policy.project || "—"} />
+                    <StatRow label="Classifications" value={(policy.allowed_classifications ?? []).join(", ") || "—"} />
+                    <StatRow label="Regions" value={(policy.allowed_regions ?? []).join(", ") || "—"} />
+                    <StatRow label="Fields" value={(policy.allowed_fields ?? []).join(", ") || "—"} />
+                    <StatRow label="Max cents" value={policy.max_estimated_cents !== null ? String(policy.max_estimated_cents) : "—"} />
+                    <StatRow label="Owner" value={policy.owner || "—"} />
+                    {canAdmin ? (
+                      <div className="pt-2">
+                        <BrutalButton variant="ghost" size="sm" onClick={() => {
+                          setDraft((d) => ({
+                            ...d,
+                            policy_workspace: policy.workspace,
+                            policy_project: policy.project,
+                            policy_provider: policy.provider,
+                            policy_operation: policy.operation,
+                            policy_action: policy.action,
+                            allowed_classifications: (policy.allowed_classifications ?? []).join(", "),
+                            allowed_regions: (policy.allowed_regions ?? []).join(", "),
+                            allowed_fields: (policy.allowed_fields ?? []).join(", "),
+                            max_estimated_cents: policy.max_estimated_cents !== null ? String(policy.max_estimated_cents) : "",
+                            policy_owner: policy.owner,
+                            policy_enabled: policy.enabled ? "true" : "false",
+                          }));
+                          setModal({ kind: "policy-update", policy });
+                        }}>Edit policy</BrutalButton>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })()}
+            </PanelBody>
+          </BrutalCard>
+
+          <BrutalCard eyebrow="Evaluate" title="Transfer evaluation">
+            <p className="mb-3 text-xs text-on-surface-variant">Dry-run a transfer against enabled policies. No data moves — the backend returns a decision with reasons.</p>
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <BrutalInput label="Provider" value={evalDraft.provider} onChange={(e) => setEvalDraft((d) => ({ ...d, provider: e.target.value }))} placeholder="github" />
+                <BrutalInput label="Operation" value={evalDraft.operation} onChange={(e) => setEvalDraft((d) => ({ ...d, operation: e.target.value }))} placeholder="sync" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <BrutalInput label="Classification" value={evalDraft.classification} onChange={(e) => setEvalDraft((d) => ({ ...d, classification: e.target.value }))} placeholder="internal" />
+                <BrutalInput label="Region" value={evalDraft.region} onChange={(e) => setEvalDraft((d) => ({ ...d, region: e.target.value }))} placeholder="eu-west" />
+              </div>
+              <BrutalInput label="Fields (comma-separated)" value={evalDraft.fields} onChange={(e) => setEvalDraft((d) => ({ ...d, fields: e.target.value }))} placeholder="id, name" />
+              <BrutalInput label="Estimated cents" value={evalDraft.estimated_cents} onChange={(e) => setEvalDraft((d) => ({ ...d, estimated_cents: e.target.value }))} placeholder="0" />
+              <BrutalButton variant="ghost" size="sm" onClick={() => void handleEvaluate()} disabled={evaluating}>
+                {evaluating ? "Evaluating…" : "Evaluate"}
+              </BrutalButton>
+            </div>
+            {evalError ? <p className="mt-3 text-xs text-error">{evalError}</p> : null}
+            {evalResult ? (
+              <div className="mt-3 border-t border-outline pt-2">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">Decision</span>
+                  <BrutalBadge tone={evalResult.allowed ? "yellow" : "error"}>{evalResult.decision}</BrutalBadge>
+                </div>
+                {(evalResult.reasons ?? []).map((reason) => (
+                  <p key={reason} className="text-xs text-on-surface-variant">· {reason}</p>
+                ))}
+              </div>
+            ) : null}
+          </BrutalCard>
+        </div>
+      ) : null}
+
+      {active === "advanced" ? (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <BrutalCard eyebrow="Bridges" title="Cross-domain operations">
+            <p className="mb-3 text-xs text-on-surface-variant">Thin adapters into FinOps, Knowledge, Workflow and AI governance. Each reuses the domain&apos;s authoritative service — no duplicated accounting or engines. Admin only.</p>
+            {!canAdmin ? (
+              <BrutalEmptyState title="Admin only" description="Bridge operations require settings:admin. The backend remains authoritative." />
+            ) : (
+              <div className="space-y-3">
+                <BrutalInput label="Operation" value={bridgeDraft.operation} onChange={(e) => setBridgeDraft((d) => ({ ...d, operation: e.target.value }))} placeholder="integration.call" />
+                <div className="grid grid-cols-3 gap-2">
+                  <BrutalInput label="Requests" value={bridgeDraft.requests} onChange={(e) => setBridgeDraft((d) => ({ ...d, requests: e.target.value }))} />
+                  <BrutalInput label="Bytes out" value={bridgeDraft.bytes_out} onChange={(e) => setBridgeDraft((d) => ({ ...d, bytes_out: e.target.value }))} />
+                  <BrutalInput label="Est. cents" value={bridgeDraft.estimated_cents} onChange={(e) => setBridgeDraft((d) => ({ ...d, estimated_cents: e.target.value }))} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <BrutalInput label="Provider" value={bridgeDraft.provider} onChange={(e) => setBridgeDraft((d) => ({ ...d, provider: e.target.value }))} placeholder="integration" />
+                  <BrutalInput label="Source name (knowledge)" value={bridgeDraft.name} onChange={(e) => setBridgeDraft((d) => ({ ...d, name: e.target.value }))} placeholder="vendor docs" />
+                </div>
+                <BrutalInput label="Target URL (AI action, https)" value={bridgeDraft.target_url} onChange={(e) => setBridgeDraft((d) => ({ ...d, target_url: e.target.value }))} placeholder="https://…" />
+                <div className="grid grid-cols-2 gap-2">
+                  <BrutalSelect label="Method (AI action)" value={bridgeDraft.method} onChange={(e) => setBridgeDraft((d) => ({ ...d, method: e.target.value }))} options={["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"].map((m) => ({ value: m, label: m }))} />
+                  <BrutalInput label="Model (AI action)" value={bridgeDraft.model} onChange={(e) => setBridgeDraft((d) => ({ ...d, model: e.target.value }))} placeholder="policy model" />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <BrutalButton variant="ghost" size="sm" onClick={() => void runBridge("finops")} disabled={bridgeRunning || !selectedConnectionId}>Record usage</BrutalButton>
+                  <BrutalButton variant="ghost" size="sm" onClick={() => void runBridge("knowledge")} disabled={bridgeRunning || !selectedIntegrationId}>Link knowledge</BrutalButton>
+                  <BrutalButton variant="ghost" size="sm" onClick={() => void runBridge("workflow")} disabled={bridgeRunning || !selectedConnectionId}>Invoke workflow</BrutalButton>
+                  <BrutalButton variant="ghost" size="sm" onClick={() => void runBridge("ai")} disabled={bridgeRunning}>AI action</BrutalButton>
+                </div>
+                <p className="font-mono text-xs text-on-surface-variant">FinOps/workflow need a selected connection; knowledge needs a selected integration.</p>
+              </div>
+            )}
+          </BrutalCard>
+
+          <BrutalCard eyebrow="Result" title="Bridge response">
+            {bridgeRunning ? (
+              <LoadingPanel />
+            ) : bridgeError ? (
+              <BrutalErrorState title="Bridge failed" description={bridgeError} onRetry={() => void runBridge("finops")} />
+            ) : bridgeResult ? (
+              <PrimitiveRows data={bridgeResult} />
+            ) : (
+              <BrutalEmptyState title="No bridge run" description="Run a bridge operation to see the authoritative domain response." />
+            )}
           </BrutalCard>
         </div>
       ) : null}
@@ -1366,6 +2409,164 @@ export function IntegrationsWorkspace() {
           <BrutalInput label="Scopes (comma-separated)" value={draft.scopesOAuth} onChange={(e) => setDraft((d) => ({ ...d, scopesOAuth: e.target.value }))} placeholder="read:user, repo" />
           <BrutalInput label="Redirect URI (https)" value={draft.redirect_uri} onChange={(e) => setDraft((d) => ({ ...d, redirect_uri: e.target.value }))} placeholder="https://app.example.com/oauth/callback" />
           <BrutalInput label="Authorization endpoint (https)" value={draft.authorization_endpoint} onChange={(e) => setDraft((d) => ({ ...d, authorization_endpoint: e.target.value }))} placeholder="https://github.com/login/oauth/authorize" />
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "oauth-callback"} title="Finish OAuth callback" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleOAuthCallback()} disabled={submitting}>{submitting ? "Exchanging…" : "Exchange code"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <p className="border border-outline bg-surface px-3 py-2 text-xs text-on-surface-variant">Paste the state and code returned by the provider. The code is exchanged server-side; tokens are encrypted at rest and <span className="font-bold text-on-surface">never displayed</span>.</p>
+          <BrutalInput label="State" value={draft.state} onChange={(e) => setDraft((d) => ({ ...d, state: e.target.value }))} />
+          <BrutalInput label="Code (one-time)" type="password" autoComplete="off" value={draft.code} onChange={(e) => setDraft((d) => ({ ...d, code: e.target.value }))} />
+          <BrutalInput label="Token endpoint (https)" value={draft.token_endpoint} onChange={(e) => setDraft((d) => ({ ...d, token_endpoint: e.target.value }))} placeholder="https://github.com/login/oauth/access_token" />
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "oauth-refresh"} title="Refresh OAuth token?" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleOAuthRefresh()} disabled={submitting}>{submitting ? "Refreshing…" : "Refresh"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          {modal?.kind === "oauth-refresh" ? <StatRow label="OAuth ID" value={modal.oauth.id} /> : null}
+          <BrutalInput label="Token endpoint (https)" value={draft.token_endpoint} onChange={(e) => setDraft((d) => ({ ...d, token_endpoint: e.target.value }))} />
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "oauth-revoke"} title="Revoke OAuth connection?" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleOAuthRevoke()} disabled={submitting}>{submitting ? "Revoking…" : "Revoke"}</BrutalButton>
+        </>
+      }>
+        <p className="text-sm text-on-surface-variant">The stored tokens are revoked and the connection can no longer authorize calls. This cannot be undone from here.</p>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "webhook-create"} title="Register webhook" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleWebhookCreate()} disabled={submitting}>{submitting ? "Registering…" : "Register"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <BrutalInput label="Name" value={draft.webhook_name} onChange={(e) => setDraft((d) => ({ ...d, webhook_name: e.target.value }))} placeholder="deploy-events" />
+          <BrutalInput label="URL (http/https only)" value={draft.webhook_url} onChange={(e) => setDraft((d) => ({ ...d, webhook_url: e.target.value }))} placeholder="https://…" />
+          <BrutalInput label="Events (comma-separated)" value={draft.webhook_events} onChange={(e) => setDraft((d) => ({ ...d, webhook_events: e.target.value }))} placeholder="push, deploy" />
+          <BrutalInput label="Signing secret (one-time, optional)" type="password" autoComplete="new-password" value={draft.signing_secret} onChange={(e) => setDraft((d) => ({ ...d, signing_secret: e.target.value }))} placeholder="••••••••" />
+          <p className="text-xs text-on-surface-variant">Linked to the selected integration{selectedIntegrationId ? "" : " (none selected — global webhook)"}.</p>
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "webhook-status"} title="Set webhook status?" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleWebhookStatus()} disabled={submitting}>{submitting ? "Saving…" : "Confirm"}</BrutalButton>
+        </>
+      }>
+        <BrutalSelect label="Status" value={draft.status} onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value }))} options={INTEGRATION_STATUSES.map((s) => ({ value: s, label: s }))} />
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "webhook-deliver"} title="Send test delivery" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleWebhookDeliver()} disabled={submitting}>{submitting ? "Enqueuing…" : "Enqueue"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <BrutalInput label="Event type" value={draft.event_type} onChange={(e) => setDraft((d) => ({ ...d, event_type: e.target.value }))} placeholder="deploy.finished" />
+          <BrutalInput label="Payload (JSON object)" value={draft.payload} onChange={(e) => setDraft((d) => ({ ...d, payload: e.target.value }))} placeholder='{"ref": "main"}' />
+          <BrutalInput label="Delivery ID (optional, idempotent)" value={draft.delivery_id} onChange={(e) => setDraft((d) => ({ ...d, delivery_id: e.target.value }))} />
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "webhook-inbound"} title="Simulate inbound event" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleWebhookInboundTest()} disabled={submitting}>{submitting ? "Sending…" : "Simulate"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <p className="border border-outline bg-surface px-3 py-2 text-xs text-on-surface-variant">Runs the real inbound pipeline: signature verification, delivery-ID deduplication and normalization. Privileged operations become approval requests.</p>
+          <BrutalInput label="Headers (JSON object)" value={draft.headers} onChange={(e) => setDraft((d) => ({ ...d, headers: e.target.value }))} placeholder='{"X-Webhook-Signature": "…"}' />
+          <BrutalInput label="Body (JSON object)" value={draft.payload} onChange={(e) => setDraft((d) => ({ ...d, payload: e.target.value }))} placeholder='{"event": "push"}' />
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalInput label="Event type" value={draft.event_type} onChange={(e) => setDraft((d) => ({ ...d, event_type: e.target.value }))} />
+            <BrutalInput label="Delivery ID" value={draft.delivery_id} onChange={(e) => setDraft((d) => ({ ...d, delivery_id: e.target.value }))} />
+          </div>
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "subscription-create"} title="Create subscription" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleSubscriptionCreate()} disabled={submitting}>{submitting ? "Creating…" : "Create"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <StatRow label="Connection" value={selectedConnectionId ?? "—"} />
+          <BrutalInput label="Target URL (http/https only)" value={draft.target_url} onChange={(e) => setDraft((d) => ({ ...d, target_url: e.target.value }))} placeholder="https://…" />
+          <BrutalInput label="Event filter (JSON object)" value={draft.event_filter} onChange={(e) => setDraft((d) => ({ ...d, event_filter: e.target.value }))} placeholder="{}" />
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "policy-create"} title="New transfer policy" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handlePolicyCreate()} disabled={submitting}>{submitting ? "Creating…" : "Create"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <BrutalInput label="Name" value={draft.policy_name} onChange={(e) => setDraft((d) => ({ ...d, policy_name: e.target.value }))} placeholder="eu-pii-guard" />
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalInput label="Workspace" value={draft.policy_workspace} onChange={(e) => setDraft((d) => ({ ...d, policy_workspace: e.target.value }))} />
+            <BrutalInput label="Project" value={draft.policy_project} onChange={(e) => setDraft((d) => ({ ...d, policy_project: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalInput label="Provider" value={draft.policy_provider} onChange={(e) => setDraft((d) => ({ ...d, policy_provider: e.target.value }))} />
+            <BrutalInput label="Operation" value={draft.policy_operation} onChange={(e) => setDraft((d) => ({ ...d, policy_operation: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalSelect label="Action" value={draft.policy_action} onChange={(e) => setDraft((d) => ({ ...d, policy_action: e.target.value }))} options={POLICY_ACTIONS.map((a) => ({ value: a, label: a }))} />
+            <BrutalInput label="Owner" value={draft.policy_owner} onChange={(e) => setDraft((d) => ({ ...d, policy_owner: e.target.value }))} />
+          </div>
+          <BrutalInput label="Allowed classifications (comma-separated)" value={draft.allowed_classifications} onChange={(e) => setDraft((d) => ({ ...d, allowed_classifications: e.target.value }))} />
+          <BrutalInput label="Allowed regions (comma-separated)" value={draft.allowed_regions} onChange={(e) => setDraft((d) => ({ ...d, allowed_regions: e.target.value }))} />
+          <BrutalInput label="Allowed fields (comma-separated)" value={draft.allowed_fields} onChange={(e) => setDraft((d) => ({ ...d, allowed_fields: e.target.value }))} />
+          <BrutalInput label="Max estimated cents" value={draft.max_estimated_cents} onChange={(e) => setDraft((d) => ({ ...d, max_estimated_cents: e.target.value }))} placeholder="1000" />
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "policy-update"} title="Edit policy" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handlePolicyUpdate()} disabled={submitting}>{submitting ? "Saving…" : "Save"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalSelect label="Action" value={draft.policy_action} onChange={(e) => setDraft((d) => ({ ...d, policy_action: e.target.value }))} options={POLICY_ACTIONS.map((a) => ({ value: a, label: a }))} />
+            <BrutalSelect label="Enabled" value={draft.policy_enabled} onChange={(e) => setDraft((d) => ({ ...d, policy_enabled: e.target.value }))} options={[{ value: "true", label: "enabled" }, { value: "false", label: "disabled" }]} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalInput label="Workspace" value={draft.policy_workspace} onChange={(e) => setDraft((d) => ({ ...d, policy_workspace: e.target.value }))} />
+            <BrutalInput label="Project" value={draft.policy_project} onChange={(e) => setDraft((d) => ({ ...d, policy_project: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalInput label="Provider" value={draft.policy_provider} onChange={(e) => setDraft((d) => ({ ...d, policy_provider: e.target.value }))} />
+            <BrutalInput label="Operation" value={draft.policy_operation} onChange={(e) => setDraft((d) => ({ ...d, policy_operation: e.target.value }))} />
+          </div>
+          <BrutalInput label="Allowed classifications (comma-separated)" value={draft.allowed_classifications} onChange={(e) => setDraft((d) => ({ ...d, allowed_classifications: e.target.value }))} />
+          <BrutalInput label="Allowed regions (comma-separated)" value={draft.allowed_regions} onChange={(e) => setDraft((d) => ({ ...d, allowed_regions: e.target.value }))} />
+          <BrutalInput label="Allowed fields (comma-separated)" value={draft.allowed_fields} onChange={(e) => setDraft((d) => ({ ...d, allowed_fields: e.target.value }))} />
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalInput label="Max estimated cents" value={draft.max_estimated_cents} onChange={(e) => setDraft((d) => ({ ...d, max_estimated_cents: e.target.value }))} />
+            <BrutalInput label="Owner" value={draft.policy_owner} onChange={(e) => setDraft((d) => ({ ...d, policy_owner: e.target.value }))} />
+          </div>
         </div>
       </BrutalModal>
     </div>

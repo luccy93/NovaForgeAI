@@ -615,6 +615,195 @@ export const api = {
       token,
       body,
     }),
+
+  // ─── Integrations: operations (C2) ────────────────────────────────────
+  // Backend: backend/app/integrations/api_c2.py. Same tenant scope and
+  // permission model (reads organization:read, mutations settings:admin,
+  // except policies/evaluate-transfer which is a read-gated POST).
+  // Double-prefix routes (/integrations/integrations/…) are reproduced
+  // verbatim — the backend defines them that way.
+  integrationOAuthCallback: (token: string, body: { state: string; code: string; token_endpoint: string }) =>
+    apiRequest<import("@/types/integrations").OAuthConnection>("/integrations/oauth/callback", {
+      method: "POST",
+      token,
+      body,
+    }),
+  integrationOAuthRefresh: (token: string, oauthId: string, token_endpoint: string) =>
+    apiRequest<import("@/types/integrations").OAuthConnection>(
+      `/integrations/oauth/${encodeURIComponent(oauthId)}/refresh`,
+      { method: "POST", token, body: { token_endpoint } },
+    ),
+  integrationOAuthRevoke: (token: string, oauthId: string) =>
+    apiRequest<import("@/types/integrations").OAuthConnection>(
+      `/integrations/oauth/${encodeURIComponent(oauthId)}/revoke`,
+      { method: "POST", token, body: {} },
+    ),
+  integrationConnectorSync: (token: string, connectionId: string, body?: { sync_key?: string; paths?: string[] }) =>
+    apiRequest<Record<string, unknown>>(
+      `/integrations/connections/${encodeURIComponent(connectionId)}/sync`,
+      { method: "POST", token, body: body ?? {} },
+    ),
+  integrationConnectorSyncs: (token: string, connectionId: string) =>
+    apiRequest<import("@/types/integrations").Paginated<import("@/types/integrations").ConnectorSyncRecord>>(
+      `/integrations/connections/${encodeURIComponent(connectionId)}/syncs`,
+      { token },
+    ),
+
+  // ─── Integrations: webhooks (C2 outbound + inbound) ───────────────────
+  integrationWebhooks: (token: string, opts?: { status?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    const qs = params.toString();
+    return apiRequest<import("@/types/integrations").Paginated<import("@/types/integrations").IntegrationWebhook>>(
+      `/integrations/webhooks/all${qs ? `?${qs}` : ""}`,
+      { token },
+    );
+  },
+  integrationWebhookGet: (token: string, webhookId: string) =>
+    apiRequest<import("@/types/integrations").IntegrationWebhook>(
+      `/integrations/webhooks/${encodeURIComponent(webhookId)}`,
+      { token },
+    ),
+  integrationWebhookCreate: (token: string, body: {
+    name: string;
+    url: string;
+    integration_id?: string;
+    events?: string[];
+    signing_secret?: string;
+  }) =>
+    apiRequest<import("@/types/integrations").IntegrationWebhook>("/integrations/webhooks", {
+      method: "POST",
+      token,
+      body,
+    }),
+  integrationWebhookSetStatus: (token: string, webhookId: string, status: string) =>
+    apiRequest<import("@/types/integrations").IntegrationWebhook>(
+      `/integrations/webhooks/${encodeURIComponent(webhookId)}/status`,
+      { method: "POST", token, body: { status } },
+    ),
+  integrationWebhookDeliver: (token: string, webhookId: string, body: {
+    event_type: string;
+    payload?: Record<string, unknown>;
+    delivery_id?: string;
+  }) =>
+    apiRequest<import("@/types/integrations").WebhookDelivery>(
+      `/integrations/webhooks/${encodeURIComponent(webhookId)}/deliver`,
+      { method: "POST", token, body },
+    ),
+  integrationWebhookDeliveries: (token: string, webhookId: string, limit = 100) =>
+    apiRequest<import("@/types/integrations").Paginated<import("@/types/integrations").WebhookDelivery>>(
+      `/integrations/webhooks/${encodeURIComponent(webhookId)}/deliveries?limit=${limit}`,
+      { token },
+    ),
+  integrationWebhookInboundReceive: (token: string, webhookId: string, body: {
+    headers?: Record<string, string>;
+    body?: Record<string, unknown>;
+    event_type?: string;
+    delivery_id?: string;
+  }) =>
+    apiRequest<import("@/types/integrations").InboundEvent>(
+      `/integrations/webhooks/${encodeURIComponent(webhookId)}/inbound`,
+      { method: "POST", token, body },
+    ),
+  integrationWebhookInboundList: (token: string, webhookId: string) =>
+    apiRequest<import("@/types/integrations").Paginated<import("@/types/integrations").InboundEvent>>(
+      `/integrations/webhooks/${encodeURIComponent(webhookId)}/inbound`,
+      { token },
+    ),
+  integrationSubscriptionCreate: (token: string, body: {
+    connection_id: string;
+    event_filter?: Record<string, unknown>;
+    target_url: string;
+  }) =>
+    apiRequest<{ id: string; tenant: string; status: string; target_url: string }>(
+      "/integrations/subscriptions",
+      { method: "POST", token, body },
+    ),
+
+  // ─── Integrations: policies (C2) ──────────────────────────────────────
+  integrationPolicies: (token: string) =>
+    apiRequest<import("@/types/integrations").Paginated<import("@/types/integrations").IntegrationPolicy>>(
+      "/integrations/policies",
+      { token },
+    ),
+  integrationPolicyCreate: (token: string, body: {
+    name: string;
+    workspace?: string;
+    project?: string;
+    provider?: string;
+    operation?: string;
+    action?: string;
+    allowed_classifications?: string[];
+    allowed_regions?: string[];
+    allowed_fields?: string[];
+    max_estimated_cents?: number;
+    owner?: string;
+  }) =>
+    apiRequest<import("@/types/integrations").IntegrationPolicy>("/integrations/policies", {
+      method: "POST",
+      token,
+      body,
+    }),
+  integrationPolicyUpdate: (token: string, policyId: string, body: Record<string, unknown>) =>
+    apiRequest<import("@/types/integrations").IntegrationPolicy>(
+      `/integrations/policies/${encodeURIComponent(policyId)}`,
+      { method: "PATCH", token, body },
+    ),
+  integrationPolicyEvaluate: (token: string, body: {
+    workspace?: string;
+    project?: string;
+    provider?: string;
+    operation?: string;
+    classification?: string;
+    region?: string;
+    fields?: string[];
+    estimated_cents?: number;
+  }) =>
+    apiRequest<import("@/types/integrations").TransferEvaluation>("/integrations/policies/evaluate-transfer", {
+      method: "POST",
+      token,
+      body,
+    }),
+
+  // ─── Integrations: health summary + bridges (C2) ──────────────────────
+  integrationHealthSummary: (token: string, integrationId: string, days = 7) =>
+    apiRequest<import("@/types/integrations").HealthSummary>(
+      `/integrations/integrations/${encodeURIComponent(integrationId)}/health-summary?days=${days}`,
+      { token },
+    ),
+  integrationFinopsUsage: (token: string, connectionId: string, body: {
+    operation?: string;
+    requests?: number;
+    bytes_out?: number;
+    estimated_cents?: number;
+    provider?: string;
+  }) =>
+    apiRequest<Record<string, unknown>>(
+      `/integrations/connections/${encodeURIComponent(connectionId)}/finops-usage`,
+      { method: "POST", token, body },
+    ),
+  integrationKnowledgeSource: (token: string, integrationId: string, body: { source_type?: string; name?: string }) =>
+    apiRequest<Record<string, unknown>>(
+      `/integrations/integrations/${encodeURIComponent(integrationId)}/knowledge-source`,
+      { method: "POST", token, body },
+    ),
+  integrationWorkflowInvoke: (token: string, connectionId: string, body: Record<string, unknown>) =>
+    apiRequest<Record<string, unknown>>(
+      `/integrations/connections/${encodeURIComponent(connectionId)}/workflow-invoke`,
+      { method: "POST", token, body },
+    ),
+  integrationAiRequestAction: (token: string, body: {
+    operation?: string;
+    target_url?: string;
+    method?: string;
+    model?: string;
+    provider?: string;
+  }) =>
+    apiRequest<Record<string, unknown>>("/integrations/ai/request-action", {
+      method: "POST",
+      token,
+      body,
+    }),
   observabilityDashboard: (token: string) =>
     apiRequest<import("@/types/api").ObservabilityDashboard>("/observability/dashboard", { token }),
 
