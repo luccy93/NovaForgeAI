@@ -18,9 +18,11 @@ import { hasPermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/types/auth";
 import { useToastStore } from "@/stores/toast";
 import type {
+  DomainGovernResult,
   GovernanceBinding,
   GovernanceDecision,
   GovernanceDriftFinding,
+  GovernanceEvaluateResult,
   GovernanceEvidence,
   GovernanceEvidenceCoverage,
   GovernanceException,
@@ -30,9 +32,13 @@ import type {
   GovernancePosture,
   GovernancePostureHistoryResponse,
   GovernanceReport,
+  GovernanceSimulateBatchResponse,
+  GovernanceSimulateResult,
   GovernanceTrendPoint,
 } from "@/types/governance";
 import {
+  GOVERN_ACTION_CLASSES,
+  GOVERN_CLASSIFICATIONS,
   GOVERNANCE_DECISIONS,
   GOVERNANCE_DRIFT_SEVERITIES,
   GOVERNANCE_DRIFT_STATUSES,
@@ -147,7 +153,144 @@ function parseRulesJson(raw: string): Array<Record<string, unknown>> {
   return parsed as Array<Record<string, unknown>>;
 }
 
-type TabId = "overview" | "policies" | "bindings" | "decisions" | "evidence" | "drift" | "exceptions" | "reports";
+function parseJsonObject(raw: string, field: string): Record<string, unknown> {
+  const trimmed = raw.trim();
+  if (!trimmed) return {};
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+    throw new Error(`${field} must be a JSON object`);
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("must be a JSON object")) throw e;
+    throw new Error(`${field} is not valid JSON`);
+  }
+}
+
+/** Renders a domain/evaluate verdict verbatim — decision, allowed, layer, reason, refs. No scores. */
+function VerdictRows({ verdict }: { verdict: DomainGovernResult | GovernanceEvaluateResult }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <BrutalBadge tone={decisionTone(verdict.decision)}>{verdict.decision}</BrutalBadge>
+        {"allowed" in verdict && verdict.allowed !== undefined ? (
+          <BrutalBadge tone={verdict.allowed ? "default" : "error"}>{verdict.allowed ? "allowed" : "blocked"}</BrutalBadge>
+        ) : null}
+        {"layer" in verdict && verdict.layer ? <BrutalBadge tone="default">{String(verdict.layer)}</BrutalBadge> : null}
+      </div>
+      <StatRow label="Reason" value={verdict.reason || "—"} />
+      {verdict.policy_id ? <StatRow label="Policy" value={String(verdict.policy_id)} /> : null}
+      {verdict.version_id ? <StatRow label="Version" value={String(verdict.version_id)} /> : null}
+      {verdict.binding_id ? <StatRow label="Binding" value={String(verdict.binding_id)} /> : null}
+      {"approval_id" in verdict && verdict.approval_id ? <StatRow label="Approval" value={String(verdict.approval_id)} /> : null}
+      {"finops_gate" in verdict && verdict.finops_gate ? <StatRow label="FinOps gate" value={String(verdict.finops_gate)} /> : null}
+      {"zero_trust" in verdict && verdict.zero_trust ? (
+        <StatRow
+          label="Zero trust"
+          value={`${String(verdict.zero_trust.decision)} · ${verdict.zero_trust.allowed ? "allowed" : "denied"}`}
+        />
+      ) : null}
+      {"exception_id" in verdict && verdict.exception_id ? <StatRow label="Exception" value={String(verdict.exception_id)} /> : null}
+    </div>
+  );
+}
+
+interface GovernField {
+  key: string;
+  label: string;
+  placeholder?: string;
+  numeric?: boolean;
+  options?: readonly string[];
+  defaultValue?: string;
+}
+
+const GOVERN_FIELDS: Record<string, { hint: string; fields: GovernField[] }> = {
+  ai: {
+    hint: "Central AI policies first, then FinOps token and cost ceilings.",
+    fields: [
+      { key: "model", label: "Model", placeholder: "gpt-x" },
+      { key: "provider", label: "Provider", placeholder: "acme" },
+      { key: "use_case", label: "Use case", placeholder: "support-draft" },
+      { key: "action_class", label: "Action class", options: GOVERN_ACTION_CLASSES, defaultValue: "" },
+      { key: "classification", label: "Classification", options: GOVERN_CLASSIFICATIONS, defaultValue: "INTERNAL" },
+      { key: "input_tokens", label: "Input tokens", numeric: true, placeholder: "0" },
+      { key: "estimated_cents", label: "Estimated cents", numeric: true, placeholder: "0" },
+      { key: "operation", label: "Operation", defaultValue: "ai.invoke" },
+    ],
+  },
+  data: {
+    hint: "Central policy first, then residency and destination checks.",
+    fields: [
+      { key: "dataset", label: "Dataset", placeholder: "events" },
+      { key: "project", label: "Project", placeholder: "analytics" },
+      { key: "workspace", label: "Workspace", placeholder: "prod" },
+      { key: "classification", label: "Classification", options: GOVERN_CLASSIFICATIONS, defaultValue: "INTERNAL" },
+      { key: "region", label: "Region", placeholder: "eu-west" },
+      { key: "destination", label: "Destination", placeholder: "warehouse" },
+      { key: "operation", label: "Operation", defaultValue: "data.access" },
+    ],
+  },
+  security: {
+    hint: "Central policy first, then Zero Trust authorization.",
+    fields: [
+      { key: "action", label: "Action", placeholder: "db.read" },
+      { key: "resource", label: "Resource", placeholder: "prod-db" },
+      { key: "classification", label: "Classification", options: GOVERN_CLASSIFICATIONS, defaultValue: "INTERNAL" },
+      { key: "auth_strength", label: "Auth strength", placeholder: "mfa" },
+      { key: "device_posture", label: "Device posture", placeholder: "managed" },
+      { key: "identity", label: "Identity", placeholder: "user id" },
+    ],
+  },
+  spend: {
+    hint: "Central policy first, then the FinOps expensive-operation gate.",
+    fields: [
+      { key: "operation", label: "Operation", defaultValue: "spend" },
+      { key: "model", label: "Model", placeholder: "gpt-x" },
+      { key: "provider", label: "Provider", placeholder: "acme" },
+      { key: "workspace", label: "Workspace", placeholder: "prod" },
+      { key: "project", label: "Project", placeholder: "research" },
+      { key: "estimated_cents", label: "Estimated cents", numeric: true, placeholder: "0" },
+      { key: "budget_id", label: "Budget ID", placeholder: "optional uuid" },
+    ],
+  },
+  integration: {
+    hint: "Central policy first, then the integration transfer check.",
+    fields: [
+      { key: "connection_id", label: "Connection ID", placeholder: "optional uuid" },
+      { key: "operation", label: "Operation", defaultValue: "integration.use" },
+      { key: "destination", label: "Destination", placeholder: "https://…" },
+      { key: "classification", label: "Classification", options: GOVERN_CLASSIFICATIONS, defaultValue: "INTERNAL" },
+      { key: "region", label: "Region", placeholder: "eu-west" },
+      { key: "scopes", label: "Scopes (comma-separated)", placeholder: "read, write" },
+      { key: "estimated_cents", label: "Estimated cents", numeric: true, placeholder: "0" },
+    ],
+  },
+  workflow: {
+    hint: "Central policy plus workflow run guards (fan-out caps enforced server-side).",
+    fields: [
+      { key: "workflow_id", label: "Workflow ID", placeholder: "optional uuid" },
+      { key: "run_id", label: "Run ID", placeholder: "optional" },
+      { key: "executor", label: "Executor", placeholder: "scheduler" },
+      { key: "environment", label: "Environment", placeholder: "prod" },
+      { key: "classification", label: "Classification", options: GOVERN_CLASSIFICATIONS, defaultValue: "INTERNAL" },
+      { key: "fan_out", label: "Fan-out", numeric: true, placeholder: "1" },
+      { key: "max_fan_out", label: "Max fan-out", numeric: true, placeholder: "5" },
+    ],
+  },
+  agent: {
+    hint: "Central policy plus agent step guards (max steps enforced server-side).",
+    fields: [
+      { key: "agent", label: "Agent", placeholder: "researcher" },
+      { key: "tool", label: "Tool", placeholder: "web.search" },
+      { key: "step_number", label: "Step number", numeric: true, placeholder: "0" },
+      { key: "max_steps", label: "Max steps", numeric: true, placeholder: "25" },
+      { key: "classification", label: "Classification", options: GOVERN_CLASSIFICATIONS, defaultValue: "INTERNAL" },
+    ],
+  },
+};
+
+type TabId = "overview" | "policies" | "bindings" | "decisions" | "evidence" | "drift" | "exceptions" | "reports" | "ai-governance" | "advanced";
 
 type PendingModal =
   | { kind: "policy-create" }
@@ -233,6 +376,38 @@ export function GovernanceWorkspace() {
   const [reportsError, setReportsError] = useState<string | null>(null);
   const [reportTypeFilter, setReportTypeFilter] = useState("ALL");
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+
+  const [evalResult, setEvalResult] = useState<GovernanceEvaluateResult | null>(null);
+  const [evalError, setEvalError] = useState<string | null>(null);
+  const [evalRunning, setEvalRunning] = useState(false);
+  const [evalDraft, setEvalDraft] = useState({
+    scope_type: "tenant",
+    scope_value: "",
+    operation: "",
+    context: "",
+    actor: "",
+    identity: "",
+    enforce: false,
+  });
+
+  const [simMode, setSimMode] = useState<"single" | "batch">("single");
+  const [simResult, setSimResult] = useState<GovernanceSimulateResult | GovernanceSimulateBatchResponse | null>(null);
+  const [simError, setSimError] = useState<string | null>(null);
+  const [simRunning, setSimRunning] = useState(false);
+  const [simDraft, setSimDraft] = useState({
+    scope_type: "tenant",
+    scope_value: "",
+    operation: "",
+    context: "",
+    proposed: "",
+    requests: "",
+  });
+
+  const [governDomain, setGovernDomain] = useState("ai");
+  const [governFields, setGovernFields] = useState<Record<string, string>>({});
+  const [governResult, setGovernResult] = useState<DomainGovernResult | null>(null);
+  const [governError, setGovernError] = useState<string | null>(null);
+  const [governRunning, setGovernRunning] = useState(false);
 
   const [modal, setModal] = useState<PendingModal>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -536,6 +711,12 @@ export function GovernanceWorkspace() {
       setReports(null);
       setVersions(null);
       setExplanation(null);
+      setEvalResult(null);
+      setSimResult(null);
+      setGovernResult(null);
+      setEvalError(null);
+      setSimError(null);
+      setGovernError(null);
       setSelectedPolicyId(null);
       setSelectedDecisionId(null);
       setSelectedReportId(null);
@@ -932,6 +1113,150 @@ export function GovernanceWorkspace() {
     }
   }
 
+  async function handleEvaluateTest() {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    if (!evalDraft.scope_type.trim()) {
+      pushToast("warning", "Scope type is required");
+      return;
+    }
+    setEvalRunning(true);
+    setEvalError(null);
+    try {
+      const context = parseJsonObject(evalDraft.context, "Context");
+      const result = await api.governanceEvaluate(token, {
+        scope_type: evalDraft.scope_type.trim(),
+        scope_value: evalDraft.scope_value.trim(),
+        operation: evalDraft.operation.trim(),
+        context,
+        actor: evalDraft.actor.trim() || undefined,
+        identity: evalDraft.identity.trim() || undefined,
+        enforce: evalDraft.enforce,
+      });
+      setEvalResult(result);
+      pushToast("success", evalDraft.enforce ? "Enforcement decision recorded" : "Evaluation complete — nothing was enforced");
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      setEvalError(e instanceof Error ? e.message : "Evaluation failed");
+    } finally {
+      setEvalRunning(false);
+    }
+  }
+
+  async function handleSimulateTest() {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSimRunning(true);
+    setSimError(null);
+    try {
+      if (simMode === "batch") {
+        const trimmed = simDraft.requests.trim();
+        if (!trimmed) {
+          pushToast("warning", "At least one request is required");
+          setSimRunning(false);
+          return;
+        }
+        let requests: unknown;
+        try {
+          requests = JSON.parse(trimmed);
+        } catch {
+          pushToast("warning", "Requests are not valid JSON");
+          setSimRunning(false);
+          return;
+        }
+        if (!Array.isArray(requests) || requests.length === 0) {
+          pushToast("warning", "Requests must be a non-empty JSON array");
+          setSimRunning(false);
+          return;
+        }
+        const result = await api.governanceSimulate(token, {
+          requests: requests as Array<Record<string, unknown>>,
+        });
+        setSimResult(result);
+      } else {
+        const context = parseJsonObject(simDraft.context, "Context");
+        const proposed = parseJsonObject(simDraft.proposed, "Proposed version");
+        const result = await api.governanceSimulate(token, {
+          scope_type: simDraft.scope_type.trim() || "tenant",
+          scope_value: simDraft.scope_value.trim(),
+          operation: simDraft.operation.trim(),
+          context,
+          proposed: Object.keys(proposed).length > 0 ? proposed : undefined,
+        });
+        setSimResult(result);
+      }
+      pushToast("success", "Simulation complete — no side effects were applied");
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      setSimError(e instanceof Error ? e.message : "Simulation failed");
+    } finally {
+      setSimRunning(false);
+    }
+  }
+
+  function setGovernField(key: string, value: string) {
+    const scoped = `${governDomain}.${key}`;
+    setGovernFields((prev) => ({ ...prev, [scoped]: value }));
+  }
+
+  async function handleGovernRun() {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    const spec = GOVERN_FIELDS[governDomain];
+    if (!spec) return;
+    const body: Record<string, unknown> = {};
+    for (const field of spec.fields) {
+      const raw = (governFields[`${governDomain}.${field.key}`] ?? field.defaultValue ?? "").trim();
+      if (field.key === "scopes") {
+        if (raw) body.scopes = raw.split(",").map((s) => s.trim()).filter(Boolean);
+        continue;
+      }
+      if (field.numeric) {
+        if (raw) body[field.key] = Number(raw);
+        continue;
+      }
+      if (raw) body[field.key] = raw;
+      else if (field.defaultValue !== undefined && field.defaultValue !== "") body[field.key] = field.defaultValue;
+    }
+    setGovernRunning(true);
+    setGovernError(null);
+    try {
+      let result: DomainGovernResult;
+      if (governDomain === "ai") result = await api.governAi(token, body);
+      else if (governDomain === "data") result = await api.governData(token, body);
+      else if (governDomain === "security") result = await api.governSecurity(token, body);
+      else if (governDomain === "spend") result = await api.governSpend(token, body);
+      else if (governDomain === "integration") result = await api.governIntegration(token, body);
+      else if (governDomain === "workflow") result = await api.governWorkflow(token, body);
+      else result = await api.governAgent(token, body);
+      setGovernResult(result);
+      pushToast("success", `Domain check complete: ${result.decision}`);
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      setGovernError(e instanceof Error ? e.message : "Domain check failed");
+    } finally {
+      setGovernRunning(false);
+    }
+  }
+
   const modalTitle =
     modal?.kind === "policy-create"
       ? "Create policy"
@@ -968,6 +1293,8 @@ export function GovernanceWorkspace() {
     { id: "drift", label: "Drift" },
     { id: "exceptions", label: "Exceptions" },
     { id: "reports", label: "Reports" },
+    { id: "ai-governance", label: "AI Governance" },
+    { id: "advanced", label: "Advanced" },
   ];
 
   return (
@@ -1841,6 +2168,169 @@ export function GovernanceWorkspace() {
               </PanelBody>
             </BrutalCard>
           </div>
+        </div>
+      ) : null}
+
+      {active === "ai-governance" ? (
+        <div className="grid gap-6 lg:grid-cols-3">
+          <BrutalCard eyebrow="AI Governance" title="Domain check">
+            <p className="mb-3 text-xs text-on-surface-variant">
+              Central policy first, then the domain layer. Verdicts carry decision, allowed, layer and reason only — no scores are computed anywhere.
+            </p>
+            <div className="mb-3">
+              <BrutalSelect
+                label="Domain"
+                value={governDomain}
+                onChange={(e) => {
+                  setGovernDomain(e.target.value);
+                  setGovernResult(null);
+                  setGovernError(null);
+                }}
+                options={Object.keys(GOVERN_FIELDS).map((d) => ({ label: d, value: d }))}
+              />
+            </div>
+            <p className="mb-3 font-mono text-xs text-on-surface-variant">{GOVERN_FIELDS[governDomain]?.hint ?? ""}</p>
+            <div className="space-y-3">
+              {(GOVERN_FIELDS[governDomain]?.fields ?? []).map((field) =>
+                field.options ? (
+                  <BrutalSelect
+                    key={field.key}
+                    label={field.label}
+                    value={governFields[`${governDomain}.${field.key}`] ?? field.defaultValue ?? ""}
+                    onChange={(e) => setGovernField(field.key, e.target.value)}
+                    options={[{ label: "—", value: "" }, ...field.options.map((o) => ({ label: o, value: o }))]}
+                  />
+                ) : (
+                  <BrutalInput
+                    key={field.key}
+                    label={field.label}
+                    value={governFields[`${governDomain}.${field.key}`] ?? field.defaultValue ?? ""}
+                    onChange={(e) => setGovernField(field.key, e.target.value)}
+                    placeholder={field.placeholder}
+                  />
+                ),
+              )}
+              <BrutalButton variant="primary" size="sm" onClick={() => void handleGovernRun()} disabled={governRunning}>
+                {governRunning ? "Checking…" : "Run domain check"}
+              </BrutalButton>
+            </div>
+          </BrutalCard>
+
+          <div className="lg:col-span-2">
+            <BrutalCard eyebrow="AI Governance" title="Verdict">
+              {governRunning ? (
+                <LoadingPanel />
+              ) : governError ? (
+                <BrutalErrorState title="Check failed" description={governError} onRetry={() => void handleGovernRun()} />
+              ) : governResult ? (
+                <VerdictRows verdict={governResult} />
+              ) : (
+                <BrutalEmptyState title="No check run" description="Fill the domain fields and run a check. REQUIRE_APPROVAL surfaces an approval id — approval itself happens in Zero Trust, never here." />
+              )}
+            </BrutalCard>
+          </div>
+        </div>
+      ) : null}
+
+      {active === "advanced" ? (
+        <div className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <BrutalCard eyebrow="Advanced" title="Evaluate tester">
+              <p className="mb-3 text-xs text-on-surface-variant">
+                Dry-run without enforcement, or enforce to record a real decision with the Zero Trust layer. Rate-limited server-side — 429 shows a retry state.
+              </p>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <BrutalSelect label="Scope type" value={evalDraft.scope_type} onChange={(e) => setEvalDraft({ ...evalDraft, scope_type: e.target.value })} options={GOVERNANCE_SCOPE_TYPES.map((s) => ({ label: s, value: s }))} />
+                  <BrutalInput label="Scope value" value={evalDraft.scope_value} onChange={(e) => setEvalDraft({ ...evalDraft, scope_value: e.target.value })} placeholder="scope node" />
+                </div>
+                <BrutalInput label="Operation" value={evalDraft.operation} onChange={(e) => setEvalDraft({ ...evalDraft, operation: e.target.value })} placeholder="data.export" />
+                <BrutalInput label="Context (JSON object)" value={evalDraft.context} onChange={(e) => setEvalDraft({ ...evalDraft, context: e.target.value })} placeholder='{"region": "eu-west"}' />
+                <div className="grid grid-cols-2 gap-3">
+                  <BrutalInput label="Actor" value={evalDraft.actor} onChange={(e) => setEvalDraft({ ...evalDraft, actor: e.target.value })} placeholder="optional" />
+                  <BrutalInput label="Identity" value={evalDraft.identity} onChange={(e) => setEvalDraft({ ...evalDraft, identity: e.target.value })} placeholder="optional" />
+                </div>
+                <label className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-on-surface-variant">
+                  <input type="checkbox" checked={evalDraft.enforce} onChange={(e) => setEvalDraft({ ...evalDraft, enforce: e.target.checked })} />
+                  Enforce (records a real decision)
+                </label>
+                <BrutalButton variant="primary" size="sm" onClick={() => void handleEvaluateTest()} disabled={evalRunning}>
+                  {evalRunning ? "Evaluating…" : "Evaluate"}
+                </BrutalButton>
+              </div>
+              {evalError ? <p className="mt-3 text-xs text-error">{evalError}</p> : null}
+              {evalResult ? (
+                <div className="mt-3 border-t border-outline pt-2">
+                  <VerdictRows verdict={evalResult} />
+                  <StatRow label="Evaluated at" value={formatDateTime(evalResult.effective_at)} />
+                  <StatRow label="Latency ms" value={String(evalResult.latency_ms ?? "—")} />
+                </div>
+              ) : null}
+            </BrutalCard>
+
+            <BrutalCard eyebrow="Advanced" title="Simulate tester">
+              <p className="mb-3 text-xs text-on-surface-variant">
+                Simulation never has side effects. Batch mode also accepts a proposed version overlay to compare against active versions.
+              </p>
+              <div className="mb-3 flex gap-2">
+                <BrutalButton variant={simMode === "single" ? "primary" : "ghost"} size="sm" onClick={() => setSimMode("single")}>Single</BrutalButton>
+                <BrutalButton variant={simMode === "batch" ? "primary" : "ghost"} size="sm" onClick={() => setSimMode("batch")}>Batch</BrutalButton>
+              </div>
+              {simMode === "single" ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <BrutalSelect label="Scope type" value={simDraft.scope_type} onChange={(e) => setSimDraft({ ...simDraft, scope_type: e.target.value })} options={GOVERNANCE_SCOPE_TYPES.map((s) => ({ label: s, value: s }))} />
+                    <BrutalInput label="Scope value" value={simDraft.scope_value} onChange={(e) => setSimDraft({ ...simDraft, scope_value: e.target.value })} />
+                  </div>
+                  <BrutalInput label="Simulated operation" value={simDraft.operation} onChange={(e) => setSimDraft({ ...simDraft, operation: e.target.value })} />
+                  <BrutalInput label="Context (JSON object)" value={simDraft.context} onChange={(e) => setSimDraft({ ...simDraft, context: e.target.value })} placeholder="{}" />
+                  <BrutalInput label="Proposed version (JSON object)" value={simDraft.proposed} onChange={(e) => setSimDraft({ ...simDraft, proposed: e.target.value })} placeholder="optional overlay" />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <BrutalInput label="Requests (JSON array)" value={simDraft.requests} onChange={(e) => setSimDraft({ ...simDraft, requests: e.target.value })} placeholder='[{"scope_type": "tenant", "operation": "data.export"}]' />
+                </div>
+              )}
+              <div className="mt-3">
+                <BrutalButton variant="primary" size="sm" onClick={() => void handleSimulateTest()} disabled={simRunning}>
+                  {simRunning ? "Simulating…" : "Simulate"}
+                </BrutalButton>
+              </div>
+              {simError ? <p className="mt-3 text-xs text-error">{simError}</p> : null}
+              {simResult && "items" in simResult ? (
+                <div className="mt-3 border-t border-outline pt-2">
+                  <p className="mb-1 font-mono text-xs uppercase tracking-widest text-on-surface-variant">
+                    {simResult.total} simulated · {Object.entries(simResult.summary).map(([k, v]) => `${k}: ${v}`).join(" · ")}
+                  </p>
+                  <ul className="max-h-64 space-y-1 overflow-y-auto">
+                    {simResult.items.slice(0, 20).map((item, index) => (
+                      <li key={index} className="flex items-center justify-between gap-2 border border-outline bg-surface px-2 py-1">
+                        <span className="truncate font-mono text-xs text-on-surface">{item.scope_type}:{item.scope_value || "*"} · {item.reason || "no reason"}</span>
+                        <BrutalBadge tone={decisionTone(item.decision)}>{item.decision}</BrutalBadge>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {simResult && !("items" in simResult) ? (
+                <div className="mt-3 border-t border-outline pt-2">
+                  <div className="mb-2 flex items-center gap-2">
+                    <BrutalBadge tone={decisionTone(simResult.decision)}>{simResult.decision}</BrutalBadge>
+                    <BrutalBadge tone="muted">side_effects: off</BrutalBadge>
+                  </div>
+                  <StatRow label="Reason" value={simResult.reason || "—"} />
+                  <StatRow label="Simulated at" value={formatDateTime(simResult.simulated_at)} />
+                </div>
+              ) : null}
+            </BrutalCard>
+          </div>
+
+          <BrutalCard eyebrow="Advanced" title="Ask AI">
+            <p className="mb-3 text-xs text-on-surface-variant">
+              Open the AI workspace to discuss this tenant&apos;s governance posture. No decisions, policies or secrets travel with the link.
+            </p>
+            <BrutalButton variant="yellow" size="sm" href="/ai">Ask AI about governance</BrutalButton>
+          </BrutalCard>
         </div>
       ) : null}
 

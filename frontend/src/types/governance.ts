@@ -300,3 +300,32 @@ export interface GovernanceReportsResponse {
   items: GovernanceReport[];
   total: number;
 }
+
+/** POST /governance/govern/{ai,data,security,spend,integration,workflow,agent}.
+ * Central evaluation result plus the domain layer verdict. No scores —
+ * only decision/allowed/layer/reason and the domain's own detail fields. */
+export interface DomainGovernResult {
+  decision: string;
+  reason: string;
+  allowed: boolean;
+  layer: string;
+  policy_id?: string | null;
+  version_id?: string | null;
+  binding_id?: string | null;
+  rule_index?: number | null;
+  priority?: number;
+  obligations?: unknown[];
+  exception_id?: string | null;
+  scope_type?: string;
+  scope_value?: string;
+  approval_id?: string;
+  finops_gate?: string;
+  zero_trust?: {
+    decision: string;
+    allowed: boolean;
+    reason: string;
+  };
+}
+
+export const GOVERN_ACTION_CLASSES = ["read", "write", "execute", "approve", "share", "export"] as const;
+export const GOVERN_CLASSIFICATIONS = ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"] as const;

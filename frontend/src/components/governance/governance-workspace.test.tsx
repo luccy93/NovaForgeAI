@@ -415,3 +415,166 @@ describe("GovernanceWorkspace (C1)", () => {
     expect(screen.queryByText(/password/i)).toBeNull();
   });
 });
+
+describe("GovernanceWorkspace (C2 intelligence)", () => {
+  beforeEach(() => {
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    Object.assign(api, {
+      governAi: vi.fn().mockResolvedValue({
+        decision: "ALLOW",
+        reason: "allowed by default effect",
+        allowed: true,
+        layer: "governance+finops",
+        policy_id: "p1",
+        finops_gate: "ALLOW",
+      }),
+      governData: vi.fn().mockResolvedValue({ decision: "ALLOW", reason: "ok", allowed: true, layer: "governance" }),
+      governanceEvaluate: vi.fn().mockResolvedValue({
+        decision: "DENY",
+        reason: "no allow rule matched",
+        policy_id: null,
+        version_id: null,
+        binding_id: null,
+        rule_index: null,
+        priority: 0,
+        obligations: [],
+        exception_id: null,
+        scope_type: "tenant",
+        scope_value: "",
+        effective_at: "2026-09-10T00:00:00Z",
+        latency_ms: 3,
+        allowed: false,
+      }),
+      governanceSimulate: vi.fn().mockResolvedValue({
+        items: [
+          {
+            decision: "ALLOW",
+            reason: "allowed",
+            policy_id: "p1",
+            version_id: "v1",
+            binding_id: "b1",
+            rule_index: 0,
+            priority: 1,
+            obligations: [],
+            scope_type: "tenant",
+            scope_value: "",
+            simulated_at: "2026-09-10T00:00:00Z",
+            side_effects: false,
+          },
+        ],
+        total: 1,
+        summary: { ALLOW: 1 },
+      }),
+    });
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("runs an AI domain check and renders the backend verdict verbatim", async () => {
+    installApiMock({}, ["organization:read"]);
+    const { getByRole } = render(<GovernanceWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "AI Governance" }));
+    expect(await screen.findByText("Domain check")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "gpt-x" } });
+    fireEvent.click(screen.getByRole("button", { name: "Run domain check" }));
+    await waitFor(() => {
+      expect(apiModule.api.governAi).toHaveBeenCalledWith(
+        "test-token",
+        expect.objectContaining({ model: "gpt-x", operation: "ai.invoke", classification: "INTERNAL" }),
+      );
+    });
+    expect(await screen.findByText("governance+finops")).toBeTruthy();
+    expect(screen.getByText("FinOps gate")).toBeTruthy();
+  });
+
+  it("evaluates with enforcement off and labels the dry run honestly", async () => {
+    installApiMock({}, ["organization:read"]);
+    const { getByRole } = render(<GovernanceWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Advanced" }));
+    fireEvent.change(screen.getByLabelText("Operation"), { target: { value: "data.export" } });
+    fireEvent.click(screen.getByRole("button", { name: "Evaluate" }));
+    await waitFor(() => {
+      expect(apiModule.api.governanceEvaluate).toHaveBeenCalledWith(
+        "test-token",
+        expect.objectContaining({ operation: "data.export", enforce: false }),
+      );
+    });
+    expect(await screen.findByText("no allow rule matched")).toBeTruthy();
+  });
+
+  it("simulates a batch and renders the backend summary counts", async () => {
+    installApiMock({}, ["organization:read"]);
+    const { getByRole } = render(<GovernanceWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Advanced" }));
+    fireEvent.click(screen.getByRole("button", { name: "Batch" }));
+    fireEvent.change(screen.getByLabelText("Requests (JSON array)"), {
+      target: { value: '[{"scope_type": "tenant", "operation": "data.export"}]' },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Simulate" }));
+    await waitFor(() => {
+      expect(apiModule.api.governanceSimulate).toHaveBeenCalledWith("test-token", {
+        requests: [{ scope_type: "tenant", operation: "data.export" }],
+      });
+    });
+    expect(await screen.findByText("1 simulated · ALLOW: 1")).toBeTruthy();
+  });
+
+  it("simulates a single request with no side effects", async () => {
+    installApiMock(
+      {
+        governanceSimulate: vi.fn().mockResolvedValue({
+          decision: "ALLOW",
+          reason: "allowed",
+          policy_id: "p1",
+          version_id: "v1",
+          binding_id: "b1",
+          rule_index: 0,
+          priority: 1,
+          obligations: [],
+          scope_type: "tenant",
+          scope_value: "",
+          simulated_at: "2026-09-10T00:00:00Z",
+          side_effects: false,
+        }),
+      },
+      ["organization:read"],
+    );
+    const { getByRole } = render(<GovernanceWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Advanced" }));
+    fireEvent.change(screen.getByLabelText("Simulated operation"), { target: { value: "data.export" } });
+    fireEvent.click(screen.getByRole("button", { name: "Simulate" }));
+    await waitFor(() => {
+      expect(apiModule.api.governanceSimulate).toHaveBeenCalledWith(
+        "test-token",
+        expect.objectContaining({ operation: "data.export", scope_type: "tenant" }),
+      );
+    });
+    expect(await screen.findByText("side_effects: off")).toBeTruthy();
+  });
+
+  it("surfaces the rate-limit state when evaluation is throttled", async () => {
+    installApiMock(
+      {
+        governanceEvaluate: vi.fn().mockRejectedValue(new ApiError("rate_limited", 429, "rate limit exceeded")),
+      },
+      ["organization:read"],
+    );
+    const { getByRole } = render(<GovernanceWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Advanced" }));
+    fireEvent.change(screen.getByLabelText("Operation"), { target: { value: "data.export" } });
+    fireEvent.click(screen.getByRole("button", { name: "Evaluate" }));
+    expect(await screen.findByText("rate limit exceeded")).toBeTruthy();
+  });
+
+  it("offers the AI handoff as a plain link with no payload", async () => {
+    installApiMock({}, ["organization:read"]);
+    const { getByRole } = render(<GovernanceWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Advanced" }));
+    const link = await screen.findByRole("link", { name: "Ask AI about governance" });
+    expect(link.getAttribute("href")).toBe("/ai");
+  });
+});

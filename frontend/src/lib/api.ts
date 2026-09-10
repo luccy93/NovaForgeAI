@@ -1465,6 +1465,107 @@ export const api = {
       body,
     }),
 
+  // ─── Domain governance + evaluation lab (V71 central plane, C2) ──────
+  // POST /govern/* are read-gated checks: central policy first, then the
+  // domain layer (FinOps ceilings, residency, Zero Trust). Responses carry
+  // decision/allowed/layer/reason only — never scores.
+  governAi: (token: string, body: {
+    model?: string;
+    provider?: string;
+    use_case?: string;
+    action_class?: string;
+    classification?: string;
+    input_tokens?: number;
+    estimated_cents?: number;
+    operation?: string;
+  }) =>
+    apiRequest<import("@/types/governance").DomainGovernResult>("/governance/govern/ai", {
+      method: "POST",
+      token,
+      body,
+    }),
+  governData: (token: string, body: {
+    dataset?: string;
+    project?: string;
+    workspace?: string;
+    classification?: string;
+    region?: string;
+    destination?: string;
+    operation?: string;
+  }) =>
+    apiRequest<import("@/types/governance").DomainGovernResult>("/governance/govern/data", {
+      method: "POST",
+      token,
+      body,
+    }),
+  governSecurity: (token: string, body: {
+    action?: string;
+    resource?: string;
+    classification?: string;
+    auth_strength?: string;
+    device_posture?: string;
+    identity?: string;
+  }) =>
+    apiRequest<import("@/types/governance").DomainGovernResult>("/governance/govern/security", {
+      method: "POST",
+      token,
+      body,
+    }),
+  governSpend: (token: string, body: {
+    operation?: string;
+    model?: string;
+    provider?: string;
+    workspace?: string;
+    project?: string;
+    estimated_cents?: number;
+    budget_id?: string;
+  }) =>
+    apiRequest<import("@/types/governance").DomainGovernResult>("/governance/govern/spend", {
+      method: "POST",
+      token,
+      body,
+    }),
+  governIntegration: (token: string, body: {
+    connection_id?: string;
+    operation?: string;
+    destination?: string;
+    classification?: string;
+    region?: string;
+    scopes?: string[];
+    estimated_cents?: number;
+  }) =>
+    apiRequest<import("@/types/governance").DomainGovernResult>("/governance/govern/integration", {
+      method: "POST",
+      token,
+      body,
+    }),
+  governWorkflow: (token: string, body: {
+    workflow_id?: string;
+    run_id?: string;
+    executor?: string;
+    environment?: string;
+    classification?: string;
+    fan_out?: number;
+    max_fan_out?: number;
+  }) =>
+    apiRequest<import("@/types/governance").DomainGovernResult>("/governance/govern/workflow", {
+      method: "POST",
+      token,
+      body,
+    }),
+  governAgent: (token: string, body: {
+    agent?: string;
+    tool?: string;
+    step_number?: number;
+    max_steps?: number;
+    classification?: string;
+  }) =>
+    apiRequest<import("@/types/governance").DomainGovernResult>("/governance/govern/agent", {
+      method: "POST",
+      token,
+      body,
+    }),
+
   recentActivity: (
     token: string,
     limit = 20,
