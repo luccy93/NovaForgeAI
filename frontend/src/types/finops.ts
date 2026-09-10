@@ -165,6 +165,157 @@ export const BUDGET_PERIODS: BudgetPeriod[] = ["daily", "weekly", "monthly"];
 export const ENFORCEMENTS: Enforcement[] = ["alert", "require_approval", "block"];
 export const COST_BASES = ["actual", "estimated", "unpriced"] as const;
 export const ANOMALY_SEVERITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
+export const POLICY_ACTIONS = ["alert", "warn", "require_approval", "block"] as const;
+export const GATE_DECISIONS = ["ALLOW", "WARN", "REQUIRE_APPROVAL", "BLOCK"] as const;
+export const REPORT_TYPES = ["showback", "chargeback"] as const;
+export const GROUP_KEYS = ["workspace", "project", "service", "environment", "provider", "model"] as const;
+
+/** Versioned pricing — pricing._serialize. Rows are immutable history. */
+export interface PricingVersion {
+  id: string;
+  tenant: string;
+  provider: string;
+  model: string;
+  resource: string;
+  unit: string;
+  input_price_cents_per_m: number;
+  output_price_cents_per_m: number;
+  request_price_cents: number;
+  storage_price_cents: number;
+  compute_price_cents: number;
+  currency: string;
+  effective_from: string | null;
+  effective_until: string | null;
+  source: string;
+  version: number;
+  status: string;
+  operator: string;
+  reason: string;
+}
+
+/** Deterministic cost allocation — allocation._serialize. */
+export interface CostAllocation {
+  id: string;
+  tenant: string;
+  cost_record_id: string;
+  allocation_key: string;
+  target_workspace: string;
+  target_project: string;
+  target_service: string;
+  target_environment: string;
+  share: number;
+  amount_cents: number;
+  basis: string;
+  deduplicated?: boolean;
+}
+
+export interface AllocationsPage extends Paginated<CostAllocation> {
+  limit: number;
+  offset: number;
+}
+
+/** Cost governance policy — governance._serialize. */
+export interface FinOpsPolicy {
+  id: string;
+  tenant: string;
+  name: string;
+  workspace: string;
+  project: string;
+  model: string;
+  provider: string;
+  operation: string;
+  max_estimated_cents: number | null;
+  action: string;
+  enabled: boolean;
+  owner: string;
+}
+
+/** POST /finops/gate/evaluate — server recomputes the estimate; client value is a floor. */
+export interface GateDecision {
+  decision: string;
+  reason: string;
+  estimated_cents: number;
+  approval_id: string;
+  policy_id: string | null;
+  allowed: boolean;
+}
+
+export interface ReportLine {
+  group: string;
+  total_cents: number;
+  record_count?: number;
+  allocation_count?: number;
+}
+
+/** Chargeback/showback report — chargeback._serialize. */
+export interface ChargebackReport {
+  id: string;
+  tenant: string;
+  report_type: string;
+  period_start: string | null;
+  period_end: string | null;
+  scope: Record<string, unknown>;
+  total_cents: number;
+  lines: ReportLine[];
+  provenance: Record<string, unknown>;
+  deduplicated?: boolean;
+}
+
+/** Read-only provider/model comparison row — model_intelligence.compare_models. */
+export interface ModelComparisonRow {
+  provider: string;
+  model: string;
+  spend_cents: number;
+  requests: number;
+  tokens: number;
+  cost_per_request_cents: number | null;
+  tokens_per_request: number | null;
+  avg_latency_ms: number | null;
+  input_price_cents_per_m: number | null;
+  output_price_cents_per_m: number | null;
+  pricing_version: number | null;
+}
+
+export interface ModelComparison {
+  items: ModelComparisonRow[];
+  total: number;
+  start: string;
+  end: string;
+  note: string;
+  cached?: boolean;
+}
+
+/** Evidence-based recommendation — savings is "UNKNOWN" when not derivable. */
+export interface FinOpsRecommendation {
+  id: string;
+  tenant: string;
+  rec_type: string;
+  title: string;
+  evidence: Record<string, unknown>;
+  estimated_savings_cents: number | null;
+  savings: number | "UNKNOWN";
+  savings_known: boolean;
+  confidence: number;
+  affected_resource: string;
+  risk: string;
+  status: string;
+}
+
+export interface RecommendationsGenerated {
+  recommendations: FinOpsRecommendation[];
+  total: number;
+}
+
+/** POST /finops/aggregations/run result. */
+export interface AggregationRunResult {
+  tenant: string;
+  granularity: string;
+  buckets: number;
+  records_scanned: number;
+  dimensions: Record<string, unknown>;
+  start: string;
+  end: string;
+}
 
 /** Format integer cents with the record's own currency. No conversion is ever applied. */
 export function formatCents(amountCents: number | null | undefined, currency?: string | null): string {

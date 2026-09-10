@@ -458,6 +458,171 @@ export const api = {
     );
   },
 
+  // ─── FinOps governance & intelligence (V69, C2) ───────────────────────
+  // Backend: backend/app/finops/api.py (pricing, allocations,
+  // aggregations/run) and backend/app/finops/api_c2.py (anomaly detect,
+  // recommendations, model compare, policies, gate, reports).
+  finopsPricing: (token: string, opts?: { provider?: string; model?: string; status?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.provider) params.set("provider", opts.provider);
+    if (opts?.model) params.set("model", opts.model);
+    if (opts?.status) params.set("status", opts.status);
+    const qs = params.toString();
+    return apiRequest<{ items: import("@/types/finops").PricingVersion[] }>(
+      `/finops/pricing${qs ? `?${qs}` : ""}`,
+      { token },
+    );
+  },
+  finopsPricingCreate: (token: string, body: {
+    provider: string;
+    model?: string;
+    resource?: string;
+    unit?: string;
+    input_price_cents_per_m?: number;
+    output_price_cents_per_m?: number;
+    request_price_cents?: number;
+    storage_price_cents?: number;
+    compute_price_cents?: number;
+    currency?: string;
+    effective_from?: string;
+    effective_until?: string;
+    source?: string;
+    reason?: string;
+  }) =>
+    apiRequest<import("@/types/finops").PricingVersion>("/finops/pricing", {
+      method: "POST",
+      token,
+      body,
+    }),
+  finopsPricingDeprecate: (token: string, versionId: string) =>
+    apiRequest<import("@/types/finops").PricingVersion>(
+      `/finops/pricing/${encodeURIComponent(versionId)}/deprecate`,
+      { method: "POST", token, body: {} },
+    ),
+  finopsAllocations: (token: string, opts?: { cost_record_id?: string; limit?: number; offset?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.cost_record_id) params.set("cost_record_id", opts.cost_record_id);
+    params.set("limit", String(opts?.limit ?? 100));
+    params.set("offset", String(opts?.offset ?? 0));
+    return apiRequest<import("@/types/finops").AllocationsPage>(
+      `/finops/allocations?${params.toString()}`,
+      { token },
+    );
+  },
+  finopsAllocationCreate: (token: string, body: {
+    cost_record_id: string;
+    splits: Array<{
+      allocation_key: string;
+      share: number;
+      target_workspace?: string;
+      target_project?: string;
+      target_service?: string;
+      target_environment?: string;
+    }>;
+    basis?: string;
+  }) =>
+    apiRequest<import("@/types/finops").Paginated<import("@/types/finops").CostAllocation>>("/finops/allocations", {
+      method: "POST",
+      token,
+      body,
+    }),
+  finopsAggregationRun: (token: string, body: {
+    granularity?: string;
+    start?: string;
+    end?: string;
+    dimensions?: Record<string, unknown>;
+  }) =>
+    apiRequest<import("@/types/finops").AggregationRunResult>("/finops/aggregations/run", {
+      method: "POST",
+      token,
+      body,
+    }),
+  finopsAnomalyDetect: (token: string, lookback_days = 14) =>
+    apiRequest<{ anomalies: import("@/types/finops").CostAnomaly[]; total: number }>(
+      "/finops/anomalies/detect",
+      { method: "POST", token, body: { lookback_days } },
+    ),
+  finopsRecommendations: (token: string, opts?: { rec_type?: string; status?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.rec_type) params.set("rec_type", opts.rec_type);
+    if (opts?.status) params.set("status", opts.status);
+    params.set("limit", String(opts?.limit ?? 100));
+    return apiRequest<import("@/types/finops").Paginated<import("@/types/finops").FinOpsRecommendation>>(
+      `/finops/recommendations?${params.toString()}`,
+      { token },
+    );
+  },
+  finopsRecommendationsGenerate: (token: string) =>
+    apiRequest<import("@/types/finops").RecommendationsGenerated>("/finops/recommendations/generate", {
+      method: "POST",
+      token,
+      body: {},
+    }),
+  finopsModelsCompare: (token: string, opts?: { start?: string; end?: string; provider?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.start) params.set("start", opts.start);
+    if (opts?.end) params.set("end", opts.end);
+    if (opts?.provider) params.set("provider", opts.provider);
+    const qs = params.toString();
+    return apiRequest<import("@/types/finops").ModelComparison>(
+      `/finops/models/compare${qs ? `?${qs}` : ""}`,
+      { token },
+    );
+  },
+  finopsPolicies: (token: string) =>
+    apiRequest<import("@/types/finops").Paginated<import("@/types/finops").FinOpsPolicy>>("/finops/policies", { token }),
+  finopsPolicyCreate: (token: string, body: {
+    name: string;
+    workspace?: string;
+    project?: string;
+    model?: string;
+    provider?: string;
+    operation?: string;
+    max_estimated_cents?: number;
+    action?: string;
+    owner?: string;
+  }) =>
+    apiRequest<import("@/types/finops").FinOpsPolicy>("/finops/policies", {
+      method: "POST",
+      token,
+      body,
+    }),
+  finopsPolicyUpdate: (token: string, policyId: string, body: Record<string, unknown>) =>
+    apiRequest<import("@/types/finops").FinOpsPolicy>(
+      `/finops/policies/${encodeURIComponent(policyId)}`,
+      { method: "PATCH", token, body },
+    ),
+  finopsGateEvaluate: (token: string, body: {
+    operation: string;
+    identity?: string;
+    estimated_cents?: number;
+    usage?: Record<string, unknown>;
+    workspace?: string;
+    project?: string;
+    model?: string;
+    provider?: string;
+    reason?: string;
+  }) =>
+    apiRequest<import("@/types/finops").GateDecision>("/finops/gate/evaluate", {
+      method: "POST",
+      token,
+      body,
+    }),
+  finopsReportGenerate: (token: string, reportType: string, body?: { start?: string; end?: string; group_by?: string }) =>
+    apiRequest<import("@/types/finops").ChargebackReport>(
+      `/finops/reports/${encodeURIComponent(reportType)}`,
+      { method: "POST", token, body: body ?? {} },
+    ),
+  finopsReports: (token: string, opts?: { report_type?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.report_type) params.set("report_type", opts.report_type);
+    const qs = params.toString();
+    return apiRequest<import("@/types/finops").Paginated<import("@/types/finops").ChargebackReport>>(
+      `/finops/reports${qs ? `?${qs}` : ""}`,
+      { token },
+    );
+  },
+
   knowledgeSearch: (token: string, query: string, opts?: {
     source_type?: string;
     doc_type?: string;
