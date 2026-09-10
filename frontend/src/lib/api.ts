@@ -1596,6 +1596,277 @@ export const api = {
     );
   },
 
+  // ─── Data Platform (V65, C1) ──────────────────────────────────────────
+  // Backend: backend/app/api/data_platform.py (prefix /data-platform).
+  // Tenant-scoped; reads are authenticated-only, mutations need
+  // data:write (+resource) or data:export. Most lists return {items}
+  // with no total — counts are labeled "listed", never totals.
+  dataDatasets: (token: string, opts?: { status?: string; classification?: string; owner?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    if (opts?.classification) params.set("classification", opts.classification);
+    if (opts?.owner) params.set("owner", opts.owner);
+    params.set("limit", String(opts?.limit ?? 50));
+    return apiRequest<{ items: import("@/types/data-platform").DatasetListItem[] }>(
+      `/data-platform/datasets?${params.toString()}`,
+      { token },
+    );
+  },
+  dataDataset: (token: string, datasetId: string) =>
+    apiRequest<import("@/types/data-platform").DatasetDetail>(
+      `/data-platform/datasets/${encodeURIComponent(datasetId)}`,
+      { token },
+    ),
+  dataDatasetCreate: (token: string, body: {
+    name: string;
+    description?: string;
+    workspace?: string;
+    project?: string;
+    owner?: string;
+    team?: string;
+    classification?: string;
+    schema_version?: string;
+    storage_location?: string;
+    region?: string;
+    status?: string;
+    retention_days?: number;
+  }) =>
+    apiRequest<import("@/types/data-platform").DatasetListItem>("/data-platform/datasets", {
+      method: "POST",
+      token,
+      body,
+    }),
+  dataDatasetVersion: (token: string, datasetId: string, body: Record<string, unknown>) =>
+    apiRequest<import("@/types/data-platform").DatasetVersion>(
+      `/data-platform/datasets/${encodeURIComponent(datasetId)}/versions`,
+      { method: "POST", token, body },
+    ),
+  dataDatasetArchive: (token: string, datasetId: string) =>
+    apiRequest<Record<string, unknown>>(
+      `/data-platform/datasets/${encodeURIComponent(datasetId)}/archive`,
+      { method: "POST", token, body: {} },
+    ),
+  dataSources: (token: string, opts?: { connector?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.connector) params.set("connector", opts.connector);
+    params.set("limit", String(opts?.limit ?? 50));
+    return apiRequest<{ items: import("@/types/data-platform").DataSourceListItem[] }>(
+      `/data-platform/sources?${params.toString()}`,
+      { token },
+    );
+  },
+  // Source credentials are write-only: the backend stores a hash ref and
+  // never returns credential material.
+  dataSourceCreate: (token: string, body: {
+    name: string;
+    connector: string;
+    credentials?: string;
+    region?: string;
+    classification?: string;
+    owner?: string;
+    config?: Record<string, unknown>;
+  }) =>
+    apiRequest<import("@/types/data-platform").DataSourceCreated>("/data-platform/sources", {
+      method: "POST",
+      token,
+      body,
+    }),
+  dataSchemas: (token: string, opts?: { dataset_id?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.dataset_id) params.set("dataset_id", opts.dataset_id);
+    params.set("limit", String(opts?.limit ?? 50));
+    return apiRequest<{ items: import("@/types/data-platform").DataSchemaListItem[] }>(
+      `/data-platform/schemas?${params.toString()}`,
+      { token },
+    );
+  },
+  dataSchemaCreate: (token: string, datasetId: string, body: {
+    version?: string;
+    fields: Array<Record<string, unknown>>;
+    classification?: string;
+  }) =>
+    apiRequest<import("@/types/data-platform").DataSchema>(
+      `/data-platform/schemas?dataset_id=${encodeURIComponent(datasetId)}`,
+      { method: "POST", token, body },
+    ),
+  dataSchemaEvolve: (token: string, schemaId: string, body: { fields: Array<Record<string, unknown>>; compatibility?: string }) =>
+    apiRequest<{ id: string; version: string }>(
+      `/data-platform/schemas/${encodeURIComponent(schemaId)}/evolve`,
+      { method: "POST", token, body },
+    ),
+  dataPipelines: (token: string, opts?: { status?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    params.set("limit", String(opts?.limit ?? 50));
+    return apiRequest<{ items: import("@/types/data-platform").DataPipelineListItem[] }>(
+      `/data-platform/pipelines?${params.toString()}`,
+      { token },
+    );
+  },
+  dataPipelineCreate: (token: string, body: {
+    name: string;
+    description?: string;
+    steps?: unknown[];
+    dependencies?: string[];
+    schedule?: string;
+    owner?: string;
+    region?: string;
+    priority?: string;
+    resource_limits?: Record<string, unknown>;
+    status?: string;
+  }) =>
+    apiRequest<import("@/types/data-platform").DataPipelineCreated>("/data-platform/pipelines", {
+      method: "POST",
+      token,
+      body,
+    }),
+  dataPipelineRun: (token: string, pipelineId: string, body?: Record<string, unknown>) =>
+    apiRequest<import("@/types/data-platform").PipelineRunStarted>(
+      `/data-platform/pipelines/${encodeURIComponent(pipelineId)}/runs`,
+      { method: "POST", token, body: body ?? {} },
+    ),
+  dataPipelineRunComplete: (token: string, runId: string, body: {
+    status?: string;
+    records?: number;
+    error?: string;
+    checkpoint?: Record<string, unknown>;
+  }) =>
+    apiRequest<import("@/types/data-platform").PipelineRunCompleted>(
+      `/data-platform/pipelines/runs/${encodeURIComponent(runId)}/complete`,
+      { method: "POST", token, body },
+    ),
+  dataPipelineBackfill: (token: string, pipelineId: string, body: Record<string, unknown>) =>
+    apiRequest<import("@/types/data-platform").PipelineBackfill>(
+      `/data-platform/pipelines/${encodeURIComponent(pipelineId)}/backfill`,
+      { method: "POST", token, body },
+    ),
+  dataJobs: (token: string, opts?: { pipeline_id?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.pipeline_id) params.set("pipeline_id", opts.pipeline_id);
+    params.set("limit", String(opts?.limit ?? 20));
+    return apiRequest<{ items: import("@/types/data-platform").DataJobRow[] }>(
+      `/data-platform/data-jobs?${params.toString()}`,
+      { token },
+    );
+  },
+  dataQualityRuleCreate: (token: string, datasetId: string, body: {
+    name: string;
+    rule_type: string;
+    params?: Record<string, unknown>;
+    version?: string;
+  }) =>
+    apiRequest<import("@/types/data-platform").QualityRuleCreated>(
+      `/data-platform/quality/rules?dataset_id=${encodeURIComponent(datasetId)}`,
+      { method: "POST", token, body },
+    ),
+  dataQualityJobRun: (token: string, body: { dataset_id: string; records: Array<Record<string, unknown>> }) =>
+    apiRequest<{ results: import("@/types/data-platform").QualityResultRow[] }>("/data-platform/quality/jobs", {
+      method: "POST",
+      token,
+      body,
+    }),
+  dataQualityResults: (token: string, datasetId: string, limit = 50) =>
+    apiRequest<{ items: import("@/types/data-platform").QualityResultRow[] }>(
+      `/data-platform/quality/results?dataset_id=${encodeURIComponent(datasetId)}&limit=${limit}`,
+      { token },
+    ),
+  dataQualityProfile: (token: string, body: { dataset_id: string; records: Array<Record<string, unknown>> }) =>
+    apiRequest<import("@/types/data-platform").QualityProfile>("/data-platform/quality/profile", {
+      method: "POST",
+      token,
+      body,
+    }),
+  dataLineageCreate: (token: string, body: {
+    source: string;
+    target: string;
+    transformation?: string;
+    pipeline_id?: string;
+    column_lineage?: Record<string, unknown>;
+  }) =>
+    apiRequest<import("@/types/data-platform").LineageEdgeCreated>("/data-platform/lineage", {
+      method: "POST",
+      token,
+      body,
+    }),
+  dataLineageUpstream: (token: string, node: string, depth = 3) =>
+    apiRequest<{ items: import("@/types/data-platform").LineageEdge[] }>(
+      `/data-platform/lineage/${encodeURIComponent(node)}/upstream?depth=${depth}`,
+      { token },
+    ),
+  dataLineageDownstream: (token: string, node: string, depth = 3) =>
+    apiRequest<{ items: import("@/types/data-platform").LineageEdge[] }>(
+      `/data-platform/lineage/${encodeURIComponent(node)}/downstream?depth=${depth}`,
+      { token },
+    ),
+  dataLineageGraph: (token: string, node: string, depth = 3) =>
+    apiRequest<import("@/types/data-platform").LineageGraph>(
+      `/data-platform/lineage/${encodeURIComponent(node)}/graph?depth=${depth}`,
+      { token },
+    ),
+  dataCatalogSearchFull: (token: string, opts?: {
+    q?: string;
+    owner?: string;
+    classification?: string;
+    limit?: number;
+    semantic?: boolean;
+    offline?: boolean;
+  }) => {
+    const params = new URLSearchParams();
+    if (opts?.q) params.set("q", opts.q);
+    if (opts?.owner) params.set("owner", opts.owner);
+    if (opts?.classification) params.set("classification", opts.classification);
+    params.set("limit", String(opts?.limit ?? 20));
+    if (opts?.semantic) params.set("semantic", "true");
+    if (opts?.offline) params.set("offline", "true");
+    return apiRequest<import("@/types/universal").CatalogSearchResponse>(
+      `/data-platform/catalog/search?${params.toString()}`,
+      { token },
+    );
+  },
+  dataCatalogSnapshot: (token: string) =>
+    apiRequest<{ snapshot: string; tenant: string }>("/data-platform/catalog/snapshot", {
+      method: "POST",
+      token,
+      body: {},
+    }),
+  dataStreamCreate: (token: string, body: {
+    topic: string;
+    partition?: number;
+    consumer_group?: string;
+    schema_id?: string;
+    region?: string;
+  }) =>
+    apiRequest<import("@/types/data-platform").DataStreamCreated>("/data-platform/streams", {
+      method: "POST",
+      token,
+      body,
+    }),
+  dataStreamIngest: (token: string, topic: string, body: Record<string, unknown>) =>
+    apiRequest<import("@/types/data-platform").StreamEventReceipt>(
+      `/data-platform/streams/${encodeURIComponent(topic)}/ingest`,
+      { method: "POST", token, body },
+    ),
+  dataStreamLag: (token: string, topic: string, consumer: string) =>
+    apiRequest<import("@/types/data-platform").StreamLag>(
+      `/data-platform/streams/${encodeURIComponent(topic)}/lag?consumer=${encodeURIComponent(consumer)}`,
+      { token },
+    ),
+  dataStreamConsume: (token: string, topic: string, body: { consumer: string; partition?: number; limit?: number }) =>
+    apiRequest<{ items: import("@/types/data-platform").StreamEvent[] }>(
+      `/data-platform/streams/${encodeURIComponent(topic)}/consume`,
+      { method: "POST", token, body },
+    ),
+  dataLakehouseTierWrite: (token: string, datasetId: string, body: { tier?: string; records?: Array<Record<string, unknown>>; format?: string }) =>
+    apiRequest<import("@/types/data-platform").LakehouseTierWrite>(
+      `/data-platform/lakehouse/${encodeURIComponent(datasetId)}/tier`,
+      { method: "POST", token, body },
+    ),
+  dataLakehouseStats: (token: string, datasetId: string) =>
+    apiRequest<import("@/types/data-platform").LakehouseStats>(
+      `/data-platform/lakehouse/${encodeURIComponent(datasetId)}/stats`,
+      { token },
+    ),
+
   // Organizations
   listOrganizations: (token: string) =>
     apiRequest<Organization[]>("/organizations", { token }),

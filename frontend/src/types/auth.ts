@@ -17,6 +17,8 @@ export const PERMISSIONS = {
   secOpsRead: "secops:read",
   secOpsWrite: "secops:write",
   zeroTrustWrite: "zero_trust:write",
+  dataWrite: "data:write",
+  dataExport: "data:export",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
