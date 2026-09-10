@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Protected } from "@/components/auth/Protected";
 import { AppShell } from "@/components/layout/AppShell";
-import { GovernanceIntelligence } from "@/components/governance/GovernanceIntelligence";
+import { GovernanceWorkspace } from "@/components/governance/GovernanceWorkspace";
 import { api, clearToken, getToken } from "@/lib/api";
 import type { ApiUser } from "@/types/api";
 import { ApiError } from "@/lib/api-client";
@@ -59,7 +59,7 @@ export default function GovernancePage() {
           </p>
         </div>
         <div className="mx-auto flex h-[calc(100vh-8.5rem)] w-full max-w-[1600px] flex-col overflow-y-auto px-4 py-6 lg:px-6">
-          <GovernanceIntelligence />
+          <GovernanceWorkspace />
         </div>
       </AppShell>
     </Protected>

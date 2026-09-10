@@ -1344,6 +1344,127 @@ export const api = {
       body: {},
     }),
 
+  // ─── Governance command center (V71 central plane, C1) ────────────────
+  // Backend: backend/app/api/governance.py. Tenant-scoped; reads need
+  // organization:read, mutations need settings:admin. Evaluate/simulate
+  // are read-gated POSTs with a server-side rate limit (429 possible).
+  governanceCreatePolicy: (token: string, body: { name: string; domain?: string; description?: string; owner?: string }) =>
+    apiRequest<import("@/types/governance").GovernancePolicy>("/governance/policies", {
+      method: "POST",
+      token,
+      body,
+    }),
+  governancePolicy: (token: string, policyId: string) =>
+    apiRequest<import("@/types/governance").GovernancePolicy>(
+      `/governance/policies/${encodeURIComponent(policyId)}`,
+      { token },
+    ),
+  governancePolicyVersions: (token: string, policyId: string) =>
+    apiRequest<import("@/types/governance").GovernancePolicyVersionsResponse>(
+      `/governance/policies/${encodeURIComponent(policyId)}/versions`,
+      { token },
+    ),
+  governanceCreateVersion: (token: string, policyId: string, body: {
+    rules: Array<Record<string, unknown>>;
+    default_effect?: string;
+    effective_from?: string;
+    effective_until?: string;
+    reason?: string;
+  }) =>
+    apiRequest<import("@/types/governance").GovernancePolicyVersion>(
+      `/governance/policies/${encodeURIComponent(policyId)}/versions`,
+      { method: "POST", token, body },
+    ),
+  governanceVersionStatus: (token: string, versionId: string, body: { status: string; reason?: string }) =>
+    apiRequest<import("@/types/governance").GovernancePolicyVersion>(
+      `/governance/versions/${encodeURIComponent(versionId)}/status`,
+      { method: "POST", token, body },
+    ),
+  governanceCreateBinding: (token: string, body: {
+    policy_id: string;
+    version_id: string;
+    scope_type: string;
+    scope_value?: string;
+    mandatory?: boolean;
+  }) =>
+    apiRequest<import("@/types/governance").GovernanceBinding>("/governance/bindings", {
+      method: "POST",
+      token,
+      body,
+    }),
+  governanceDeleteBinding: (token: string, bindingId: string) =>
+    apiRequest<Record<string, unknown>>(
+      `/governance/bindings/${encodeURIComponent(bindingId)}`,
+      { method: "DELETE", token },
+    ),
+  governanceEvaluate: (token: string, body: {
+    scope_type: string;
+    scope_value?: string;
+    operation?: string;
+    context?: Record<string, unknown>;
+    actor?: string;
+    identity?: string;
+    enforce?: boolean;
+  }) =>
+    apiRequest<import("@/types/governance").GovernanceEvaluateResult>("/governance/evaluate", {
+      method: "POST",
+      token,
+      body,
+    }),
+  governanceSimulate: (token: string, body: {
+    requests?: Array<Record<string, unknown>>;
+    scope_type?: string;
+    scope_value?: string;
+    operation?: string;
+    context?: Record<string, unknown>;
+    proposed?: Record<string, unknown>;
+  }) =>
+    apiRequest<import("@/types/governance").GovernanceSimulateResult | import("@/types/governance").GovernanceSimulateBatchResponse>(
+      "/governance/simulate",
+      { method: "POST", token, body },
+    ),
+  governanceDecision: (token: string, decisionId: string) =>
+    apiRequest<import("@/types/governance").GovernanceDecision>(
+      `/governance/decisions/${encodeURIComponent(decisionId)}`,
+      { token },
+    ),
+  governanceExplainDecision: (token: string, decisionId: string) =>
+    apiRequest<import("@/types/governance").GovernanceExplainResponse>(
+      `/governance/decisions/${encodeURIComponent(decisionId)}/explain`,
+      { token },
+    ),
+  governancePostureHistory: (token: string, opts?: { scope_type?: string; scope_value?: string; domain?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.scope_type) params.set("scope_type", opts.scope_type);
+    if (opts?.scope_value) params.set("scope_value", opts.scope_value);
+    if (opts?.domain) params.set("domain", opts.domain);
+    params.set("limit", String(opts?.limit ?? 20));
+    return apiRequest<import("@/types/governance").GovernancePostureHistoryResponse>(
+      `/governance/posture/history?${params.toString()}`,
+      { token },
+    );
+  },
+  governanceReports: (token: string, opts?: { report_type?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.report_type) params.set("report_type", opts.report_type);
+    const qs = params.toString();
+    return apiRequest<import("@/types/governance").GovernanceReportsResponse>(
+      `/governance/reports${qs ? `?${qs}` : ""}`,
+      { token },
+    );
+  },
+  governanceGenerateReport: (token: string, body: {
+    report_type?: string;
+    scope_type?: string;
+    scope_value?: string;
+    days?: number;
+  }) =>
+    apiRequest<import("@/types/governance").GovernanceReport>("/governance/reports", {
+      method: "POST",
+      token,
+      body,
+    }),
+
   recentActivity: (
     token: string,
     limit = 20,

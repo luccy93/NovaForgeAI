@@ -151,3 +151,152 @@ export const GOVERNANCE_DECISIONS = ["ALLOW", "DENY", "REQUIRE_APPROVAL"] as con
 export const GOVERNANCE_EXCEPTION_STATUSES = ["PENDING", "APPROVED", "DENIED", "EXPIRED", "REVOKED"] as const;
 export const GOVERNANCE_DRIFT_STATUSES = ["OPEN", "RESOLVED"] as const;
 export const GOVERNANCE_DRIFT_SEVERITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
+export const GOVERNANCE_SCOPE_TYPES = ["organization", "tenant", "workspace", "resource"] as const;
+export const GOVERNANCE_REPORT_TYPES = ["posture", "violations", "compliance"] as const;
+export const GOVERNANCE_VERSION_STATUSES = ["DRAFT", "VALIDATING", "ACTIVE", "SUPERSEDED", "RETIRED"] as const;
+export const GOVERNANCE_EFFECTS = ["allow", "deny", "require_approval"] as const;
+
+/** Immutable policy version — plane_policies._serialize_version. */
+export interface GovernancePolicyVersion {
+  id: string;
+  tenant: string;
+  policy_id: string;
+  version: number;
+  status: string;
+  effective_from: string | null;
+  effective_until: string | null;
+  rules: Array<Record<string, unknown>>;
+  default_effect: string;
+  checksum: string;
+  reason: string;
+  created_by: string;
+}
+
+export interface GovernancePolicyVersionsResponse {
+  items: GovernancePolicyVersion[];
+  total: number;
+}
+
+/** POST /governance/evaluate result (enforce=false). enforce=true adds allowed/zero_trust/approval_id. */
+export interface GovernanceEvaluateResult {
+  decision: string;
+  reason: string;
+  policy_id: string | null;
+  version_id: string | null;
+  binding_id: string | null;
+  rule_index: number | null;
+  priority: number;
+  obligations: unknown[];
+  exception_id: string | null;
+  scope_type: string;
+  scope_value: string;
+  effective_at: string;
+  latency_ms: number;
+  id?: string;
+  evaluation_id?: string;
+  allowed?: boolean;
+  approval_id?: string;
+  zero_trust?: {
+    decision: string;
+    allowed: boolean;
+    reason: string;
+  };
+}
+
+/** POST /governance/simulate single-request result. Simulation never has side effects. */
+export interface GovernanceSimulateResult {
+  decision: string;
+  reason: string;
+  policy_id: string | null;
+  version_id: string | null;
+  binding_id: string | null;
+  rule_index: number | null;
+  priority: number;
+  obligations: unknown[];
+  scope_type: string;
+  scope_value: string;
+  simulated_at: string;
+  side_effects: false;
+}
+
+export interface GovernanceSimulateBatchResponse {
+  items: GovernanceSimulateResult[];
+  total: number;
+  summary: Record<string, number>;
+}
+
+/** GET /governance/decisions/{id}/explain — the `why` string is backend-composed. */
+export interface GovernanceDecisionExplanation {
+  decision: string;
+  reason: string;
+  scope: { scope_type: string; scope_value: string };
+  priority: number;
+  obligations: unknown[];
+  approval_id: string;
+  actor: string;
+  policy?: { id: string; name: string; domain: string; status: string };
+  version?: { id: string; version: number; status: string; checksum: string };
+  rule?: { index: number; name?: string; effect?: string; priority?: number; obligations?: unknown[] };
+  binding?: { id: string; scope_type: string; scope_value: string; mandatory: boolean };
+  evaluation_id?: string;
+  exception_id?: string;
+  why: string;
+}
+
+export interface GovernanceExplainResponse {
+  id: string;
+  tenant: string;
+  explanation: GovernanceDecisionExplanation;
+}
+
+/** Posture snapshot row (GET /governance/posture/history). Raw counts only. */
+export interface GovernancePostureSnapshot {
+  id: string;
+  scope_type: string;
+  scope_value: string;
+  domain: string;
+  total_policies: number;
+  active_policies: number;
+  violations_24h: number;
+  open_exceptions: number;
+  verified_controls: number;
+  failing_controls: number;
+  computed_at: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface GovernancePostureHistoryResponse {
+  items: GovernancePostureSnapshot[];
+  total: number;
+}
+
+export interface GovernanceTopRisk {
+  area: string;
+  severity: string;
+  resource: string;
+}
+
+/** Persisted governance report — plane_reports._serialize. */
+export interface GovernanceReport {
+  id: string;
+  tenant: string;
+  report_type: string;
+  scope_type: string;
+  scope_value: string;
+  period_start: string | null;
+  period_end: string | null;
+  summary: {
+    posture?: Record<string, unknown>;
+    violations?: number;
+    open_exceptions?: number;
+    open_drift?: number;
+    evidence?: Record<string, unknown>;
+    top_risks?: GovernanceTopRisk[];
+  };
+  sections: Array<{ name: string; items: Array<Record<string, unknown>> }>;
+}
+
+export interface GovernanceReportsResponse {
+  items: GovernanceReport[];
+  total: number;
+}
