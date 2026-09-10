@@ -331,6 +331,133 @@ export const api = {
   finopsCosts: (token: string, limit = 10) =>
     apiRequest<CostsPage>(`/finops/costs?limit=${limit}`, { token }),
 
+  // ─── FinOps cost intelligence (V69, C1) ───────────────────────────────
+  // Backend: backend/app/finops/api.py (usage, costs, budgets,
+  // aggregations) and backend/app/finops/api_c2.py (forecast, anomalies).
+  // Tenant-scoped; reads need billing:read, mutations billing:admin.
+  // Money is integer cents with per-record currency — never converted.
+  finopsUsageSummary: (token: string, opts?: { start?: string; end?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.start) params.set("start", opts.start);
+    if (opts?.end) params.set("end", opts.end);
+    const suffix = params.size > 0 ? `?${params.toString()}` : "";
+    return apiRequest<import("@/types/finops").UsageSummary>(`/finops/usage/summary${suffix}`, { token });
+  },
+  finopsCostsFiltered: (token: string, opts?: {
+    provider?: string;
+    model?: string;
+    workspace?: string;
+    project?: string;
+    service?: string;
+    environment?: string;
+    cost_basis?: string;
+    start?: string;
+    end?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (opts?.provider) params.set("provider", opts.provider);
+    if (opts?.model) params.set("model", opts.model);
+    if (opts?.workspace) params.set("workspace", opts.workspace);
+    if (opts?.project) params.set("project", opts.project);
+    if (opts?.service) params.set("service", opts.service);
+    if (opts?.environment) params.set("environment", opts.environment);
+    if (opts?.cost_basis) params.set("cost_basis", opts.cost_basis);
+    if (opts?.start) params.set("start", opts.start);
+    if (opts?.end) params.set("end", opts.end);
+    params.set("limit", String(opts?.limit ?? 50));
+    params.set("offset", String(opts?.offset ?? 0));
+    return apiRequest<import("@/types/finops").CostsPage>(`/finops/costs?${params.toString()}`, { token });
+  },
+  finopsBudgets: (token: string, opts?: { status?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    const qs = params.toString();
+    return apiRequest<import("@/types/finops").Paginated<import("@/types/finops").FinOpsBudget>>(
+      `/finops/budgets${qs ? `?${qs}` : ""}`,
+      { token },
+    );
+  },
+  finopsBudgetEvaluate: (token: string, budgetId: string) =>
+    apiRequest<import("@/types/finops").BudgetEvaluation>(
+      `/finops/budgets/${encodeURIComponent(budgetId)}/evaluate`,
+      { method: "POST", token, body: {} },
+    ),
+  finopsBudgetCreate: (token: string, body: {
+    name: string;
+    amount_cents: number;
+    scope_type?: string;
+    scope_value?: string;
+    provider?: string;
+    model?: string;
+    environment?: string;
+    currency?: string;
+    period?: string;
+    warning_threshold?: number;
+    hard_limit_threshold?: number;
+    enforcement?: string;
+    owner?: string;
+    approval_policy?: string;
+  }) =>
+    apiRequest<import("@/types/finops").FinOpsBudget>("/finops/budgets", {
+      method: "POST",
+      token,
+      body,
+    }),
+  finopsBudgetUpdate: (token: string, budgetId: string, body: Record<string, unknown>) =>
+    apiRequest<import("@/types/finops").FinOpsBudget>(
+      `/finops/budgets/${encodeURIComponent(budgetId)}`,
+      { method: "PATCH", token, body },
+    ),
+  finopsAggregations: (token: string, opts?: { granularity?: string; start?: string; end?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.granularity) params.set("granularity", opts.granularity);
+    if (opts?.start) params.set("start", opts.start);
+    if (opts?.end) params.set("end", opts.end);
+    params.set("limit", String(opts?.limit ?? 100));
+    return apiRequest<import("@/types/finops").Paginated<import("@/types/finops").AggregationBucket>>(
+      `/finops/aggregations?${params.toString()}`,
+      { token },
+    );
+  },
+  finopsForecast: (token: string, opts?: {
+    horizon_days?: number;
+    provider?: string;
+    model?: string;
+    workspace?: string;
+    project?: string;
+    budget_id?: string;
+  }) => {
+    const params = new URLSearchParams();
+    if (opts?.horizon_days) params.set("horizon_days", String(opts.horizon_days));
+    if (opts?.provider) params.set("provider", opts.provider);
+    if (opts?.model) params.set("model", opts.model);
+    if (opts?.workspace) params.set("workspace", opts.workspace);
+    if (opts?.project) params.set("project", opts.project);
+    if (opts?.budget_id) params.set("budget_id", opts.budget_id);
+    const qs = params.toString();
+    return apiRequest<import("@/types/finops").ForecastResult>(
+      `/finops/forecast${qs ? `?${qs}` : ""}`,
+      { token },
+    );
+  },
+  finopsForecasts: (token: string, limit = 50) =>
+    apiRequest<import("@/types/finops").Paginated<import("@/types/finops").ForecastReady>>(
+      `/finops/forecasts?limit=${limit}`,
+      { token },
+    ),
+  finopsAnomalies: (token: string, opts?: { severity?: string; status?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.severity) params.set("severity", opts.severity);
+    if (opts?.status) params.set("status", opts.status);
+    params.set("limit", String(opts?.limit ?? 100));
+    return apiRequest<import("@/types/finops").Paginated<import("@/types/finops").CostAnomaly>>(
+      `/finops/anomalies?${params.toString()}`,
+      { token },
+    );
+  },
+
   knowledgeSearch: (token: string, query: string, opts?: {
     source_type?: string;
     doc_type?: string;

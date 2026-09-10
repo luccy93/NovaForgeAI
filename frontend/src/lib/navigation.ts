@@ -21,7 +21,7 @@ export const NAV_ITEMS: Array<NavItem> = [
   { id: "knowledge", label: "Knowledge", href: "/knowledge", section: "main", auth: true, description: "Search the knowledge base" },
   { id: "workflows", label: "Workflows", href: "/dashboard", section: "platform", auth: true, description: "Automation runs" },
   { id: "agents", label: "Agents", href: "/ai", section: "platform", auth: true, description: "AI agent workspace" },
-  { id: "finops", label: "FinOps", href: "/dashboard", section: "platform", auth: true, description: "Spend and budgets" },
+  { id: "finops", label: "FinOps", href: "/finops", section: "platform", auth: true, description: "Spend and budgets" },
   { id: "integrations", label: "Integrations", href: "/integrations", section: "platform", auth: true, description: "Connected systems" },
   { id: "security", label: "Security", href: "/security", section: "system", auth: true, description: "Posture, findings and zero trust" },
   { id: "governance", label: "Governance", href: "/governance", section: "system", auth: true, description: "Policies, rules and posture" },
