@@ -277,3 +277,161 @@ describe("DataPlatformWorkspace (C1)", () => {
     expect(screen.queryByText(/password/i)).toBeNull();
   });
 });
+
+describe("DataPlatformWorkspace (C2 operations & intelligence)", () => {
+  beforeEach(() => {
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    Object.assign(api, {
+      dataIngestStart: vi.fn().mockResolvedValue({ job_id: "job-1", status: "RUNNING", dataset_id: "ds-1", source_id: "src-1", mode: "batch" }),
+      dataIngestComplete: vi.fn().mockResolvedValue({ job_id: "job-1", status: "COMPLETED", records: 50, bytes_processed: 1024 }),
+      dataIngestCdc: vi.fn().mockResolvedValue({ applied: 3 }),
+      dataCheckpoints: vi.fn().mockResolvedValue({ offset: 128, watermark: "2026-09-09T10:00:00Z" }),
+      dataFreshnessUpdate: vi.fn().mockResolvedValue({ dataset_id: "ds-1", status: "FRESH", last_update: "2026-09-10T00:00:00Z" }),
+      dataFreshness: vi.fn().mockResolvedValue({ dataset_id: "ds-1", status: "FRESH", last_update: "2026-09-10T00:00:00Z", slo: { freshness: "FRESH", expected_interval: 24 } }),
+      dataDriftCheck: vi.fn().mockResolvedValue({ drift: false }),
+      dataProducts: vi.fn().mockResolvedValue({ items: [{ id: "prod-1", name: "churn-features", status: "ACTIVE", owner: "ml-team" }] }),
+      dataProductCreate: vi.fn().mockResolvedValue({ id: "prod-2", name: "fraud-signals", status: "DRAFT" }),
+      dataDomainCreate: vi.fn().mockResolvedValue({ id: "dom-1", name: "risk" }),
+      dataReplay: vi.fn().mockResolvedValue({ id: "rep-1", topic: "events", status: "PENDING" }),
+      dataReconciliation: vi.fn().mockResolvedValue({ missing: 0, duplicate: 2, mismatched: 2 }),
+      dataExport: vi.fn().mockResolvedValue({ export_id: "exp-abcdef", dataset_id: "ds-1", status: "REQUESTED" }),
+      dataAccessAnomalies: vi.fn().mockResolvedValue({ items: [{ actor: "svc-etl", count: 42, type: "high_volume" }] }),
+    });
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("starts an ingestion job and reports its backend status verbatim", async () => {
+    installApiMock({}, ["data:write"]);
+    const { getByRole } = render(<DataPlatformWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Operations" }));
+    fireEvent.change(screen.getByLabelText("Dataset ID"), { target: { value: "ds-1" } });
+    fireEvent.change(screen.getByLabelText("Source ID"), { target: { value: "src-1" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    await waitFor(() => {
+      expect(apiModule.api.dataIngestStart).toHaveBeenCalledWith(
+        "test-token",
+        expect.objectContaining({ dataset_id: "ds-1", source_id: "src-1", mode: "batch" }),
+      );
+    });
+    expect(await screen.findByText("RUNNING")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Records"), { target: { value: "50" } });
+    fireEvent.click(screen.getByRole("button", { name: "Complete" }));
+    await waitFor(() => {
+      expect(apiModule.api.dataIngestComplete).toHaveBeenCalledWith("test-token", "job-1", { records: 50, bytes: 0, error: undefined });
+    });
+    expect(await screen.findByText("COMPLETED")).toBeTruthy();
+  });
+
+  it("looks up consumer checkpoints without inventing offsets", async () => {
+    const { getByRole } = render(<DataPlatformWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Operations" }));
+    fireEvent.change(screen.getByLabelText("Consumer"), { target: { value: "etl" } });
+    fireEvent.change(screen.getByLabelText("Topic", { exact: false }), { target: { value: "events" } });
+    fireEvent.click(screen.getByRole("button", { name: "Look up" }));
+    await waitFor(() => {
+      expect(apiModule.api.dataCheckpoints).toHaveBeenCalledWith("test-token", { consumer: "etl", topic: "events", partition: 0 });
+    });
+    expect(await screen.findByText("128")).toBeTruthy();
+  });
+
+  it("checks freshness and schema drift for the selected dataset", async () => {
+    installApiMock({}, ["data:write"]);
+    const { getByRole } = render(<DataPlatformWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Datasets" }));
+    expect(await screen.findByText("events")).toBeTruthy();
+    fireEvent.click(screen.getByText("events"));
+    fireEvent.click(getByRole("tab", { name: "Intelligence" }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh freshness" }));
+    await waitFor(() => {
+      expect(apiModule.api.dataFreshness).toHaveBeenCalledWith("test-token", "ds-1");
+    });
+    expect(await screen.findByText("FRESH")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Current schema (JSON array)"), { target: { value: '[{"name": "email"}]' } });
+    fireEvent.click(screen.getByRole("button", { name: "Check drift" }));
+    await waitFor(() => {
+      expect(apiModule.api.dataDriftCheck).toHaveBeenCalledWith("test-token", "ds-1", { current_schema: [{ name: "email" }], previous_schema: undefined });
+    });
+    expect(await screen.findByText("no drift")).toBeTruthy();
+  });
+
+  it("creates a data product and lists it from the backend", async () => {
+    installApiMock({}, ["data:write"]);
+    const { getByRole } = render(<DataPlatformWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Intelligence" }));
+    expect(await screen.findByText("churn-features")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "New product" }));
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "fraud-signals" } });
+    fireEvent.change(screen.getByLabelText("Owner"), { target: { value: "risk-team" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => {
+      expect(apiModule.api.dataProductCreate).toHaveBeenCalledWith(
+        "test-token",
+        expect.objectContaining({ name: "fraud-signals", owner: "risk-team" }),
+      );
+    });
+  });
+
+  it("runs reconciliation with submitted counts and renders backend math", async () => {
+    const { getByRole } = render(<DataPlatformWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Intelligence" }));
+    fireEvent.change(screen.getByLabelText("Source count"), { target: { value: "100" } });
+    fireEvent.change(screen.getByLabelText("Processed count"), { target: { value: "98" } });
+    fireEvent.change(screen.getByLabelText("Output count"), { target: { value: "96" } });
+    fireEvent.click(screen.getByRole("button", { name: "Reconcile" }));
+    await waitFor(() => {
+      expect(apiModule.api.dataReconciliation).toHaveBeenCalledWith("test-token", { source_count: 100, processed_count: 98, output_count: 96 });
+    });
+    expect(await screen.findByText("Duplicate")).toBeTruthy();
+  });
+
+  it("gates exports on data:export and confirms the audited request", async () => {
+    installApiMock({}, ["data:write"]);
+    const { getByRole } = render(<DataPlatformWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Datasets" }));
+    expect(await screen.findByText("events")).toBeTruthy();
+    fireEvent.click(screen.getByText("events"));
+    fireEvent.click(getByRole("tab", { name: "Operations" }));
+    expect(screen.queryByRole("button", { name: "Request export" })).toBeNull();
+    expect(screen.getByText("Exports require data:export")).toBeTruthy();
+  });
+
+  it("requests an export with data:export after confirmation", async () => {
+    installApiMock({}, ["data:write", "data:export"]);
+    const { getByRole } = render(<DataPlatformWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Datasets" }));
+    expect(await screen.findByText("events")).toBeTruthy();
+    fireEvent.click(screen.getByText("events"));
+    fireEvent.click(getByRole("tab", { name: "Operations" }));
+    fireEvent.click(screen.getByRole("button", { name: "Request export" }));
+    fireEvent.change(screen.getByLabelText("Purpose"), { target: { value: "audit review" } });
+    fireEvent.click(withinExportDialog());
+    await waitFor(() => {
+      expect(apiModule.api.dataExport).toHaveBeenCalledWith(
+        "test-token",
+        expect.objectContaining({ dataset_id: "ds-1", purpose: "audit review" }),
+      );
+    });
+    expect(await screen.findByText("REQUESTED")).toBeTruthy();
+  });
+
+  it("renders access anomalies verbatim with the AI handoff link", async () => {
+    const { getByRole } = render(<DataPlatformWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Intelligence" }));
+    expect(await screen.findByText("svc-etl")).toBeTruthy();
+    expect(screen.getByText("high_volume")).toBeTruthy();
+    const askAi = screen.getByRole("link", { name: "Ask AI about data" });
+    expect(askAi.getAttribute("href")).toBe("/ai");
+  });
+});
+
+function withinExportDialog(): HTMLElement {
+  const dialog = screen.getByRole("dialog");
+  const buttons = Array.from(dialog.querySelectorAll("button")).filter((b) => b.textContent === "Confirm");
+  if (buttons.length === 0) throw new Error("export confirm button missing");
+  return buttons[0] as HTMLElement;
+}

@@ -236,3 +236,95 @@ export const DATA_CONNECTORS = [
 export const LAKEHOUSE_TIERS = ["raw", "validated", "curated", "serving"] as const;
 export const QUALITY_RULE_TYPES = ["required", "range", "regex", "uniqueness", "referential"] as const;
 export const SCHEMA_COMPATIBILITY = ["backward", "forward", "full"] as const;
+export const FRESHNESS_STATUSES = ["FRESH", "STALE", "MISSING", "UNKNOWN"] as const;
+
+/** POST /data-platform/ingest response (job starts RUNNING). */
+export interface IngestJob {
+  job_id: string;
+  status: string;
+  dataset_id?: string;
+  source_id?: string;
+  mode?: string;
+}
+
+/** POST /data-platform/ingest/{job_id}/complete response. */
+export interface IngestJobCompleted extends IngestJob {
+  records?: number;
+  bytes_processed?: number;
+}
+
+/** POST /data-platform/ingest/cdc response (shape returned by the backend as-is). */
+export type CdcResult = Record<string, unknown>;
+
+/** GET /data-platform/checkpoints response. */
+export interface StreamCheckpoint {
+  offset: number;
+  watermark: string | null;
+}
+
+/** Freshness record — freshness statuses FRESH|STALE|MISSING|UNKNOWN. */
+export interface FreshnessStatus {
+  dataset_id?: string;
+  status: string;
+  last_update: string | null;
+}
+
+/** GET /data-platform/freshness/{id} response with SLO detail. */
+export interface FreshnessDetail extends FreshnessStatus {
+  slo: Record<string, unknown>;
+}
+
+/** POST /data-platform/drift/{id}/check response. */
+export interface DriftCheckResult {
+  drift: boolean;
+  details?: unknown;
+}
+
+/** POST /data-platform/data-products response. */
+export interface DataProductCreated {
+  id: string;
+  name: string;
+  status: string;
+}
+
+/** GET /data-platform/data-products row. */
+export interface DataProductListItem {
+  id: string;
+  name: string;
+  status: string;
+  owner?: string | null;
+}
+
+/** POST /data-platform/data-domains response. */
+export interface DataDomainCreated {
+  id: string;
+  name: string;
+}
+
+/** POST /data-platform/replay response. */
+export interface ReplayJob {
+  id: string;
+  topic: string;
+  status: string;
+}
+
+/** POST /data-platform/reconciliation response (pure function of the submitted counts). */
+export interface ReconciliationResult {
+  missing: number;
+  duplicate: number;
+  mismatched: number;
+}
+
+/** POST /data-platform/exports response (audited server-side). */
+export interface ExportRequest {
+  export_id: string;
+  dataset_id: string;
+  status: string;
+}
+
+/** GET /data-platform/access-anomalies row (backend heuristic, verbatim). */
+export interface AccessAnomaly {
+  actor: string;
+  count: number;
+  type: string;
+}

@@ -1867,6 +1867,111 @@ export const api = {
       { token },
     ),
 
+  // ─── Data Platform operations & intelligence (V65, C2) ────────────────
+  // Ingestion lifecycle, freshness/drift checks, products/domains, replay,
+  // reconciliation, audited exports and access anomalies. Exports require
+  // data:export; replay may require an approval flag the backend enforces.
+  dataIngestStart: (token: string, body: {
+    dataset_id: string;
+    source_id: string;
+    mode?: string;
+    payload?: Record<string, unknown>;
+  }) =>
+    apiRequest<import("@/types/data-platform").IngestJob>("/data-platform/ingest", {
+      method: "POST",
+      token,
+      body: { mode: "batch", ...(body as Record<string, unknown>) },
+    }),
+  dataIngestComplete: (token: string, jobId: string, body: { records?: number; bytes?: number; error?: string }) =>
+    apiRequest<import("@/types/data-platform").IngestJobCompleted>(
+      `/data-platform/ingest/${encodeURIComponent(jobId)}/complete`,
+      { method: "POST", token, body },
+    ),
+  dataIngestCdc: (token: string, body: { dataset_id: string; changes: Array<Record<string, unknown>> }) =>
+    apiRequest<import("@/types/data-platform").CdcResult>("/data-platform/ingest/cdc", {
+      method: "POST",
+      token,
+      body,
+    }),
+  dataCheckpoints: (token: string, opts: { consumer: string; topic: string; partition?: number }) => {
+    const params = new URLSearchParams();
+    params.set("consumer", opts.consumer);
+    params.set("topic", opts.topic);
+    params.set("partition", String(opts.partition ?? 0));
+    return apiRequest<import("@/types/data-platform").StreamCheckpoint>(
+      `/data-platform/checkpoints?${params.toString()}`,
+      { token },
+    );
+  },
+  dataFreshnessUpdate: (token: string, datasetId: string, expectedIntervalHours = 24) =>
+    apiRequest<import("@/types/data-platform").FreshnessStatus>(
+      `/data-platform/freshness/${encodeURIComponent(datasetId)}`,
+      { method: "POST", token, body: { expected_interval_hours: expectedIntervalHours } },
+    ),
+  dataFreshness: (token: string, datasetId: string) =>
+    apiRequest<import("@/types/data-platform").FreshnessDetail>(
+      `/data-platform/freshness/${encodeURIComponent(datasetId)}`,
+      { token },
+    ),
+  dataDriftCheck: (token: string, datasetId: string, body: { current_schema: unknown[]; previous_schema?: unknown[] }) =>
+    apiRequest<import("@/types/data-platform").DriftCheckResult>(
+      `/data-platform/drift/${encodeURIComponent(datasetId)}/check`,
+      { method: "POST", token, body },
+    ),
+  dataProducts: (token: string, opts?: { status?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    params.set("limit", String(opts?.limit ?? 20));
+    return apiRequest<{ items: import("@/types/data-platform").DataProductListItem[] }>(
+      `/data-platform/data-products?${params.toString()}`,
+      { token },
+    );
+  },
+  dataProductCreate: (token: string, body: {
+    name: string;
+    description?: string;
+    owner: string;
+    contract?: Record<string, unknown>;
+    classification?: string;
+    domain?: string;
+    slo?: Record<string, unknown>;
+    status?: string;
+  }) =>
+    apiRequest<import("@/types/data-platform").DataProductCreated>("/data-platform/data-products", {
+      method: "POST",
+      token,
+      body,
+    }),
+  dataDomainCreate: (token: string, body: { name: string; owner: string; description?: string }) =>
+    apiRequest<import("@/types/data-platform").DataDomainCreated>("/data-platform/data-domains", {
+      method: "POST",
+      token,
+      body,
+    }),
+  dataReplay: (token: string, body: { topic: string; scope?: Record<string, unknown>; requires_approval?: boolean; approved?: boolean }) =>
+    apiRequest<import("@/types/data-platform").ReplayJob>("/data-platform/replay", {
+      method: "POST",
+      token,
+      body,
+    }),
+  dataReconciliation: (token: string, body: { source_count?: number; processed_count?: number; output_count?: number }) =>
+    apiRequest<import("@/types/data-platform").ReconciliationResult>("/data-platform/reconciliation", {
+      method: "POST",
+      token,
+      body,
+    }),
+  dataExport: (token: string, body: { dataset_id: string; purpose?: string; destination?: string }) =>
+    apiRequest<import("@/types/data-platform").ExportRequest>("/data-platform/exports", {
+      method: "POST",
+      token,
+      body,
+    }),
+  dataAccessAnomalies: (token: string, limit = 20) =>
+    apiRequest<{ items: import("@/types/data-platform").AccessAnomaly[] }>(
+      `/data-platform/access-anomalies?limit=${limit}`,
+      { token },
+    ),
+
   // Organizations
   listOrganizations: (token: string) =>
     apiRequest<Organization[]>("/organizations", { token }),
