@@ -412,6 +412,209 @@ export const api = {
     apiRequest<SecOpsDashboard>("/secops/dashboard", { token }),
   integrationsList: (token: string) =>
     apiRequest<{ items: import("@/types/api").IntegrationItem[]; total: number }>("/integrations", { token }),
+
+  // ─── Integrations: registry (C1) ──────────────────────────────────────
+  // Backend: backend/app/integrations/api.py. Tenant-scoped; reads need
+  // organization:read, mutations need settings:admin. Paths preserve the
+  // backend quirks: /connections/all and /webhooks/all (avoid the
+  // /{integration_id} catch-all).
+  integrationsFiltered: (token: string, opts?: { status?: string; provider?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    if (opts?.provider) params.set("provider", opts.provider);
+    params.set("limit", String(opts?.limit ?? 100));
+    return apiRequest<import("@/types/integrations").Paginated<import("@/types/integrations").Integration>>(
+      `/integrations?${params.toString()}`,
+      { token },
+    );
+  },
+  integrationGet: (token: string, integrationId: string) =>
+    apiRequest<import("@/types/integrations").Integration>(
+      `/integrations/${encodeURIComponent(integrationId)}`,
+      { token },
+    ),
+  integrationCreate: (token: string, body: {
+    name: string;
+    type: string;
+    provider?: string;
+    version?: string;
+    workspace?: string;
+    environment?: string;
+    region?: string;
+    capabilities?: string[];
+    config?: Record<string, unknown>;
+    owner?: string;
+  }) =>
+    apiRequest<import("@/types/integrations").Integration>("/integrations", {
+      method: "POST",
+      token,
+      body,
+    }),
+  integrationUpdate: (token: string, integrationId: string, body: Record<string, unknown>) =>
+    apiRequest<import("@/types/integrations").Integration>(
+      `/integrations/${encodeURIComponent(integrationId)}`,
+      { method: "PATCH", token, body },
+    ),
+  integrationSetStatus: (token: string, integrationId: string, status: string) =>
+    apiRequest<import("@/types/integrations").Integration>(
+      `/integrations/${encodeURIComponent(integrationId)}/status`,
+      { method: "POST", token, body: { status } },
+    ),
+  integrationVersions: (token: string, integrationId: string) =>
+    apiRequest<import("@/types/integrations").Paginated<import("@/types/integrations").IntegrationVersion>>(
+      `/integrations/${encodeURIComponent(integrationId)}/versions`,
+      { token },
+    ),
+  integrationCreateVersion: (token: string, integrationId: string, body: {
+    version: string;
+    contract?: Record<string, unknown>;
+    compatibility?: string;
+    deprecated?: boolean;
+    migration_notes?: string;
+  }) =>
+    apiRequest<import("@/types/integrations").IntegrationVersion>(
+      `/integrations/${encodeURIComponent(integrationId)}/versions`,
+      { method: "POST", token, body },
+    ),
+
+  // ─── Integrations: connections & credentials (C1) ─────────────────────
+  integrationConnections: (token: string, opts?: { integration_id?: string; status?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.integration_id) params.set("integration_id", opts.integration_id);
+    if (opts?.status) params.set("status", opts.status);
+    const qs = params.toString();
+    return apiRequest<import("@/types/integrations").Paginated<import("@/types/integrations").IntegrationConnection> | import("@/types/integrations").IntegrationConnection[]>(
+      `/integrations/connections/all${qs ? `?${qs}` : ""}`,
+      { token },
+    );
+  },
+  integrationConnectionGet: (token: string, connectionId: string) =>
+    apiRequest<import("@/types/integrations").IntegrationConnection>(
+      `/integrations/connections/${encodeURIComponent(connectionId)}`,
+      { token },
+    ),
+  integrationConnectionCreate: (token: string, body: {
+    integration_id: string;
+    workspace?: string;
+    environment?: string;
+    endpoint_ref?: string;
+    scopes?: string[];
+  }) =>
+    apiRequest<import("@/types/integrations").IntegrationConnection>("/integrations/connections", {
+      method: "POST",
+      token,
+      body,
+    }),
+  integrationConnectionSetStatus: (token: string, connectionId: string, status: string) =>
+    apiRequest<import("@/types/integrations").IntegrationConnection>(
+      `/integrations/connections/${encodeURIComponent(connectionId)}/status`,
+      { method: "POST", token, body: { status } },
+    ),
+  integrationConnectionHealth: (token: string, connectionId: string) =>
+    apiRequest<Record<string, unknown>>(
+      `/integrations/connections/${encodeURIComponent(connectionId)}/health`,
+      { method: "POST", token, body: {} },
+    ),
+  integrationExecute: (token: string, connectionId: string, body: {
+    operation?: string;
+    method?: string;
+    path?: string;
+    params?: Record<string, unknown>;
+    idempotency_key?: string;
+    timeout?: number;
+  }) =>
+    apiRequest<import("@/types/integrations").ExecutionResult>(
+      `/integrations/connections/${encodeURIComponent(connectionId)}/execute`,
+      { method: "POST", token, body },
+    ),
+  // Credential material is write-only: the backend returns metadata
+  // (secret_ref, material_hint) and never the material itself.
+  integrationCredentialCreate: (token: string, body: {
+    kind: string;
+    material: string;
+    connection_id?: string;
+    scopes?: string[];
+    expires_at?: string;
+    auth_config?: Record<string, unknown>;
+  }) =>
+    apiRequest<import("@/types/integrations").IntegrationCredentialMeta>("/integrations/credentials", {
+      method: "POST",
+      token,
+      body,
+    }),
+  integrationCredentialRotate: (token: string, credentialId: string, material: string) =>
+    apiRequest<import("@/types/integrations").IntegrationCredentialMeta>(
+      `/integrations/credentials/${encodeURIComponent(credentialId)}/rotate`,
+      { method: "POST", token, body: { material } },
+    ),
+
+  // ─── Integrations: connectors (C1) ────────────────────────────────────
+  integrationConnectorsAvailable: (token: string) =>
+    apiRequest<{ items: import("@/types/integrations").ConnectorDefinition[] }>(
+      "/integrations/connectors/available",
+      { token },
+    ),
+  integrationConnectorRegister: (token: string, body: {
+    connector_key: string;
+    name: string;
+    base_url?: string;
+    workspace?: string;
+    environment?: string;
+    owner?: string;
+  }) =>
+    apiRequest<import("@/types/integrations").Integration>("/integrations/connectors/register", {
+      method: "POST",
+      token,
+      body,
+    }),
+  integrationConnectorConnect: (token: string, body: {
+    integration_id: string;
+    material: string;
+    workspace?: string;
+    environment?: string;
+    endpoint_ref?: string;
+    auth_config?: Record<string, unknown>;
+    allowed_methods?: string[];
+  }) =>
+    apiRequest<import("@/types/integrations").IntegrationConnection>("/integrations/connectors/connect", {
+      method: "POST",
+      token,
+      body,
+    }),
+  integrationConnectorHealth: (token: string, connectionId: string) =>
+    apiRequest<Record<string, unknown>>(
+      `/integrations/connections/${encodeURIComponent(connectionId)}/connector-health`,
+      { method: "POST", token, body: {} },
+    ),
+
+  // ─── Integrations: OAuth foundation (C1 reads + start) ────────────────
+  integrationOAuthList: (token: string, opts?: { status?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    const qs = params.toString();
+    return apiRequest<import("@/types/integrations").Paginated<import("@/types/integrations").OAuthConnection> | import("@/types/integrations").OAuthConnection[]>(
+      `/integrations/oauth${qs ? `?${qs}` : ""}`,
+      { token },
+    );
+  },
+  integrationOAuthGet: (token: string, oauthId: string) =>
+    apiRequest<import("@/types/integrations").OAuthConnection>(
+      `/integrations/oauth/${encodeURIComponent(oauthId)}`,
+      { token },
+    ),
+  integrationOAuthStart: (token: string, body: {
+    integration_id: string;
+    provider?: string;
+    client_id: string;
+    scopes?: string[];
+    redirect_uri: string;
+    authorization_endpoint: string;
+  }) =>
+    apiRequest<import("@/types/integrations").OAuthStartResult>("/integrations/oauth/start", {
+      method: "POST",
+      token,
+      body,
+    }),
   observabilityDashboard: (token: string) =>
     apiRequest<import("@/types/api").ObservabilityDashboard>("/observability/dashboard", { token }),
 
