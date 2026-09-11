@@ -8,12 +8,15 @@ import { BrutalButton } from "@/components/ui/BrutalButton";
 import { BrutalCard } from "@/components/ui/BrutalCard";
 import { BrutalEmptyState } from "@/components/ui/BrutalEmptyState";
 import { BrutalErrorState } from "@/components/ui/BrutalErrorState";
+import { BrutalInput } from "@/components/ui/BrutalInput";
+import { BrutalModal } from "@/components/ui/BrutalModal";
 import { BrutalSelect } from "@/components/ui/BrutalSelect";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
 import { api, clearToken, getToken } from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
 import { hasPermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/types/auth";
+import { useToastStore } from "@/stores/toast";
 import type {
   WorkflowAnomaly,
   WorkflowApproval,
@@ -29,11 +32,17 @@ import type {
   WorkflowTemplate,
   WorkflowVersion,
 } from "@/types/workflows";
-import { WORKFLOW_STATUSES } from "@/types/workflows";
+import { WORKFLOW_APPROVAL_DECISIONS, WORKFLOW_STATUSES } from "@/types/workflows";
 
 function sessionExpired() {
   clearToken();
   window.location.href = "/auth/login";
+}
+
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
 }
 
 function StatRow({ label, value }: { label: string; value: string }) {
@@ -90,6 +99,7 @@ function PanelBody({
 type TabId = "overview" | "registry" | "runs" | "approvals" | "schedules" | "automation";
 
 export function WorkflowWorkspace() {
+  const pushToast = useToastStore((s) => s.push);
   const [active, setActive] = useState<TabId>("overview");
   const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,6 +131,9 @@ export function WorkflowWorkspace() {
   const [steps, setSteps] = useState<WorkflowStepRun[] | null>(null);
   const [stepsError, setStepsError] = useState<string | null>(null);
   const [stepsLoading, setStepsLoading] = useState(false);
+  const [sla, setSla] = useState<import("@/types/workflows").WorkflowSla | null>(null);
+  const [slaError, setSlaError] = useState<string | null>(null);
+  const [slaLoading, setSlaLoading] = useState(false);
 
   const [approvals, setApprovals] = useState<WorkflowApproval[] | null>(null);
   const [approvalsError, setApprovalsError] = useState<string | null>(null);
@@ -137,8 +150,126 @@ export function WorkflowWorkspace() {
   const [business, setBusiness] = useState<WorkflowBusinessProcess[] | null>(null);
   const [businessError, setBusinessError] = useState<string | null>(null);
 
+  const [modal, setModal] = useState<
+    | { kind: "workflow-create" }
+    | { kind: "version-create"; workflow: WorkflowListItem }
+    | { kind: "publish"; workflow: WorkflowListItem }
+    | { kind: "trigger"; workflow: WorkflowListItem }
+    | { kind: "run-control"; runId: string; action: "pause" | "resume" | "cancel" }
+    | { kind: "replay"; runId: string }
+    | { kind: "recover"; runId: string }
+    | { kind: "approval-decide"; approval: WorkflowApproval }
+    | { kind: "schedule-create" }
+    | { kind: "template-create" }
+    | { kind: "task-complete"; task: WorkflowHumanTask }
+    | { kind: "task-reassign"; task: WorkflowHumanTask }
+    | { kind: "business-transition"; process: WorkflowBusinessProcess }
+    | null
+  >(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [draft, setDraft] = useState({
+    name: "",
+    description: "",
+    workspace: "",
+    version: "1.0",
+    definition: "",
+    inputs: "",
+    outputs: "",
+    owner: "",
+    trigger_type: "manual",
+    trigger_inputs: "",
+    idempotency_key: "",
+    region: "",
+    decision: "APPROVED",
+    binding_hash: "",
+    cron: "",
+    interval_seconds: "",
+    event_filter: "",
+    schedule_trigger_type: "schedule",
+    schedule_enabled: true,
+    template_name: "",
+    template_description: "",
+    template_category: "general",
+    template_definition: "",
+    template_version: "1.0",
+    task_decision: "",
+    task_comment: "",
+    assignee: "",
+    new_state: "",
+    worker_id: "",
+  });
+
   const abortRef = useRef<AbortController | null>(null);
   const seqRef = useRef(0);
+
+  const notifyError = useCallback(
+    (e: unknown, fallback: string, refetch?: () => void) => {
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      if (e instanceof ApiError && e.kind === "forbidden") {
+        pushToast("warning", "You don't have permission to perform this action");
+        return;
+      }
+      if (e instanceof ApiError && e.status === 409) {
+        pushToast("info", "State changed on the server; refreshing");
+        refetch?.();
+        return;
+      }
+      pushToast("error", e instanceof Error ? e.message : fallback);
+    },
+    [pushToast],
+  );
+
+  function resetDraft() {
+    setDraft({
+      name: "",
+      description: "",
+      workspace: "",
+      version: "1.0",
+      definition: "",
+      inputs: "",
+      outputs: "",
+      owner: "",
+      trigger_type: "manual",
+      trigger_inputs: "",
+      idempotency_key: "",
+      region: "",
+      decision: "APPROVED",
+      binding_hash: "",
+      cron: "",
+      interval_seconds: "",
+      event_filter: "",
+      schedule_trigger_type: "schedule",
+      schedule_enabled: true,
+      template_name: "",
+      template_description: "",
+      template_category: "general",
+      template_definition: "",
+      template_version: "1.0",
+      task_decision: "",
+      task_comment: "",
+      assignee: "",
+      new_state: "",
+      worker_id: "",
+    });
+  }
+
+  function parseJsonObject(raw: string, field: string): Record<string, unknown> {
+    const trimmed = raw.trim();
+    if (!trimmed) return {};
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      throw new Error(`${field} is not valid JSON`);
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error(`${field} must be a JSON object`);
+    }
+    return parsed as Record<string, unknown>;
+  }
 
   const loadAll = useCallback(async () => {
     const token = getToken();
@@ -273,6 +404,408 @@ export function WorkflowWorkspace() {
     }
   }, []);
 
+  async function handleWorkflowCreate() {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    if (!draft.name.trim()) {
+      pushToast("warning", "Workflow name is required");
+      return;
+    }
+    let definition: Record<string, unknown> = {};
+    let inputs: Record<string, unknown> = {};
+    let outputs: Record<string, unknown> = {};
+    try {
+      definition = parseJsonObject(draft.definition, "Definition");
+      inputs = parseJsonObject(draft.inputs, "Inputs");
+      outputs = parseJsonObject(draft.outputs, "Outputs");
+    } catch (e) {
+      pushToast("warning", e instanceof Error ? e.message : "Invalid JSON");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await api.workflowCreate(token, {
+        name: draft.name.trim(),
+        description: draft.description.trim() || undefined,
+        workspace: draft.workspace.trim() || undefined,
+        version: draft.version.trim() || "1.0",
+        definition,
+        inputs,
+        outputs,
+        owner: draft.owner.trim() || undefined,
+      });
+      setModal(null);
+      pushToast("success", `Workflow ${result.name} created`);
+      setSelectedWorkflowId(result.id);
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Failed to create workflow", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleVersionCreate() {
+    if (!modal || modal.kind !== "version-create") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    let definition: Record<string, unknown>;
+    try {
+      definition = parseJsonObject(draft.definition, "Definition");
+      if (Object.keys(definition).length === 0) {
+        pushToast("warning", "Definition must not be empty");
+        return;
+      }
+    } catch (e) {
+      pushToast("warning", e instanceof Error ? e.message : "Invalid JSON");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await api.workflowVersionCreate(token, modal.workflow.id, {
+        definition,
+        version: draft.version.trim() || undefined,
+      });
+      setModal(null);
+      pushToast("success", `Version ${result.version} recorded (immutable)`);
+      void loadWorkflowDetail(modal.workflow.id);
+    } catch (e) {
+      notifyError(e, "Failed to record version", () => selectedWorkflowId && void loadWorkflowDetail(selectedWorkflowId));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handlePublish() {
+    if (!modal || modal.kind !== "publish") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await api.workflowPublish(token, modal.workflow.id);
+      setModal(null);
+      pushToast("success", `Version ${result.version} published`);
+      void loadWorkflowDetail(modal.workflow.id);
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Failed to publish version", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleTrigger() {
+    if (!modal || modal.kind !== "trigger") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    let inputs: Record<string, unknown> = {};
+    try {
+      inputs = parseJsonObject(draft.trigger_inputs, "Inputs");
+    } catch (e) {
+      pushToast("warning", e instanceof Error ? e.message : "Invalid JSON");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await api.workflowTrigger(token, modal.workflow.id, {
+        trigger_type: draft.trigger_type || "manual",
+        inputs,
+        idempotency_key: draft.idempotency_key.trim() || undefined,
+        region: draft.region.trim() || undefined,
+      });
+      setModal(null);
+      pushToast("success", `Run ${result.run_id.slice(0, 8)} started — execution runs server-side`);
+      setSelectedRunId(result.run_id);
+      setActive("runs");
+      void loadWorkflowDetail(modal.workflow.id);
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Failed to trigger workflow", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRunControl() {
+    if (!modal || modal.kind !== "run-control") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const { runId, action } = modal;
+      const result =
+        action === "pause"
+          ? await api.workflowRunPause(token, runId)
+          : action === "resume"
+            ? await api.workflowRunResume(token, runId)
+            : await api.workflowRunCancel(token, runId);
+      setModal(null);
+      pushToast("success", `Run is now ${result.status}`);
+      void loadRunDetail(runId);
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Run control failed", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleReplay() {
+    if (!modal || modal.kind !== "replay") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await api.workflowRunReplay(token, modal.runId);
+      setModal(null);
+      pushToast("success", `Replay started as run ${result.new_run_id.slice(0, 8)}`);
+      setSelectedRunId(result.new_run_id);
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Replay failed — only failed runs with a published version can be replayed", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRecover() {
+    if (!modal || modal.kind !== "recover") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await api.workflowRunRecover(token, modal.runId, draft.worker_id.trim() || undefined);
+      setModal(null);
+      pushToast("success", `Recovery attempted — run is ${result.status}`);
+      void loadRunDetail(modal.runId);
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Recovery failed — the lease may still be owned", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleLoadSla() {
+    if (!selectedRunId) {
+      pushToast("warning", "Select a run first");
+      return;
+    }
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSlaLoading(true);
+    setSlaError(null);
+    try {
+      const result = await api.workflowRunSla(token, selectedRunId);
+      setSla(result);
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      if (e instanceof ApiError && e.status === 404) {
+        setSlaError("No business process linked to this run");
+        return;
+      }
+      setSlaError(e instanceof Error ? e.message : "SLA unavailable");
+    } finally {
+      setSlaLoading(false);
+    }
+  }
+
+  async function handleApprovalDecide() {
+    if (!modal || modal.kind !== "approval-decide") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await api.workflowApprovalDecide(token, modal.approval.id, {
+        decision: draft.decision,
+        binding_hash: draft.binding_hash.trim() || undefined,
+      });
+      setModal(null);
+      pushToast("success", `Approval ${result.decision}`);
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Approval decision failed", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleScheduleCreate() {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    if (!selectedWorkflowId) {
+      pushToast("warning", "Select a workflow in the Registry tab first");
+      setModal(null);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      let eventFilter: Record<string, unknown> = {};
+      try {
+        eventFilter = parseJsonObject(draft.event_filter, "Event filter");
+      } catch (e) {
+        pushToast("warning", e instanceof Error ? e.message : "Invalid JSON");
+        setSubmitting(false);
+        return;
+      }
+      const result = await api.workflowScheduleCreate(token, {
+        workflow_id: selectedWorkflowId,
+        cron: draft.cron.trim() || undefined,
+        interval_seconds: draft.interval_seconds.trim() ? Number(draft.interval_seconds) : undefined,
+        event_filter: eventFilter,
+        trigger_type: draft.schedule_trigger_type || "schedule",
+        enabled: draft.schedule_enabled,
+      });
+      setModal(null);
+      pushToast("success", `Schedule ${result.id.slice(0, 8)} created`);
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Failed to create schedule", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleTemplateCreate() {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    if (!draft.template_name.trim()) {
+      pushToast("warning", "Template name is required");
+      return;
+    }
+    let definition: Record<string, unknown> = {};
+    try {
+      definition = parseJsonObject(draft.template_definition, "Definition");
+    } catch (e) {
+      pushToast("warning", e instanceof Error ? e.message : "Invalid JSON");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await api.workflowTemplateCreate(token, {
+        name: draft.template_name.trim(),
+        description: draft.template_description.trim(),
+        category: draft.template_category.trim() || "general",
+        definition,
+        version: draft.template_version.trim() || "1.0",
+      });
+      setModal(null);
+      pushToast("success", `Template ${result.name} created`);
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Failed to create template", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleTaskComplete() {
+    if (!modal || modal.kind !== "task-complete") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await api.workflowTaskComplete(token, modal.task.id, {
+        decision: draft.task_decision.trim() || undefined,
+        comment: draft.task_comment.trim() || undefined,
+      });
+      setModal(null);
+      pushToast("success", `Task ${result.status}`);
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Failed to complete task", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleTaskReassign() {
+    if (!modal || modal.kind !== "task-reassign") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    if (!draft.assignee.trim()) {
+      pushToast("warning", "Assignee is required");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await api.workflowTaskReassign(token, modal.task.id, draft.assignee.trim());
+      setModal(null);
+      pushToast("success", `Task reassigned to ${result.assignee}`);
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Reassign failed", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleBusinessTransition() {
+    if (!modal || modal.kind !== "business-transition") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    if (!draft.new_state.trim()) {
+      pushToast("warning", "New state is required");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await api.workflowBusinessTransition(token, modal.process.id, draft.new_state.trim());
+      setModal(null);
+      pushToast("success", `Process is now ${result.current_state}`);
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Transition failed", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   useEffect(() => {
     const token = getToken();
     if (!token) return;
@@ -308,6 +841,8 @@ export function WorkflowWorkspace() {
       setWorkflowRuns(null);
       setRunDetail(null);
       setSteps(null);
+      setSla(null);
+      setSlaError(null);
       setApprovals(null);
       setSchedules(null);
       setTemplates(null);
@@ -355,6 +890,8 @@ export function WorkflowWorkspace() {
       setRunDetail(null);
       setSteps(null);
     }
+    setSla(null);
+    setSlaError(null);
   }, [selectedRunId, loadRunDetail]);
 
   const canWorkflowExecute = hasPermission(permissions, PERMISSIONS.workflowExecute);
@@ -427,7 +964,7 @@ export function WorkflowWorkspace() {
           </BrutalCard>
 
           <BrutalCard eyebrow="Registry" title="Workflows listed">
-            <PanelBody loading={loading} error={workflowsError} onRetry={() => void loadAll()} emptyTitle="No workflows" emptyDescription="Create a workflow to start automating (execution controls arrive with workflow:execute).">
+            <PanelBody loading={loading} error={workflowsError} onRetry={() => void loadAll()} emptyTitle="No workflows" emptyDescription="Create a workflow to start automating.">
               {workflows ? (
                 <div className="space-y-1">
                   <StatRow label="Workflows listed" value={String(workflows.length)} />
@@ -474,6 +1011,9 @@ export function WorkflowWorkspace() {
                 <BrutalSelect label="Status" value={workflowStatus} onChange={(e) => setWorkflowStatus(e.target.value)} options={["ALL", ...WORKFLOW_STATUSES].map((s) => ({ label: s, value: s }))} />
               </div>
               <BrutalButton variant="ghost" size="sm" onClick={() => void loadAll()}>Apply</BrutalButton>
+              {canWorkflowExecute ? (
+                <BrutalButton variant="primary" size="sm" onClick={() => { resetDraft(); setModal({ kind: "workflow-create" }); }}>New workflow</BrutalButton>
+              ) : null}
             </div>
             <PanelBody loading={loading} error={workflowsError} onRetry={() => void loadAll()} emptyTitle="No workflows" emptyDescription="No workflows match the current filter.">
               {workflows && workflows.length > 0 ? (
@@ -507,6 +1047,19 @@ export function WorkflowWorkspace() {
                   <StatRow label="Status" value={workflowDetail.status} />
                   <StatRow label="Description" value={workflowDetail.description || "—"} />
                   <StatRow label="ID" value={workflowDetail.id} />
+                  {canWorkflowExecute ? (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <BrutalButton size="sm" variant="ghost" aria-label="Record version" onClick={() => { resetDraft(); setModal({ kind: "version-create", workflow: workflowDetail }); }}>
+                        Record version
+                      </BrutalButton>
+                      <BrutalButton size="sm" variant="ghost" aria-label="Publish version" onClick={() => setModal({ kind: "publish", workflow: workflowDetail })}>
+                        Publish
+                      </BrutalButton>
+                      <BrutalButton size="sm" variant="ghost" aria-label="Trigger workflow" onClick={() => { resetDraft(); setModal({ kind: "trigger", workflow: workflowDetail }); }}>
+                        Trigger
+                      </BrutalButton>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </PanelBody>
@@ -573,6 +1126,44 @@ export function WorkflowWorkspace() {
                   <StatRow label="Execution" value={runDetail.execution_id} />
                   <StatRow label="Version" value={runDetail.workflow_version_id} />
                   <StatRow label="Trace" value={runDetail.trace_id || "—"} />
+                  {canWorkflowExecute ? (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {(runDetail.status === "RUNNING" || runDetail.status === "WAITING") && (
+                        <BrutalButton size="sm" variant="ghost" aria-label="Pause run" onClick={() => setModal({ kind: "run-control", runId: runDetail.run_id, action: "pause" })}>
+                          Pause
+                        </BrutalButton>
+                      )}
+                      {runDetail.status === "PAUSED" && (
+                        <BrutalButton size="sm" variant="ghost" aria-label="Resume run" onClick={() => setModal({ kind: "run-control", runId: runDetail.run_id, action: "resume" })}>
+                          Resume
+                        </BrutalButton>
+                      )}
+                      {!["COMPLETED", "CANCELLED", "FAILED"].includes(runDetail.status) && (
+                        <BrutalButton size="sm" variant="ghost" aria-label="Cancel run" onClick={() => setModal({ kind: "run-control", runId: runDetail.run_id, action: "cancel" })}>
+                          Cancel
+                        </BrutalButton>
+                      )}
+                      {runDetail.status === "FAILED" && (
+                        <BrutalButton size="sm" variant="ghost" aria-label="Replay run" onClick={() => setModal({ kind: "replay", runId: runDetail.run_id })}>
+                          Replay
+                        </BrutalButton>
+                      )}
+                      <BrutalButton size="sm" variant="ghost" aria-label="Recover run" onClick={() => { resetDraft(); setModal({ kind: "recover", runId: runDetail.run_id }); }}>
+                        Recover
+                      </BrutalButton>
+                      <BrutalButton size="sm" variant="ghost" aria-label="Check SLA" onClick={() => void handleLoadSla()} disabled={slaLoading}>
+                        {slaLoading ? "Checking…" : "SLA"}
+                      </BrutalButton>
+                    </div>
+                  ) : null}
+                  {slaError ? <p className="pt-1 text-xs text-error">{slaError}</p> : null}
+                  {sla ? (
+                    <div className="border-t border-outline pt-2">
+                      <StatRow label="SLA state" value={sla.current_state} />
+                      <StatRow label="Deadline" value={formatDateTime(sla.sla_deadline)} />
+                      <StatRow label="Breached" value={sla.breached ? "yes" : "no"} />
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </PanelBody>
@@ -618,7 +1209,7 @@ export function WorkflowWorkspace() {
             </div>
             <BrutalButton variant="ghost" size="sm" onClick={() => void loadAll()}>Apply</BrutalButton>
           </div>
-          <p className="mb-2 font-mono text-xs text-on-surface-variant">Approval decisions arrive with execution controls. Binding hashes are verification references only.</p>
+          <p className="mb-2 font-mono text-xs text-on-surface-variant">Decisions are made by the current user as approver. Binding hashes are verification references only.</p>
           <PanelBody loading={loading} error={approvalsError} onRetry={() => void loadAll()} emptyTitle="No approvals" emptyDescription="Human approval requests appear here once raised by a run.">
             {approvals && approvals.length > 0 ? (
               <ul className="grid gap-2 md:grid-cols-2">
@@ -631,6 +1222,18 @@ export function WorkflowWorkspace() {
                     <p className="mt-1 truncate font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
                       run {a.run_id.slice(0, 8)}…{a.binding_hash ? ` · bound ${a.binding_hash.slice(0, 12)}` : ""}
                     </p>
+                    {canWorkflowExecute && a.status === "PENDING" ? (
+                      <div className="mt-2">
+                        <BrutalButton
+                          size="sm"
+                          variant="ghost"
+                          aria-label="Decide approval"
+                          onClick={() => { resetDraft(); setModal({ kind: "approval-decide", approval: a }); }}
+                        >
+                          Decide
+                        </BrutalButton>
+                      </div>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -641,7 +1244,14 @@ export function WorkflowWorkspace() {
 
       {active === "schedules" ? (
         <BrutalCard eyebrow="Automation" title="Schedules">
-          <p className="mb-2 font-mono text-xs text-on-surface-variant">Cron, interval, one-shot and event triggers. Creation arrives with execution controls.</p>
+          <p className="mb-2 font-mono text-xs text-on-surface-variant">Cron, interval, one-shot and event triggers. Select the workflow in the Registry tab to scope creation.</p>
+          {canWorkflowExecute ? (
+            <div className="mb-3">
+              <BrutalButton variant="primary" size="sm" onClick={() => { resetDraft(); setModal({ kind: "schedule-create" }); }} disabled={!selectedWorkflowId}>
+                New schedule
+              </BrutalButton>
+            </div>
+          ) : null}
           <PanelBody loading={loading} error={schedulesError} onRetry={() => void loadAll()} emptyTitle="No schedules" emptyDescription="Scheduled and event triggers appear here once created.">
             {schedules && schedules.length > 0 ? (
               <ul className="grid gap-2 md:grid-cols-2">
@@ -665,6 +1275,11 @@ export function WorkflowWorkspace() {
       {active === "automation" ? (
         <div className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Automation" title="Templates">
+            {canWorkflowExecute ? (
+              <div className="mb-3">
+                <BrutalButton variant="primary" size="sm" onClick={() => { resetDraft(); setModal({ kind: "template-create" }); }}>New template</BrutalButton>
+              </div>
+            ) : null}
             <PanelBody loading={loading} error={templatesError} onRetry={() => void loadAll()} emptyTitle="No templates" emptyDescription="Built-in and tenant templates appear here.">
               {templates && templates.length > 0 ? (
                 <ul className="max-h-80 space-y-2 overflow-y-auto">
@@ -699,7 +1314,29 @@ export function WorkflowWorkspace() {
                           run {t.run_id.slice(0, 8)}…
                         </p>
                       </div>
-                      <BrutalBadge tone={statusTone(t.status)}>{t.status}</BrutalBadge>
+                      <div className="flex items-center gap-2">
+                        <BrutalBadge tone={statusTone(t.status)}>{t.status}</BrutalBadge>
+                        {canWorkflowExecute && t.status === "PENDING" ? (
+                          <>
+                            <BrutalButton
+                              size="sm"
+                              variant="ghost"
+                              aria-label="Complete task"
+                              onClick={() => { resetDraft(); setModal({ kind: "task-complete", task: t }); }}
+                            >
+                              Complete
+                            </BrutalButton>
+                            <BrutalButton
+                              size="sm"
+                              variant="ghost"
+                              aria-label="Reassign task"
+                              onClick={() => { resetDraft(); setModal({ kind: "task-reassign", task: t }); }}
+                            >
+                              Reassign
+                            </BrutalButton>
+                          </>
+                        ) : null}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -719,7 +1356,19 @@ export function WorkflowWorkspace() {
                           run {b.run_id.slice(0, 8)}…
                         </p>
                       </div>
-                      <BrutalBadge tone="default">{b.current_state}</BrutalBadge>
+                      <div className="flex items-center gap-2">
+                        <BrutalBadge tone="default">{b.current_state}</BrutalBadge>
+                        {canWorkflowExecute ? (
+                          <BrutalButton
+                            size="sm"
+                            variant="ghost"
+                            aria-label="Transition process"
+                            onClick={() => { resetDraft(); setModal({ kind: "business-transition", process: b }); }}
+                          >
+                            Transition
+                          </BrutalButton>
+                        ) : null}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -735,6 +1384,183 @@ export function WorkflowWorkspace() {
         </p>
         <BrutalButton variant="yellow" size="sm" href="/ai">Ask AI about workflows</BrutalButton>
       </BrutalCard>
+
+      <BrutalModal open={modal?.kind === "workflow-create"} title="New workflow" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleWorkflowCreate()} disabled={submitting}>{submitting ? "Creating…" : "Create"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <BrutalInput label="Name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="nightly-etl" />
+          <BrutalInput label="Description" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalInput label="Workspace" value={draft.workspace} onChange={(e) => setDraft({ ...draft, workspace: e.target.value })} />
+            <BrutalInput label="Owner" value={draft.owner} onChange={(e) => setDraft({ ...draft, owner: e.target.value })} />
+          </div>
+          <BrutalInput label="Initial version" value={draft.version} onChange={(e) => setDraft({ ...draft, version: e.target.value })} />
+          <BrutalInput label="Definition (JSON object)" value={draft.definition} onChange={(e) => setDraft((d) => ({ ...d, definition: e.target.value }))} placeholder='{"steps": [{"id": "extract", "type": "task"}]}' />
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalInput label="Inputs (JSON)" value={draft.inputs} onChange={(e) => setDraft((d) => ({ ...d, inputs: e.target.value }))} placeholder="{}" />
+            <BrutalInput label="Outputs (JSON)" value={draft.outputs} onChange={(e) => setDraft((d) => ({ ...d, outputs: e.target.value }))} placeholder="{}" />
+          </div>
+          <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Server validation rejects cycles, unknown dependencies, code execution and literal secrets (422).</p>
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "version-create"} title="Record version" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleVersionCreate()} disabled={submitting}>{submitting ? "Recording…" : "Record"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <p className="text-xs text-on-surface-variant">Versions are immutable once recorded — there is no edit operation.</p>
+          <BrutalInput label="Version" value={draft.version} onChange={(e) => setDraft((d) => ({ ...d, version: e.target.value }))} placeholder="1.1" />
+          <BrutalInput label="Definition (JSON object)" value={draft.definition} onChange={(e) => setDraft((d) => ({ ...d, definition: e.target.value }))} placeholder='{"steps": [{"id": "extract", "type": "task"}]}' />
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "publish"} title="Publish latest draft?" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handlePublish()} disabled={submitting}>{submitting ? "Publishing…" : "Confirm"}</BrutalButton>
+        </>
+      }>
+        <p className="text-sm text-on-surface-variant">Publishes the latest draft version so runs can trigger against it. Already-published versions are rejected by the backend.</p>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "trigger"} title="Trigger workflow?" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleTrigger()} disabled={submitting}>{submitting ? "Starting…" : "Confirm"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <p className="text-xs text-on-surface-variant">Triggering executes server-side immediately against the published version. Nothing runs in the browser.</p>
+          <BrutalSelect label="Trigger type" value={draft.trigger_type} onChange={(e) => setDraft((d) => ({ ...d, trigger_type: e.target.value }))} options={["manual", "event", "schedule"].map((t) => ({ label: t, value: t }))} />
+          <BrutalInput label="Inputs (JSON object)" value={draft.trigger_inputs} onChange={(e) => setDraft((d) => ({ ...d, trigger_inputs: e.target.value }))} placeholder="{}" />
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalInput label="Idempotency key" value={draft.idempotency_key} onChange={(e) => setDraft((d) => ({ ...d, idempotency_key: e.target.value }))} placeholder="optional" />
+            <BrutalInput label="Region" value={draft.region} onChange={(e) => setDraft((d) => ({ ...d, region: e.target.value }))} placeholder="optional" />
+          </div>
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "run-control"} title={`${modal?.kind === "run-control" ? modal.action[0].toUpperCase() + modal.action.slice(1) : ""} run?`} onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleRunControl()} disabled={submitting}>{submitting ? "Working…" : "Confirm"}</BrutalButton>
+        </>
+      }>
+        <p className="text-sm text-on-surface-variant">
+          {modal?.kind === "run-control" && modal.action === "cancel"
+            ? "Cancelling a run with successful steps triggers server-side compensation where the definition declares handlers."
+            : "The backend enforces valid state transitions and rejects anything else with 422."}
+        </p>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "replay"} title="Replay failed run?" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleReplay()} disabled={submitting}>{submitting ? "Replaying…" : "Confirm"}</BrutalButton>
+        </>
+      }>
+        <p className="text-sm text-on-surface-variant">Starts a new run from the failed one. Only failed runs with a published version can be replayed.</p>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "recover"} title="Recover stale execution?" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleRecover()} disabled={submitting}>{submitting ? "Recovering…" : "Confirm"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <p className="text-xs text-on-surface-variant">Recovery steals the worker lease for a stale execution. If the lease is still owned, the backend refuses with 422.</p>
+          <BrutalInput label="Worker ID" value={draft.worker_id} onChange={(e) => setDraft((d) => ({ ...d, worker_id: e.target.value }))} placeholder="defaults to your user id" />
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "approval-decide"} title="Decide approval?" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleApprovalDecide()} disabled={submitting}>{submitting ? "Deciding…" : "Confirm"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <p className="text-xs text-on-surface-variant">Decided as the current user. Expired approvals, binding mismatches and unauthorized approvers are rejected by the backend.</p>
+          <BrutalSelect label="Decision" value={draft.decision} onChange={(e) => setDraft((d) => ({ ...d, decision: e.target.value }))} options={WORKFLOW_APPROVAL_DECISIONS.map((d) => ({ label: d, value: d }))} />
+          <BrutalInput label="Binding hash" value={draft.binding_hash} onChange={(e) => setDraft((d) => ({ ...d, binding_hash: e.target.value }))} placeholder="optional verification ref" />
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "schedule-create"} title="New schedule" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleScheduleCreate()} disabled={submitting}>{submitting ? "Creating…" : "Create"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <StatRow label="Workflow" value={selectedWorkflowId ?? "—"} />
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalInput label="Cron" value={draft.cron} onChange={(e) => setDraft((d) => ({ ...d, cron: e.target.value }))} placeholder="0 2 * * *" />
+            <BrutalInput label="Interval seconds" value={draft.interval_seconds} onChange={(e) => setDraft((d) => ({ ...d, interval_seconds: e.target.value }))} placeholder="optional" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalSelect label="Trigger type" value={draft.schedule_trigger_type} onChange={(e) => setDraft((d) => ({ ...d, schedule_trigger_type: e.target.value }))} options={["schedule", "once", "interval", "cron", "event"].map((t) => ({ label: t, value: t }))} />
+            <BrutalSelect label="Enabled" value={draft.schedule_enabled ? "yes" : "no"} onChange={(e) => setDraft((d) => ({ ...d, schedule_enabled: e.target.value === "yes" }))} options={[{ label: "yes", value: "yes" }, { label: "no", value: "no" }]} />
+          </div>
+          <BrutalInput label="Event filter (JSON)" value={draft.event_filter} onChange={(e) => setDraft((d) => ({ ...d, event_filter: e.target.value }))} placeholder="{}" />
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "template-create"} title="New template" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleTemplateCreate()} disabled={submitting}>{submitting ? "Creating…" : "Create"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <BrutalInput label="Name" value={draft.template_name} onChange={(e) => setDraft((d) => ({ ...d, template_name: e.target.value }))} />
+          <BrutalInput label="Description" value={draft.template_description} onChange={(e) => setDraft((d) => ({ ...d, template_description: e.target.value }))} />
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalInput label="Category" value={draft.template_category} onChange={(e) => setDraft((d) => ({ ...d, template_category: e.target.value }))} />
+            <BrutalInput label="Version" value={draft.template_version} onChange={(e) => setDraft((d) => ({ ...d, template_version: e.target.value }))} />
+          </div>
+          <BrutalInput label="Definition (JSON object)" value={draft.template_definition} onChange={(e) => setDraft((d) => ({ ...d, template_definition: e.target.value }))} placeholder="{}" />
+          <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Shell actions, unbounded fan-out/loops and credential extraction are rejected (422).</p>
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "task-complete"} title="Complete human task?" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleTaskComplete()} disabled={submitting}>{submitting ? "Completing…" : "Confirm"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <BrutalInput label="Decision" value={draft.task_decision} onChange={(e) => setDraft((d) => ({ ...d, task_decision: e.target.value }))} placeholder="optional" />
+          <BrutalInput label="Comment" value={draft.task_comment} onChange={(e) => setDraft((d) => ({ ...d, task_comment: e.target.value }))} placeholder="optional" />
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "task-reassign"} title="Reassign human task?" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleTaskReassign()} disabled={submitting}>{submitting ? "Reassigning…" : "Confirm"}</BrutalButton>
+        </>
+      }>
+        <BrutalInput label="Assignee" value={draft.assignee} onChange={(e) => setDraft((d) => ({ ...d, assignee: e.target.value }))} placeholder="user id" />
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "business-transition"} title="Transition process?" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleBusinessTransition()} disabled={submitting}>{submitting ? "Transitioning…" : "Confirm"}</BrutalButton>
+        </>
+      }>
+        <BrutalInput label="New state" value={draft.new_state} onChange={(e) => setDraft((d) => ({ ...d, new_state: e.target.value }))} placeholder="state name" />
+      </BrutalModal>
     </div>
   );
 }

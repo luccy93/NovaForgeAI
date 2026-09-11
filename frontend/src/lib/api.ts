@@ -789,6 +789,122 @@ export const api = {
     );
   },
 
+  // ─── Workflow operations (V66, C2 mutations) ──────────────────────────
+  // Mutations need workflow:execute (UX guard only; backend authoritative).
+  // Consequential actions confirm → API → authoritative refetch → toast.
+  workflowCreate: (token: string, body: {
+    name: string;
+    description?: string;
+    workspace?: string;
+    version?: string;
+    definition?: Record<string, unknown>;
+    inputs?: Record<string, unknown>;
+    outputs?: Record<string, unknown>;
+    owner?: string;
+  }) =>
+    apiRequest<import("@/types/workflows").WorkflowCreated>("/workflows", {
+      method: "POST",
+      token,
+      body,
+    }),
+  workflowVersionCreate: (token: string, workflowId: string, body: {
+    definition: Record<string, unknown>;
+    version?: string;
+  }) =>
+    apiRequest<import("@/types/workflows").WorkflowVersionCreated>(
+      `/workflows/${encodeURIComponent(workflowId)}/versions`,
+      { method: "POST", token, body },
+    ),
+  workflowPublish: (token: string, workflowId: string, versionId?: string) =>
+    apiRequest<import("@/types/workflows").WorkflowVersionPublished>(
+      `/workflows/${encodeURIComponent(workflowId)}/publish`,
+      { method: "POST", token, body: versionId ? { version_id: versionId } : {} },
+    ),
+  workflowTrigger: (token: string, workflowId: string, body: {
+    trigger_type?: string;
+    inputs?: Record<string, unknown>;
+    idempotency_key?: string;
+    region?: string;
+  }) =>
+    apiRequest<import("@/types/workflows").WorkflowRunStarted>(
+      `/workflows/${encodeURIComponent(workflowId)}/trigger`,
+      { method: "POST", token, body },
+    ),
+  workflowRunPause: (token: string, runId: string) =>
+    apiRequest<import("@/types/workflows").WorkflowRunControl>(
+      `/workflows/runs/${encodeURIComponent(runId)}/pause`,
+      { method: "POST", token, body: {} },
+    ),
+  workflowRunResume: (token: string, runId: string) =>
+    apiRequest<import("@/types/workflows").WorkflowRunControl>(
+      `/workflows/runs/${encodeURIComponent(runId)}/resume`,
+      { method: "POST", token, body: {} },
+    ),
+  workflowRunCancel: (token: string, runId: string) =>
+    apiRequest<import("@/types/workflows").WorkflowRunControl>(
+      `/workflows/runs/${encodeURIComponent(runId)}/cancel`,
+      { method: "POST", token, body: {} },
+    ),
+  workflowRunReplay: (token: string, runId: string) =>
+    apiRequest<import("@/types/workflows").WorkflowReplay>(
+      `/workflows/runs/${encodeURIComponent(runId)}/replay`,
+      { method: "POST", token, body: {} },
+    ),
+  workflowRunRecover: (token: string, runId: string, workerId?: string) =>
+    apiRequest<import("@/types/workflows").WorkflowRecovery>(
+      `/workflows/runs/${encodeURIComponent(runId)}/recover`,
+      { method: "POST", token, body: workerId ? { worker_id: workerId } : {} },
+    ),
+  workflowRunSla: (token: string, runId: string) =>
+    apiRequest<import("@/types/workflows").WorkflowSla>(
+      `/workflows/sla/${encodeURIComponent(runId)}`,
+      { token },
+    ),
+  workflowApprovalDecide: (token: string, approvalId: string, body: { decision?: string; binding_hash?: string }) =>
+    apiRequest<import("@/types/workflows").WorkflowApprovalDecision>(
+      `/workflows/approvals/${encodeURIComponent(approvalId)}/decide`,
+      { method: "POST", token, body },
+    ),
+  workflowScheduleCreate: (token: string, body: {
+    workflow_id: string;
+    cron?: string;
+    interval_seconds?: number;
+    event_filter?: Record<string, unknown>;
+    trigger_type?: string;
+    enabled?: boolean;
+  }) =>
+    apiRequest<import("@/types/workflows").WorkflowScheduleCreated>("/workflows/schedules", {
+      method: "POST",
+      token,
+      body,
+    }),
+  workflowTemplateCreate: (token: string, body: Record<string, unknown>) =>
+    apiRequest<import("@/types/workflows").WorkflowTemplateCreated>("/workflows/templates", {
+      method: "POST",
+      token,
+      body,
+    }),
+  workflowTemplatePublish: (token: string, templateId: string) =>
+    apiRequest<{ id: string; is_published: boolean }>(
+      `/workflows/templates/${encodeURIComponent(templateId)}/publish`,
+      { method: "POST", token, body: {} },
+    ),
+  workflowTaskComplete: (token: string, taskId: string, body?: { decision?: string; comment?: string }) =>
+    apiRequest<{ id: string; status: string }>(
+      `/workflows/human-tasks/${encodeURIComponent(taskId)}/complete`,
+      { method: "POST", token, body: body ?? {} },
+    ),
+  workflowTaskReassign: (token: string, taskId: string, assignee: string) =>
+    apiRequest<{ id: string; assignee: string }>(
+      `/workflows/human-tasks/${encodeURIComponent(taskId)}/reassign`,
+      { method: "POST", token, body: { assignee } },
+    ),
+  workflowBusinessTransition: (token: string, processId: string, newState: string) =>
+    apiRequest<{ id: string; current_state: string }>(
+      `/workflows/business-processes/${encodeURIComponent(processId)}/transition`,
+      { method: "POST", token, body: { new_state: newState } },
+    ),
+
   // ─── Integrations: registry (C1) ──────────────────────────────────────
   // Backend: backend/app/integrations/api.py. Tenant-scoped; reads need
   // organization:read, mutations need settings:admin. Paths preserve the

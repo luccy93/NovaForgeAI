@@ -223,3 +223,162 @@ describe("WorkflowWorkspace (C1)", () => {
     expect(screen.queryByText(/password/i)).toBeNull();
   });
 });
+
+describe("WorkflowWorkspace (C2 operations)", () => {
+  beforeEach(() => {
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    Object.assign(api, {
+      workflowCreate: vi.fn().mockResolvedValue({ id: "wf-9", name: "new-flow", version: "1.0", status: "DRAFT" }),
+      workflowVersionCreate: vi.fn().mockResolvedValue({ id: "v-9", version: "1.1", workflow_id: "wf-1" }),
+      workflowPublish: vi.fn().mockResolvedValue({ id: "v-9", version: "1.1", status: "PUBLISHED" }),
+      workflowTrigger: vi.fn().mockResolvedValue({ run_id: "run-new", execution_id: "exec-new", status: "RUNNING", workflow_version_id: "v-1" }),
+      workflowRunPause: vi.fn().mockResolvedValue({ run_id: "run-1", status: "PAUSED" }),
+      workflowRunResume: vi.fn().mockResolvedValue({ run_id: "run-1", status: "RUNNING" }),
+      workflowRunCancel: vi.fn().mockResolvedValue({ run_id: "run-1", status: "CANCELLED" }),
+      workflowRunReplay: vi.fn().mockResolvedValue({ new_run_id: "run-r", original_run_id: "run-1", status: "RUNNING" }),
+      workflowRunRecover: vi.fn().mockResolvedValue({ run_id: "run-1", status: "RUNNING" }),
+      workflowRunSla: vi.fn().mockResolvedValue({ process_id: "b-1", sla_deadline: null, breached: false, current_state: "in_review" }),
+      workflowApprovalDecide: vi.fn().mockResolvedValue({ id: "ap-1", status: "APPROVED", decision: "APPROVED" }),
+      workflowScheduleCreate: vi.fn().mockResolvedValue({ id: "s-9", workflow_id: "wf-1", trigger_type: "cron" }),
+      workflowTemplateCreate: vi.fn().mockResolvedValue({ id: "t-9", name: "tpl", version: "1.0" }),
+      workflowTaskComplete: vi.fn().mockResolvedValue({ id: "t-1", status: "COMPLETED" }),
+      workflowTaskReassign: vi.fn().mockResolvedValue({ id: "t-1", assignee: "bob" }),
+      workflowBusinessTransition: vi.fn().mockResolvedValue({ id: "b-1", current_state: "approved" }),
+    });
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("creates a workflow then refetches authoritatively", async () => {
+    installApiMock({}, ["workflow:execute"]);
+    const { getByRole } = render(<WorkflowWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Registry" }));
+    fireEvent.click(await screen.findByText("New workflow"));
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "new-flow" } });
+    fireEvent.change(screen.getByLabelText("Definition (JSON object)"), {
+      target: { value: '{"steps": [{"id": "a", "type": "task"}]}' },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    await waitFor(() => {
+      expect(api.workflowCreate).toHaveBeenCalledWith(
+        "test-token",
+        expect.objectContaining({ name: "new-flow", definition: { steps: [{ id: "a", type: "task" }] } }),
+      );
+    });
+    await waitFor(() => {
+      expect((api.workflowsList as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(1);
+    });
+  });
+
+  it("rejects invalid definition JSON client-side with a warning", async () => {
+    installApiMock({}, ["workflow:execute"]);
+    const { getByRole } = render(<WorkflowWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Registry" }));
+    fireEvent.click(await screen.findByText("New workflow"));
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "bad-flow" } });
+    fireEvent.change(screen.getByLabelText("Definition (JSON object)"), { target: { value: "not-json" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    expect(api.workflowCreate).not.toHaveBeenCalled();
+  });
+
+  it("triggers a run only through confirmation and navigates to it", async () => {
+    installApiMock({}, ["workflow:execute"]);
+    const { getByRole } = render(<WorkflowWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Registry" }));
+    expect(await screen.findByText("nightly-etl")).toBeTruthy();
+    fireEvent.click(screen.getByText("nightly-etl"));
+    fireEvent.click(await screen.findByRole("button", { name: "Trigger workflow" }));
+    expect(await screen.findByText("Trigger workflow?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      expect(apiModule.api.workflowTrigger).toHaveBeenCalledWith(
+        "test-token",
+        "wf-1",
+        expect.objectContaining({ trigger_type: "manual" }),
+      );
+    });
+    expect(await screen.findByText("STEP-RUN TIMELINE")).toBeTruthy();
+  });
+
+  it("pauses a running execution through confirmation and refetches", async () => {
+    installApiMock(
+      {
+        workflowRuns: vi.fn().mockResolvedValue({
+          items: [{ run_id: "run-1", status: "RUNNING", execution_id: "exec-1", workflow_version_id: "v-1" }],
+        }),
+        workflowRunGet: vi.fn().mockResolvedValue({
+          run_id: "run-1",
+          workflow_version_id: "v-1",
+          status: "RUNNING",
+          execution_id: "exec-1",
+          trace_id: null,
+        }),
+      },
+      ["workflow:execute"],
+    );
+    const { getByRole } = render(<WorkflowWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Registry" }));
+    expect(await screen.findByText("nightly-etl")).toBeTruthy();
+    fireEvent.click(screen.getByText("nightly-etl"));
+    fireEvent.click(getByRole("tab", { name: "Runs" }));
+    fireEvent.click(await screen.findByText("exec-1", { exact: false }));
+    fireEvent.click(await screen.findByRole("button", { name: "Pause run" }));
+    expect(await screen.findByText("Pause run?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      expect(apiModule.api.workflowRunPause).toHaveBeenCalledWith("test-token", "run-1");
+    });
+  });
+
+  it("surfaces backend 422 validation on version creation", async () => {
+    installApiMock(
+      {
+        workflowVersionCreate: vi.fn().mockRejectedValue(new ApiError("validation", 422, "steps list required")),
+      },
+      ["workflow:execute"],
+    );
+    const { getByRole } = render(<WorkflowWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Registry" }));
+    expect(await screen.findByText("nightly-etl")).toBeTruthy();
+    fireEvent.click(screen.getByText("nightly-etl"));
+    fireEvent.click(await screen.findByRole("button", { name: "Record version" }));
+    fireEvent.change(screen.getByLabelText("Definition (JSON object)"), { target: { value: '{"steps": []}' } });
+    fireEvent.click(screen.getByRole("button", { name: "Record" }));
+    await waitFor(() => {
+      expect(apiModule.api.workflowVersionCreate).toHaveBeenCalled();
+    });
+    // No optimistic close: the modal stays open so the backend 422 can be fixed
+    expect(screen.getAllByText("Record version").length).toBeGreaterThan(0);
+  });
+
+  it("decides an approval with the selected decision", async () => {
+    installApiMock({}, ["workflow:execute"]);
+    const { getByRole } = render(<WorkflowWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Approvals" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Decide approval" }));
+    expect(await screen.findByText("Decide approval?")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Decision"), { target: { value: "DENIED" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      expect(apiModule.api.workflowApprovalDecide).toHaveBeenCalledWith("test-token", "ap-1", { decision: "DENIED", binding_hash: undefined });
+    });
+  });
+
+  it("hides all mutation controls without workflow:execute", async () => {
+    installApiMock({}, []);
+    const { getByRole } = render(<WorkflowWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Registry" }));
+    expect(await screen.findByText("nightly-etl")).toBeTruthy();
+    expect(screen.queryByText("New workflow")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Trigger workflow" })).toBeNull();
+    fireEvent.click(getByRole("tab", { name: "Approvals" }));
+    expect(await screen.findByText("step gate")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Decide" })).toBeNull();
+  });
+});
