@@ -2575,4 +2575,78 @@ export const api = {
       { method: "POST", token, timeoutMs: 300000 },
     );
   },
+
+  // ─── AI/ML Platform (V58 aiml, C1 reads) ──────────────────────────────
+  // Backend: backend/app/api/aiml.py (prefix /ai). Tenant-scoped; reads are
+  // authenticated-only, mutations need exact aiml.* strings. Lists return
+  // arrays with no totals — counts are labeled "listed", never totals.
+  // UUID path params: invalid values yield backend 422, not 404.
+  mlModels: (token: string, opts?: { provider?: string; name?: string; status?: string; type?: string; region?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.provider) params.set("provider", opts.provider);
+    if (opts?.name) params.set("name", opts.name);
+    if (opts?.status) params.set("status", opts.status);
+    if (opts?.type) params.set("type", opts.type);
+    if (opts?.region) params.set("region", opts.region);
+    const qs = params.toString();
+    return apiRequest<import("@/types/ml").MLModel[]>(`/ai/models${qs ? `?${qs}` : ""}`, { token });
+  },
+  mlModel: (token: string, modelId: string) =>
+    apiRequest<import("@/types/ml").MLModel>(`/ai/models/${encodeURIComponent(modelId)}`, { token }),
+  mlModelVersions: (token: string, modelId: string) =>
+    apiRequest<import("@/types/ml").MLModelVersion[]>(`/ai/models/${encodeURIComponent(modelId)}/versions`, { token }),
+  mlProviders: (token: string, opts?: { provider?: string; availability?: string; region?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.provider) params.set("provider", opts.provider);
+    if (opts?.availability) params.set("availability", opts.availability);
+    if (opts?.region) params.set("region", opts.region);
+    const qs = params.toString();
+    return apiRequest<import("@/types/ml").MLProvider[]>(`/ai/providers${qs ? `?${qs}` : ""}`, { token });
+  },
+  mlProvider: (token: string, provider: string) =>
+    apiRequest<import("@/types/ml").MLProvider>(`/ai/providers/${encodeURIComponent(provider)}`, { token }),
+  mlPrompts: (token: string) =>
+    apiRequest<import("@/types/ml").MLPrompt[]>("/ai/prompts", { token }),
+  mlPrompt: (token: string, promptId: string) =>
+    apiRequest<import("@/types/ml").MLPromptDetail>(`/ai/prompts/${encodeURIComponent(promptId)}`, { token }),
+  mlEvalRun: (token: string, runId: string) =>
+    apiRequest<import("@/types/ml").MLEvaluationRun>(`/ai/evaluations/runs/${encodeURIComponent(runId)}`, { token }),
+  mlEvalCompare: (token: string, candidateRunId: string, baselineRunId: string) => {
+    const params = new URLSearchParams();
+    params.set("candidate_run_id", candidateRunId);
+    params.set("baseline_run_id", baselineRunId);
+    return apiRequest<import("@/types/ml").MLEvaluationCompare>(`/ai/evaluations/compare?${params.toString()}`, { token });
+  },
+  mlGuardrails: (token: string, opts?: { scope?: string; environment?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.scope) params.set("scope", opts.scope);
+    if (opts?.environment) params.set("environment", opts.environment);
+    const qs = params.toString();
+    return apiRequest<import("@/types/ml").MLGuardrail[]>(`/ai/guardrails${qs ? `?${qs}` : ""}`, { token });
+  },
+  mlPolicyDecisions: (token: string, opts?: { resource?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.resource) params.set("resource", opts.resource);
+    params.set("limit", String(opts?.limit ?? 50));
+    return apiRequest<{ tenant: string; count: number; decisions: import("@/types/ml").MLPolicyDecision[]; resource?: string | null }>(
+      `/ai/policies/decisions?${params.toString()}`,
+      { token },
+    );
+  },
+  mlRisks: (token: string, opts?: { system?: string; severity?: string; status?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.system) params.set("system", opts.system);
+    if (opts?.severity) params.set("severity", opts.severity);
+    if (opts?.status) params.set("status", opts.status);
+    const qs = params.toString();
+    return apiRequest<import("@/types/ml").MLRisk[]>(`/ai/risks${qs ? `?${qs}` : ""}`, { token });
+  },
+  mlModelCards: (token: string, modelId: string) =>
+    apiRequest<import("@/types/ml").MLModelCard | import("@/types/ml").MLModelCard[]>(`/ai/model-cards/${encodeURIComponent(modelId)}`, { token }),
+  mlSystemCards: (token: string, system: string) =>
+    apiRequest<import("@/types/ml").MLSystemCard | import("@/types/ml").MLSystemCard[]>(`/ai/system-cards/${encodeURIComponent(system)}`, { token }),
+  mlMonitoring: (token: string, modelId: string) =>
+    apiRequest<import("@/types/ml").MLMonitoringSnapshot[]>(`/ai/monitoring/${encodeURIComponent(modelId)}`, { token }),
+  mlProvenance: (token: string, modelId: string) =>
+    apiRequest<import("@/types/ml").MLProvenance>(`/ai/provenance/${encodeURIComponent(modelId)}`, { token }),
 };

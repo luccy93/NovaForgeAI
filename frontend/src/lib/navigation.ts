@@ -24,6 +24,7 @@ export const NAV_ITEMS: Array<NavItem> = [
   { id: "finops", label: "FinOps", href: "/finops", section: "platform", auth: true, description: "Spend and budgets" },
   { id: "integrations", label: "Integrations", href: "/integrations", section: "platform", auth: true, description: "Connected systems" },
   { id: "data", label: "Data Platform", href: "/data", section: "platform", auth: true, description: "Datasets, pipelines and catalog" },
+  { id: "ml", label: "AI / ML", href: "/ml", section: "platform", auth: true, description: "Models, evaluations and deployments" },
   { id: "security", label: "Security", href: "/security", section: "system", auth: true, description: "Posture, findings and zero trust" },
   { id: "governance", label: "Governance", href: "/governance", section: "system", auth: true, description: "Policies, rules and posture" },
   { id: "observability", label: "Observability", href: "/observability", section: "system", auth: true, description: "Operational status and health" },
