@@ -2507,4 +2507,72 @@ export const api = {
       `/ai-dev/agents/${runId}/feedback?limit=${limit}`,
       { token },
     ),
+
+  // ─── Agent Platform (C2 operations) ───────────────────────────────────
+  // Mutations need repository:write (ai-dev) or plain auth (v2 execute).
+  // Long-running executions use a per-request extended timeout ONLY —
+  // the 30s default elsewhere is unchanged. A client timeout never
+  // implies the server stopped: cancellation is a separate endpoint.
+  agentsEnqueue: (token: string, body: import("@/types/agents").AgentEnqueueBody) =>
+    apiRequest<import("@/types/code").AgentOut>("/ai-dev/agents", {
+      method: "POST",
+      token,
+      body,
+    }),
+  agentsExecute: (token: string, runId: string) =>
+    apiRequest<import("@/types/code").AgentOut>(`/ai-dev/agents/${runId}/execute`, {
+      method: "POST",
+      token,
+      body: {},
+      timeoutMs: 300000,
+    }),
+  agentsPlanCreate: (token: string, runId: string, body: {
+    plan_type?: string;
+    name?: string;
+    steps?: Array<Record<string, unknown>>;
+    rationale?: string;
+  }) =>
+    apiRequest<import("@/types/code").AgentPlanOut>(`/ai-dev/agents/${runId}/plan`, {
+      method: "POST",
+      token,
+      body,
+    }),
+  agentsCheckpointSave: (token: string, runId: string, body: {
+    sequence?: number;
+    summary?: string;
+    state?: Record<string, unknown>;
+    is_final?: boolean;
+  }) =>
+    apiRequest<import("@/types/code").AgentCheckpointOut>(`/ai-dev/agents/${runId}/checkpoints`, {
+      method: "POST",
+      token,
+      body,
+    }),
+  agentsFeedbackSubmit: (token: string, runId: string, body: import("@/types/agents").AgentFeedbackBody) =>
+    apiRequest<import("@/types/agents").AgentFeedback>(`/ai-dev/agents/${runId}/feedback`, {
+      method: "POST",
+      token,
+      body,
+    }),
+  agentsV2RunAgent: (token: string, agentName: string, opts: { task: string; organizationId?: string; repositoryId?: string }) => {
+    const params = new URLSearchParams();
+    params.set("task_input", opts.task);
+    if (opts.organizationId) params.set("organization_id", opts.organizationId);
+    if (opts.repositoryId) params.set("repository_id", opts.repositoryId);
+    return apiRequest<import("@/types/agents").AgentV2RunResult>(
+      `/agents/v2/${encodeURIComponent(agentName)}/run?${params.toString()}`,
+      { method: "POST", token, timeoutMs: 300000 },
+    );
+  },
+  agentsV2Pipeline: (token: string, opts: { agents: string[]; task: string; organizationId?: string; repositoryId?: string }) => {
+    const params = new URLSearchParams();
+    for (const name of opts.agents) params.append("agents", name);
+    params.set("task_input", opts.task);
+    if (opts.organizationId) params.set("organization_id", opts.organizationId);
+    if (opts.repositoryId) params.set("repository_id", opts.repositoryId);
+    return apiRequest<import("@/types/agents").AgentV2PipelineResult>(
+      `/agents/v2/pipeline?${params.toString()}`,
+      { method: "POST", token, timeoutMs: 300000 },
+    );
+  },
 };

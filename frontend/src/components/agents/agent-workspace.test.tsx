@@ -280,3 +280,176 @@ describe("AgentWorkspace (C1)", () => {
     expect(screen.queryByText(/api[_-]?key/i)).toBeNull();
   });
 });
+
+describe("AgentWorkspace (C2 operations)", () => {
+  beforeEach(() => {
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    Object.assign(api, {
+      agentsEnqueue: vi.fn().mockResolvedValue({ id: "a-9", name: "new-run", status: "pending" }),
+      agentsExecute: vi.fn().mockResolvedValue({ id: "a-1", status: "completed" }),
+      agentsPlanCreate: vi.fn().mockResolvedValue({ id: "p-9", name: "Phase two", approved: false }),
+      agentsCheckpointSave: vi.fn().mockResolvedValue({ id: "c-9", sequence: 2, summary: "mid", state: {}, is_final: false }),
+      agentsFeedbackSubmit: vi.fn().mockResolvedValue({ id: "f-9", feedback_type: "CONTINUE" }),
+      agentsV2RunAgent: vi.fn().mockResolvedValue({ run_id: "r-9", agent: "planner", status: "completed", decision: { confidence: 0.8 } }),
+      agentsV2Pipeline: vi.fn().mockResolvedValue({ workflow_id: "w-9", status: "completed", steps: [], errors: [] }),
+      aiDevAgentCancel: vi.fn().mockResolvedValue({ id: "a-1", status: "cancelled" }),
+      aiDevAgentApprovePlan: vi.fn().mockResolvedValue({ id: "p-1", approved: true }),
+    });
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("hides execution controls without repository:write", async () => {
+    installApiMock({}, ["repository:read"]);
+    const { getByRole } = render(<AgentWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Executions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "View execution a-1" }));
+    expect(await screen.findByText("Execution controls require repository:write")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Enqueue agent" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Execute run" })).toBeNull();
+  });
+
+  it("enqueues an agent then refetches authoritatively", async () => {
+    installApiMock({}, ["repository:read", "repository:write"]);
+    const { getByRole } = render(<AgentWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Executions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Enqueue agent" }));
+    const enqueueDialog = await screen.findByRole("dialog");
+    const { within: withinDialog } = await import("@testing-library/react");
+    fireEvent.change(withinDialog(enqueueDialog).getByLabelText("Repository ID"), { target: { value: "repo-1" } });
+    fireEvent.change(withinDialog(enqueueDialog).getByLabelText("Goal"), { target: { value: "tidy up" } });
+    fireEvent.click(withinDialog(enqueueDialog).getByRole("button", { name: "Enqueue" }));
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    await waitFor(() => {
+      expect(api.agentsEnqueue).toHaveBeenCalledWith(
+        "test-token",
+        expect.objectContaining({ repository_id: "repo-1", goal: "tidy up" }),
+      );
+    });
+    await waitFor(() => {
+      expect((api.aiDevListAgents as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(1);
+    });
+  });
+
+  it("runs a v2 agent only after confirmation with a long-running warning", async () => {
+    installApiMock({}, []);
+    const { getByRole } = render(<AgentWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Catalog" }));
+    fireEvent.click(await screen.findByRole("button", { name: "View agent planner" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Run agent planner" }));
+    expect(await screen.findByText("Run agent?")).toBeTruthy();
+    expect(screen.getByText(/may take several minutes/)).toBeTruthy();
+    // Not executed before confirmation
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    expect(api.agentsV2RunAgent).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Task"), { target: { value: "plan the release" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      expect(api.agentsV2RunAgent).toHaveBeenCalledWith(
+        "test-token",
+        "planner",
+        expect.objectContaining({ task: "plan the release" }),
+      );
+    });
+    expect(await screen.findByText("SERVER-SIDE", { exact: false })).toBeTruthy();
+  });
+
+  it("states timeout explicitly without claiming cancellation", async () => {
+    installApiMock({}, []);
+    const { getByRole } = render(<AgentWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Catalog" }));
+    fireEvent.click(await screen.findByRole("button", { name: "View agent planner" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Run agent planner" }));
+    fireEvent.change(screen.getByLabelText("Task"), { target: { value: "slow task" } });
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    (api.agentsV2RunAgent as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new ApiError("timeout", 0, "Request timed out after 300000ms"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(await screen.findByText(/EXECUTION REQUEST TIMED OUT/)).toBeTruthy();
+    expect(screen.getByText(/may still be processing/)).toBeTruthy();
+  });
+
+  it("approves a plan through confirmation and refetches", async () => {
+    installApiMock(
+      {
+        aiDevAgentPlans: vi.fn().mockResolvedValue({
+          items: [
+            {
+              id: "p-9",
+              agent_run_id: "a-1",
+              plan_type: "PLAN",
+              name: "Phase two",
+              steps: [],
+              rationale: null,
+              approved: false,
+              approved_by: null,
+              rejected: false,
+            },
+          ],
+          count: 1,
+        }),
+      },
+      ["repository:read", "repository:write"],
+    );
+    const { getByRole } = render(<AgentWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Executions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "View execution a-1" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Approve plan" }));
+    expect(await screen.findByText("Approve plan?")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Approved by"), { target: { value: "ops@acme.test" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      expect(apiModule.api.aiDevAgentApprovePlan).toHaveBeenCalledWith("test-token", "a-1", "p-9", {
+        approved: true,
+        approved_by: "ops@acme.test",
+      });
+    });
+  });
+
+  it("cancels a run through confirmation", async () => {
+    installApiMock({}, ["repository:read", "repository:write"]);
+    const { getByRole } = render(<AgentWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Executions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "View execution a-1" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel run" }));
+    expect(await screen.findByText("Cancel execution?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      expect(apiModule.api.aiDevAgentCancel).toHaveBeenCalled();
+    });
+  });
+
+  it("records a plan and submits feedback", async () => {
+    installApiMock({}, ["repository:read", "repository:write"]);
+    const { getByRole } = render(<AgentWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Executions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "View execution a-1" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Record plan" }));
+    const planDialog = await screen.findByRole("dialog");
+    const { within: withinPlan } = await import("@testing-library/react");
+    fireEvent.change(withinPlan(planDialog).getByLabelText("Name"), { target: { value: "Phase two" } });
+    fireEvent.click(withinPlan(planDialog).getByRole("button", { name: "Record" }));
+    await waitFor(() => {
+      expect(apiModule.api.agentsPlanCreate).toHaveBeenCalledWith(
+        "test-token",
+        "a-1",
+        expect.objectContaining({ name: "Phase two" }),
+      );
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Feedback" }));
+    fireEvent.change(screen.getByLabelText("Message"), { target: { value: "keep going" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    await waitFor(() => {
+      expect(apiModule.api.agentsFeedbackSubmit).toHaveBeenCalledWith(
+        "test-token",
+        "a-1",
+        expect.objectContaining({ message: "keep going" }),
+      );
+    });
+  });
+});

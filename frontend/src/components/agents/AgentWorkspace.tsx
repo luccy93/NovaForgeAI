@@ -9,12 +9,14 @@ import { BrutalCard } from "@/components/ui/BrutalCard";
 import { BrutalEmptyState } from "@/components/ui/BrutalEmptyState";
 import { BrutalErrorState } from "@/components/ui/BrutalErrorState";
 import { BrutalInput } from "@/components/ui/BrutalInput";
+import { BrutalModal } from "@/components/ui/BrutalModal";
 import { BrutalSelect } from "@/components/ui/BrutalSelect";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
 import { api, clearToken, getToken } from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
 import { hasPermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/types/auth";
+import { useToastStore } from "@/stores/toast";
 import type {
   AgentCatalogDetail,
   AgentCatalogEntry,
@@ -143,6 +145,7 @@ const NOT_EXPOSED: Array<{ capability: string; reason: string }> = [
 ];
 
 export function AgentWorkspace() {
+  const pushToast = useToastStore((s) => s.push);
   const [active, setActive] = useState<TabId>("overview");
   const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -175,6 +178,43 @@ export function AgentWorkspace() {
   const [aiFeedback, setAiFeedback] = useState<AgentFeedback[]>([]);
   const [aiDetailError, setAiDetailError] = useState<string | null>(null);
   const [aiDetailLoading, setAiDetailLoading] = useState(false);
+
+  const [modal, setModal] = useState<
+    | { kind: "enqueue" }
+    | { kind: "v2-run"; agentName: string }
+    | { kind: "v2-pipeline" }
+    | { kind: "plan-create" }
+    | { kind: "plan-approve"; plan: AgentPlanOut }
+    | { kind: "checkpoint-save" }
+    | { kind: "feedback-submit" }
+    | { kind: "cancel-run" }
+    | null
+  >(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [executing, setExecuting] = useState(false);
+  const [execError, setExecError] = useState<string | null>(null);
+  const [lastExecResult, setLastExecResult] = useState<Record<string, unknown> | null>(null);
+  const [draft, setDraft] = useState({
+    repository_id: "",
+    agent_type: "refactor",
+    name: "agent",
+    goal: "",
+    branch: "main",
+    model: "",
+    budget_tokens: "",
+    task: "",
+    organization_id: "",
+    pipeline_agents: "",
+    plan_name: "Plan",
+    plan_steps: "",
+    plan_rationale: "",
+    checkpoint_summary: "",
+    checkpoint_final: false,
+    feedback_type: "CONTINUE",
+    feedback_message: "",
+    approved_by: "",
+    cancel_reason: "",
+  });
 
   const abortRef = useRef<AbortController | null>(null);
   const seqRef = useRef(0);
@@ -304,6 +344,328 @@ export function AgentWorkspace() {
     }
   }, []);
 
+  const notifyError = useCallback(
+    (e: unknown, fallback: string, refetch?: () => void) => {
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      if (e instanceof ApiError && e.kind === "forbidden") {
+        pushToast("warning", "You don't have permission to perform this action");
+        return;
+      }
+      if (e instanceof ApiError && e.status === 409) {
+        pushToast("info", "State changed on the server; refreshing");
+        refetch?.();
+        return;
+      }
+      pushToast("error", e instanceof Error ? e.message : fallback);
+    },
+    [pushToast],
+  );
+
+  function resetDraft() {
+    setDraft({
+      repository_id: "",
+      agent_type: "refactor",
+      name: "agent",
+      goal: "",
+      branch: "main",
+      model: "",
+      budget_tokens: "",
+      task: "",
+      organization_id: "",
+      pipeline_agents: "",
+      plan_name: "Plan",
+      plan_steps: "",
+      plan_rationale: "",
+      checkpoint_summary: "",
+      checkpoint_final: false,
+      feedback_type: "CONTINUE",
+      feedback_message: "",
+      approved_by: "",
+      cancel_reason: "",
+    });
+  }
+
+  function parseJsonArray(raw: string, field: string): Array<Record<string, unknown>> {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      throw new Error(`${field} is not valid JSON`);
+    }
+    if (!Array.isArray(parsed)) throw new Error(`${field} must be a JSON array`);
+    return parsed as Array<Record<string, unknown>>;
+  }
+
+  async function handleEnqueue() {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    if (!draft.repository_id.trim()) {
+      pushToast("warning", "Repository ID is required");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await api.agentsEnqueue(token, {
+        repository_id: draft.repository_id.trim(),
+        agent_type: draft.agent_type.trim() || "refactor",
+        name: draft.name.trim() || "agent",
+        goal: draft.goal.trim() || undefined,
+        branch: draft.branch.trim() || "main",
+        model: draft.model.trim() || undefined,
+        budget_tokens: draft.budget_tokens.trim() ? Number(draft.budget_tokens) : undefined,
+      });
+      setModal(null);
+      pushToast("success", `Agent run ${result.id.slice(0, 8)} enqueued`);
+      setSelectedAiRunId(result.id);
+      setActive("executions");
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Failed to enqueue agent", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleExecuteAiRun() {
+    if (!selectedAiRunId) return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setExecuting(true);
+    setExecError(null);
+    try {
+      const result = await api.agentsExecute(token, selectedAiRunId);
+      pushToast("success", `Execution finished with status ${result.status}`);
+      void loadAiRunDetail(selectedAiRunId);
+      void loadAll();
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "timeout") {
+        setExecError("EXECUTION REQUEST TIMED OUT — the server may still be processing. Check the run status; do not assume it stopped.");
+        return;
+      }
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      setExecError(e instanceof Error ? e.message : "Execution failed");
+    } finally {
+      setExecuting(false);
+    }
+  }
+
+  async function handleCancelAiRun() {
+    if (!modal || modal.kind !== "cancel-run" || !selectedAiRunId) return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await api.aiDevAgentCancel(token, selectedAiRunId, draft.cancel_reason.trim() || undefined);
+      setModal(null);
+      pushToast("success", `Run ${result.status}`);
+      void loadAiRunDetail(selectedAiRunId);
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Failed to cancel run", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handlePlanCreate() {
+    if (!selectedAiRunId) return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    let steps: Array<Record<string, unknown>> = [];
+    try {
+      steps = parseJsonArray(draft.plan_steps, "Steps");
+    } catch (e) {
+      pushToast("warning", e instanceof Error ? e.message : "Invalid JSON");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.agentsPlanCreate(token, selectedAiRunId, {
+        name: draft.plan_name.trim() || "Plan",
+        steps,
+        rationale: draft.plan_rationale.trim() || undefined,
+      });
+      setModal(null);
+      pushToast("success", "Plan recorded");
+      void loadAiRunDetail(selectedAiRunId);
+    } catch (e) {
+      notifyError(e, "Failed to record plan");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handlePlanApprove() {
+    if (!modal || modal.kind !== "plan-approve" || !selectedAiRunId) return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    if (!draft.approved_by.trim()) {
+      pushToast("warning", "Approver identity is required");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await api.aiDevAgentApprovePlan(token, selectedAiRunId, modal.plan.id, {
+        approved: true,
+        approved_by: draft.approved_by.trim(),
+      });
+      setModal(null);
+      pushToast("success", `Plan ${result.approved ? "approved" : "decided"}`);
+      void loadAiRunDetail(selectedAiRunId);
+      void loadAll();
+    } catch (e) {
+      notifyError(e, "Failed to approve plan", () => void loadAll());
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleCheckpointSave() {
+    if (!selectedAiRunId) return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.agentsCheckpointSave(token, selectedAiRunId, {
+        summary: draft.checkpoint_summary.trim() || undefined,
+        is_final: draft.checkpoint_final,
+      });
+      setModal(null);
+      pushToast("success", "Checkpoint saved");
+      void loadAiRunDetail(selectedAiRunId);
+    } catch (e) {
+      notifyError(e, "Failed to save checkpoint");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleFeedbackSubmit() {
+    if (!selectedAiRunId) return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.agentsFeedbackSubmit(token, selectedAiRunId, {
+        feedback_type: draft.feedback_type || "CONTINUE",
+        message: draft.feedback_message.trim() || undefined,
+      });
+      setModal(null);
+      pushToast("success", "Feedback recorded");
+      void loadAiRunDetail(selectedAiRunId);
+    } catch (e) {
+      notifyError(e, "Failed to record feedback");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleV2Run() {
+    if (!modal || modal.kind !== "v2-run") return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    if (!draft.task.trim()) {
+      pushToast("warning", "Task input is required");
+      return;
+    }
+    setExecuting(true);
+    setExecError(null);
+    try {
+      const result = await api.agentsV2RunAgent(token, modal.agentName, {
+        task: draft.task.trim(),
+        organizationId: draft.organization_id.trim() || undefined,
+        repositoryId: draft.repository_id.trim() || undefined,
+      });
+      setModal(null);
+      setLastExecResult(result as unknown as Record<string, unknown>);
+      pushToast("success", `Agent finished with status ${result.status} · run ${result.run_id.slice(0, 8)}`);
+      void loadAll();
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "timeout") {
+        setExecError("EXECUTION REQUEST TIMED OUT — the server may still be processing. Check run history; do not assume it stopped.");
+        return;
+      }
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      setExecError(e instanceof Error ? e.message : "Agent execution failed");
+    } finally {
+      setExecuting(false);
+    }
+  }
+
+  async function handleV2Pipeline() {
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    const agents = draft.pipeline_agents.split(",").map((s) => s.trim()).filter(Boolean);
+    if (agents.length === 0 || !draft.task.trim()) {
+      pushToast("warning", "At least one agent and a task are required");
+      return;
+    }
+    setExecuting(true);
+    setExecError(null);
+    try {
+      const result = await api.agentsV2Pipeline(token, {
+        agents,
+        task: draft.task.trim(),
+        organizationId: draft.organization_id.trim() || undefined,
+        repositoryId: draft.repository_id.trim() || undefined,
+      });
+      setModal(null);
+      setLastExecResult(result as unknown as Record<string, unknown>);
+      pushToast("success", `Pipeline finished with status ${result.status}`);
+      void loadAll();
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "timeout") {
+        setExecError("EXECUTION REQUEST TIMED OUT — the server may still be processing. Check run history; do not assume it stopped.");
+        return;
+      }
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      setExecError(e instanceof Error ? e.message : "Pipeline execution failed");
+    } finally {
+      setExecuting(false);
+    }
+  }
+
   useEffect(() => {
     const token = getToken();
     if (!token) return;
@@ -344,6 +706,8 @@ export function AgentWorkspace() {
       setSelectedV2RunId(null);
       setSelectedAiRunId(null);
       setV2Offset(0);
+      setLastExecResult(null);
+      setExecError(null);
       setCatalogError(null);
       setV2RunsError(null);
       setAiRunsError(null);
@@ -618,6 +982,24 @@ export function AgentWorkspace() {
                     <StatRow label="Temperature" value={String(agentInfo.temperature)} />
                     <StatRow label="Permissions" value={(agentInfo.permissions ?? []).join(", ") || "—"} />
                     <StatRow label="Human approval" value={agentInfo.require_human_approval ? "required" : "not required"} />
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <BrutalButton
+                        size="sm"
+                        variant="primary"
+                        aria-label={`Run agent ${agentInfo.name}`}
+                        onClick={() => { resetDraft(); setModal({ kind: "v2-run", agentName: agentInfo.name }); }}
+                      >
+                        Run agent
+                      </BrutalButton>
+                      <BrutalButton
+                        size="sm"
+                        variant="ghost"
+                        aria-label="Run agent pipeline"
+                        onClick={() => { resetDraft(); setDraft((d) => ({ ...d, pipeline_agents: agentInfo.name })); setModal({ kind: "v2-pipeline" }); }}
+                      >
+                        Run pipeline
+                      </BrutalButton>
+                    </div>
                     {(agentInfo.goals ?? []).length > 0 ? (
                       <div className="pt-1">
                         <p className="mb-1 font-mono text-xs uppercase tracking-widest text-on-surface-variant">Goals</p>
@@ -632,6 +1014,26 @@ export function AgentWorkspace() {
                 ) : null}
               </PanelBody>
             </BrutalCard>
+            {(executing || execError || lastExecResult) && (
+              <div className="mt-6">
+                <BrutalCard eyebrow="Execution" title="Agent execution">
+                  {executing ? (
+                    <div className="space-y-1" role="status" aria-live="polite">
+                      <p className="font-mono text-xs uppercase tracking-widest text-primary-container">AGENT EXECUTION · SERVER-SIDE · LONG-RUNNING OPERATION</p>
+                      <p className="text-sm text-on-surface-variant">The agent is executing on the backend. This request may take several minutes.</p>
+                      <p className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">STATUS: REQUEST IN PROGRESS · REALTIME: UNAVAILABLE</p>
+                    </div>
+                  ) : null}
+                  {execError ? <p className="mt-2 text-xs text-error">{execError}</p> : null}
+                  {!executing && lastExecResult ? (
+                    <div className="mt-2 space-y-1">
+                      <StatRow label="Run" value={String(lastExecResult.run_id ?? lastExecResult.workflow_id ?? "—")} />
+                      <StatRow label="Status" value={String(lastExecResult.status ?? "—")} />
+                    </div>
+                  ) : null}
+                </BrutalCard>
+              </div>
+            )}
           </div>
         </div>
       ) : null}
@@ -738,6 +1140,11 @@ export function AgentWorkspace() {
                   <BrutalSelect label="Status" value={aiStatusFilter} onChange={(e) => setAiStatusFilter(e.target.value)} options={["ALL", "pending", "running", "completed", "failed", "cancelled"].map((s) => ({ label: s, value: s }))} />
                 </div>
                 <BrutalButton variant="ghost" size="sm" onClick={() => void loadAll()}>Apply</BrutalButton>
+                {canRepoWrite ? (
+                  <BrutalButton variant="primary" size="sm" onClick={() => { resetDraft(); setDraft((d) => ({ ...d, repository_id: aiRepoFilter.trim() })); setModal({ kind: "enqueue" }); }}>
+                    Enqueue agent
+                  </BrutalButton>
+                ) : null}
               </div>
             </div>
             <PanelBody loading={loading} error={aiRunsError} onRetry={() => void loadAll()} emptyTitle="No executions" emptyDescription="Repository agent executions appear here once enqueued.">
@@ -780,6 +1187,35 @@ export function AgentWorkspace() {
                   {aiRunDetail.last_error ? <StatRow label="Last error" value={String(aiRunDetail.last_error).slice(0, 200)} /> : null}
                   <StatRow label="Started" value={formatDateTime(aiRunDetail.start_time)} />
                   <StatRow label="Ended" value={formatDateTime(aiRunDetail.end_time)} />
+                  {canRepoWrite ? (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <BrutalButton size="sm" variant="primary" aria-label="Execute run" onClick={() => void handleExecuteAiRun()} disabled={executing}>
+                        {executing ? "Executing…" : "Execute"}
+                      </BrutalButton>
+                      <BrutalButton size="sm" variant="ghost" aria-label="Cancel run" onClick={() => { resetDraft(); setModal({ kind: "cancel-run" }); }}>
+                        Cancel
+                      </BrutalButton>
+                      <BrutalButton size="sm" variant="ghost" aria-label="Record plan" onClick={() => { resetDraft(); setModal({ kind: "plan-create" }); }}>
+                        Record plan
+                      </BrutalButton>
+                      <BrutalButton size="sm" variant="ghost" aria-label="Save checkpoint" onClick={() => { resetDraft(); setModal({ kind: "checkpoint-save" }); }}>
+                        Checkpoint
+                      </BrutalButton>
+                      <BrutalButton size="sm" variant="ghost" aria-label="Feedback" onClick={() => { resetDraft(); setModal({ kind: "feedback-submit" }); }}>
+                        Feedback
+                      </BrutalButton>
+                    </div>
+                  ) : (
+                    <p className="pt-2 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Execution controls require repository:write</p>
+                  )}
+                  {executing ? (
+                    <div className="border border-outline bg-surface p-3" role="status" aria-live="polite">
+                      <p className="font-mono text-xs uppercase tracking-widest text-primary-container">AGENT EXECUTION · SERVER-SIDE · LONG-RUNNING OPERATION</p>
+                      <p className="mt-1 text-sm text-on-surface-variant">The agent is executing on the backend. This request may take several minutes.</p>
+                      <p className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">STATUS: REQUEST IN PROGRESS · REALTIME: UNAVAILABLE</p>
+                    </div>
+                  ) : null}
+                  {execError && !executing ? <p className="pt-1 text-xs text-error">{execError}</p> : null}
                   {typeof aiRunDetail.result === "string" && aiRunDetail.result ? (
                     <div className="border-t border-outline pt-2">
                       <p className="mb-1 font-mono text-xs uppercase tracking-widest text-on-surface-variant">Run output</p>
@@ -810,6 +1246,18 @@ export function AgentWorkspace() {
                         {plan.plan_type} · {Array.isArray(plan.steps) ? plan.steps.length : 0} steps
                         {plan.approved_by ? ` · by ${plan.approved_by}` : ""}
                       </p>
+                      {canRepoWrite && !plan.approved && !plan.rejected ? (
+                        <div className="mt-2">
+                          <BrutalButton
+                            size="sm"
+                            variant="ghost"
+                            aria-label="Approve plan"
+                            onClick={() => { resetDraft(); setModal({ kind: "plan-approve", plan }); }}
+                          >
+                            Approve plan
+                          </BrutalButton>
+                        </div>
+                      ) : null}
                       {typeof plan.rationale === "string" && plan.rationale ? (
                         <div className="mt-2">
                           <TruncatedText label="PLAN RATIONALE" text={plan.rationale} />
@@ -908,6 +1356,131 @@ export function AgentWorkspace() {
         </p>
         <BrutalButton variant="yellow" size="sm" href="/ai">Ask AI about agents</BrutalButton>
       </BrutalCard>
+
+      <BrutalModal open={modal?.kind === "enqueue"} title="Enqueue agent" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleEnqueue()} disabled={submitting}>{submitting ? "Enqueuing…" : "Enqueue"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <BrutalInput id="enqueue-repository-id" label="Repository ID" value={draft.repository_id} onChange={(e) => setDraft((d) => ({ ...d, repository_id: e.target.value }))} placeholder="uuid" />
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalInput label="Agent type" value={draft.agent_type} onChange={(e) => setDraft((d) => ({ ...d, agent_type: e.target.value }))} placeholder="refactor" />
+            <BrutalInput label="Name" value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />
+          </div>
+          <BrutalInput label="Goal" value={draft.goal} onChange={(e) => setDraft((d) => ({ ...d, goal: e.target.value }))} placeholder="what the agent should achieve" />
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalInput label="Branch" value={draft.branch} onChange={(e) => setDraft((d) => ({ ...d, branch: e.target.value }))} />
+            <BrutalInput label="Model" value={draft.model} onChange={(e) => setDraft((d) => ({ ...d, model: e.target.value }))} placeholder="backend default" />
+          </div>
+          <BrutalInput label="Budget tokens" value={draft.budget_tokens} onChange={(e) => setDraft((d) => ({ ...d, budget_tokens: e.target.value }))} placeholder="optional" />
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "v2-run"} title="Run agent?" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleV2Run()} disabled={executing}>{executing ? "Starting…" : "Confirm"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <p className="border border-outline bg-surface px-3 py-2 text-xs text-on-surface-variant">
+            This operation executes the agent server-side and may take several minutes. Do not close the operation while the request is in progress.
+          </p>
+          {modal?.kind === "v2-run" ? <StatRow label="Agent" value={modal.agentName} /> : null}
+          <StatRow label="Type" value="Agent Run" />
+          <BrutalInput label="Task" value={draft.task} onChange={(e) => setDraft((d) => ({ ...d, task: e.target.value }))} placeholder="describe the task (max 10000 chars)" />
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalInput label="Organization ID" value={draft.organization_id} onChange={(e) => setDraft((d) => ({ ...d, organization_id: e.target.value }))} placeholder="optional" />
+            <BrutalInput label="Repository ID" value={draft.repository_id} onChange={(e) => setDraft((d) => ({ ...d, repository_id: e.target.value }))} placeholder="optional" />
+          </div>
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "v2-pipeline"} title="Run agent pipeline?" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleV2Pipeline()} disabled={executing}>{executing ? "Starting…" : "Confirm"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <p className="border border-outline bg-surface px-3 py-2 text-xs text-on-surface-variant">
+            Agents run sequentially server-side and this may take several minutes. Do not close the operation while the request is in progress.
+          </p>
+          <StatRow label="Type" value="Pipeline Execute" />
+          <BrutalInput label="Agents (comma-separated)" value={draft.pipeline_agents} onChange={(e) => setDraft((d) => ({ ...d, pipeline_agents: e.target.value }))} placeholder="planner, reviewer" />
+          <BrutalInput label="Task" value={draft.task} onChange={(e) => setDraft((d) => ({ ...d, task: e.target.value }))} placeholder="describe the task" />
+          <div className="grid grid-cols-2 gap-2">
+            <BrutalInput label="Organization ID" value={draft.organization_id} onChange={(e) => setDraft((d) => ({ ...d, organization_id: e.target.value }))} placeholder="optional" />
+            <BrutalInput label="Repository ID" value={draft.repository_id} onChange={(e) => setDraft((d) => ({ ...d, repository_id: e.target.value }))} placeholder="optional" />
+          </div>
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "plan-create"} title="Record plan" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handlePlanCreate()} disabled={submitting}>{submitting ? "Recording…" : "Record"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <BrutalInput label="Name" value={draft.plan_name} onChange={(e) => setDraft((d) => ({ ...d, plan_name: e.target.value }))} />
+          <BrutalInput label="Steps (JSON array)" value={draft.plan_steps} onChange={(e) => setDraft((d) => ({ ...d, plan_steps: e.target.value }))} placeholder='[{"name": "scan"}]' />
+          <BrutalInput label="Rationale" value={draft.plan_rationale} onChange={(e) => setDraft((d) => ({ ...d, plan_rationale: e.target.value }))} placeholder="optional plain-text rationale" />
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "plan-approve"} title="Approve plan?" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handlePlanApprove()} disabled={submitting}>{submitting ? "Approving…" : "Confirm"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          {modal?.kind === "plan-approve" ? <StatRow label="Plan" value={modal.plan.name} /> : null}
+          <BrutalInput label="Approved by" value={draft.approved_by} onChange={(e) => setDraft((d) => ({ ...d, approved_by: e.target.value }))} placeholder="your identity (email or user id)" />
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "checkpoint-save"} title="Save checkpoint" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleCheckpointSave()} disabled={submitting}>{submitting ? "Saving…" : "Save"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <BrutalInput label="Summary" value={draft.checkpoint_summary} onChange={(e) => setDraft((d) => ({ ...d, checkpoint_summary: e.target.value }))} placeholder="what this checkpoint captures" />
+          <label className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-on-surface-variant">
+            <input type="checkbox" checked={draft.checkpoint_final} onChange={(e) => setDraft((d) => ({ ...d, checkpoint_final: e.target.checked }))} />
+            Final checkpoint
+          </label>
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "feedback-submit"} title="Submit feedback" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Cancel</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleFeedbackSubmit()} disabled={submitting}>{submitting ? "Submitting…" : "Submit"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <BrutalInput label="Type" value={draft.feedback_type} onChange={(e) => setDraft((d) => ({ ...d, feedback_type: e.target.value }))} placeholder="CONTINUE" />
+          <BrutalInput label="Message" value={draft.feedback_message} onChange={(e) => setDraft((d) => ({ ...d, feedback_message: e.target.value }))} placeholder="human guidance for the run" />
+        </div>
+      </BrutalModal>
+
+      <BrutalModal open={modal?.kind === "cancel-run"} title="Cancel execution?" onClose={() => setModal(null)} actions={
+        <>
+          <BrutalButton variant="ghost" size="sm" onClick={() => setModal(null)}>Keep running</BrutalButton>
+          <BrutalButton variant="primary" size="sm" onClick={() => void handleCancelAiRun()} disabled={submitting}>{submitting ? "Cancelling…" : "Confirm"}</BrutalButton>
+        </>
+      }>
+        <div className="space-y-3">
+          <p className="text-sm text-on-surface-variant">Cancellation is recorded server-side against the authoritative run state.</p>
+          <BrutalInput label="Reason" value={draft.cancel_reason} onChange={(e) => setDraft((d) => ({ ...d, cancel_reason: e.target.value }))} placeholder="optional" />
+        </div>
+      </BrutalModal>
     </div>
   );
 }
