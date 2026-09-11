@@ -2649,4 +2649,221 @@ export const api = {
     apiRequest<import("@/types/ml").MLMonitoringSnapshot[]>(`/ai/monitoring/${encodeURIComponent(modelId)}`, { token }),
   mlProvenance: (token: string, modelId: string) =>
     apiRequest<import("@/types/ml").MLProvenance>(`/ai/provenance/${encodeURIComponent(modelId)}`, { token }),
+
+  // ─── AI/ML Platform (V58 aiml, C2 mutations) ──────────────────────────
+  // Every mutation gated server-side on its exact aiml.* string (UX mirrors
+  // in PERMISSIONS). Confirm → API → authoritative refetch → toast. No
+  // optimistic updates. Gateway invoke runs server-side (mocked provider)
+  // with a per-request extended timeout; timeout never implies cancel.
+  mlModelCreate: (token: string, body: {
+    provider: string;
+    name: string;
+    version: string;
+    type?: string;
+    capabilities?: Record<string, unknown>;
+    license?: string;
+    region?: string;
+    risk_level?: string;
+    owner?: string;
+  }) =>
+    apiRequest<import("@/types/ml").MLModel>("/ai/models", { method: "POST", token, body }),
+  mlModelStatus: (token: string, modelId: string, status: string) =>
+    apiRequest<import("@/types/ml").MLModel>(`/ai/models/${encodeURIComponent(modelId)}/status`, {
+      method: "PUT",
+      token,
+      body: { status },
+    }),
+  mlModelVersionCreate: (token: string, modelId: string, body: { version: string; artifact?: string }) =>
+    apiRequest<import("@/types/ml").MLModelVersion>(`/ai/models/${encodeURIComponent(modelId)}/versions`, {
+      method: "POST",
+      token,
+      body,
+    }),
+  mlModelApprove: (token: string, modelId: string) =>
+    apiRequest<import("@/types/ml").MLModel>(`/ai/models/${encodeURIComponent(modelId)}/approve`, {
+      method: "POST",
+      token,
+      body: {},
+    }),
+  mlModelBlock: (token: string, modelId: string) =>
+    apiRequest<import("@/types/ml").MLModel>(`/ai/models/${encodeURIComponent(modelId)}/block`, {
+      method: "POST",
+      token,
+      body: {},
+    }),
+  mlProviderCreate: (token: string, body: {
+    provider: string;
+    display_name: string;
+    models?: string[];
+    regions?: string[];
+    pricing?: Record<string, unknown>;
+    data_processing_policy?: Record<string, unknown>;
+    availability?: string;
+    security_status?: string;
+    contract_metadata?: Record<string, unknown>;
+  }) =>
+    apiRequest<import("@/types/ml").MLProvider>("/ai/providers", { method: "POST", token, body }),
+  mlProviderAvailability: (token: string, provider: string, availability: string) =>
+    apiRequest<import("@/types/ml").MLProvider>(`/ai/providers/${encodeURIComponent(provider)}/availability`, {
+      method: "PUT",
+      token,
+      body: { availability },
+    }),
+  mlPromptCreate: (token: string, body: {
+    prompt_id: string;
+    name: string;
+    purpose?: string;
+    classification?: string;
+    model_compatibility?: string[];
+    content: string;
+    owner?: string;
+  }) =>
+    apiRequest<import("@/types/ml").MLPromptDetail>("/ai/prompts", { method: "POST", token, body }),
+  mlPromptVersionCreate: (token: string, promptId: string, body: {
+    content: string;
+    owner?: string;
+    purpose?: string;
+    classification?: string;
+  }) =>
+    apiRequest<Record<string, unknown>>(`/ai/prompts/${encodeURIComponent(promptId)}/versions`, {
+      method: "POST",
+      token,
+      body,
+    }),
+  mlEvalSuiteCreate: (token: string, body: { name: string; suite_type: string; dataset_id?: string; config?: Record<string, unknown> }) =>
+    apiRequest<Record<string, unknown>>("/ai/evaluations/suites", { method: "POST", token, body }),
+  mlEvalRunCreate: (token: string, body: {
+    suite_id: string;
+    model_id?: string;
+    prompt_version_id?: string;
+    dataset_version?: string;
+    parameters?: Record<string, unknown>;
+  }) =>
+    apiRequest<import("@/types/ml").MLEvaluationRun>("/ai/evaluations/runs", { method: "POST", token, body }),
+  mlEvalRunComplete: (token: string, runId: string, body: { metrics?: Record<string, unknown>; artifacts?: Record<string, unknown>; status?: string }) =>
+    apiRequest<import("@/types/ml").MLEvaluationRun>(`/ai/evaluations/runs/${encodeURIComponent(runId)}/complete`, {
+      method: "POST",
+      token,
+      body,
+    }),
+  mlGuardrailCreate: (token: string, body: {
+    name: string;
+    scope?: string;
+    policy?: Record<string, unknown>;
+    rate_limit?: number;
+    environment?: string;
+  }) =>
+    apiRequest<import("@/types/ml").MLGuardrail>("/ai/guardrails", { method: "POST", token, body }),
+  mlGuardrailCheck: (token: string, side: "input" | "output", body: { content: string; classification?: string; environment?: string }) =>
+    apiRequest<import("@/types/ml").MLCheckResult>(`/ai/guardrails/check-${side}`, { method: "POST", token, body }),
+  mlPolicyCreate: (token: string, body: {
+    name: string;
+    policy_type: string;
+    effect: string;
+    priority?: number;
+    conditions?: Record<string, unknown> | Array<Record<string, unknown>>;
+  }) =>
+    apiRequest<Record<string, unknown>>("/ai/policies", { method: "POST", token, body }),
+  mlPolicyEvaluate: (token: string, body: { resource: string; context?: Record<string, unknown> }) =>
+    apiRequest<import("@/types/ml").MLCheckResult>("/ai/policies/evaluate", { method: "POST", token, body }),
+  mlPolicySimulate: (token: string, body: { resource: string; context?: Record<string, unknown> }) =>
+    apiRequest<import("@/types/ml").MLCheckResult>("/ai/policies/simulate", { method: "POST", token, body }),
+  mlRiskCreate: (token: string, body: {
+    system: string;
+    model_id?: string;
+    risk_id: string;
+    severity: string;
+    likelihood: string;
+    impact: string;
+    owner?: string;
+    mitigation?: string;
+  }) =>
+    apiRequest<import("@/types/ml").MLRisk>("/ai/risks", { method: "POST", token, body }),
+  mlRiskAssess: (token: string, riskId: string, body: { status?: string; severity?: string; likelihood?: string; impact?: string }) =>
+    apiRequest<import("@/types/ml").MLRisk & { assessed_score?: number | null; advisory?: Record<string, unknown>; note?: string }>(
+      `/ai/risks/${encodeURIComponent(riskId)}/assess`,
+      { method: "POST", token, body },
+    ),
+  mlModelCardCreate: (token: string, body: {
+    model_id: string;
+    purpose?: string;
+    capabilities?: Record<string, unknown> | string[];
+    limitations?: Record<string, unknown> | string[] | string;
+    risk?: string;
+    evaluation_summary?: Record<string, unknown>;
+    data_policy?: string;
+    provider?: string;
+    version?: string;
+    approved_environments?: string[];
+  }) =>
+    apiRequest<import("@/types/ml").MLModelCard>("/ai/model-cards", { method: "POST", token, body }),
+  mlSystemCardCreate: (token: string, body: {
+    system: string;
+    purpose?: string;
+    inputs?: Record<string, unknown>;
+    outputs?: Record<string, unknown>;
+    models?: string[];
+    tools?: string[];
+    permissions?: string[];
+    human_oversight?: string;
+    failure_modes?: string[];
+    evaluation?: Record<string, unknown>;
+    deployment_scope?: string;
+  }) =>
+    apiRequest<import("@/types/ml").MLSystemCard>("/ai/system-cards", { method: "POST", token, body }),
+  mlApprovalCreate: (token: string, body: { request_type: string; model_id?: string; provider?: string; version?: string; reason?: string }) =>
+    apiRequest<Record<string, unknown>>("/ai/approvals", { method: "POST", token, body }),
+  mlApprovalDecide: (token: string, approvalId: string, body: { approver: string; decision: string }) =>
+    apiRequest<Record<string, unknown>>(`/ai/approvals/${encodeURIComponent(approvalId)}/decide`, {
+      method: "POST",
+      token,
+      body,
+    }),
+  mlGatewayInvoke: (token: string, body: { model_id: string; prompt: string; data_classification?: string; purpose?: string }) =>
+    apiRequest<import("@/types/ml").MLGatewayInvokeResult>("/ai/gateway/invoke", {
+      method: "POST",
+      token,
+      body,
+      timeoutMs: 180000,
+    }),
+  mlGatewayRoute: (token: string, body: {
+    purpose?: string;
+    data_classification?: string;
+    model_hint?: string;
+    provider_hint?: string;
+    region_hint?: string;
+    budget?: number;
+    policy_context?: Record<string, unknown>;
+  }) =>
+    apiRequest<import("@/types/ml").MLGatewayRoute>("/ai/gateway/route", { method: "POST", token, body }),
+  mlMonitoringSnapshot: (token: string, body: {
+    model_id?: string;
+    provider?: string;
+    availability?: string;
+    latency_ms?: number;
+    error_rate?: number;
+    token_usage?: number;
+    cost?: number;
+    quality?: number;
+    safety?: number;
+    drift?: Record<string, unknown>;
+  }) =>
+    apiRequest<import("@/types/ml").MLMonitoringSnapshot>("/ai/monitoring/snapshots", { method: "POST", token, body }),
+  mlMonitoringDrift: (token: string, body: { model_id?: string; window?: number }) =>
+    apiRequest<import("@/types/ml").MLDriftResult>("/ai/monitoring/drift", { method: "POST", token, body }),
+  mlDeploymentCreate: (token: string, body: {
+    model_id: string;
+    version?: string;
+    environment?: string;
+    provider?: string;
+    approved_by?: string;
+    metadata?: Record<string, unknown>;
+  }) =>
+    apiRequest<import("@/types/ml").MLDeployment>("/ai/deployments", { method: "POST", token, body }),
+  mlDeploymentRollback: (token: string, deploymentId: string) =>
+    apiRequest<import("@/types/ml").MLDeployment>(`/ai/deployments/${encodeURIComponent(deploymentId)}/rollback`, {
+      method: "POST",
+      token,
+      body: {},
+    }),
 };

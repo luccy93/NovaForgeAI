@@ -234,13 +234,13 @@ describe("MLPlatformWorkspace (C1)", () => {
   it("renders policy decisions and system cards on demand", async () => {
     const { getByRole } = render(<MLPlatformWorkspace />);
     fireEvent.click(getByRole("tab", { name: "Governance" }));
-    fireEvent.click(screen.getByRole("button", { name: "Load" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Load" }));
     await waitFor(() => {
       expect(apiModule.api.mlPolicyDecisions).toHaveBeenCalled();
     });
     expect(await screen.findByText("pii-guard")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("System"), { target: { value: "support-copilot" } });
-    fireEvent.click(screen.getByRole("button", { name: "Look up" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Look up" })[1]);
     await waitFor(() => {
       expect(apiModule.api.mlSystemCards).toHaveBeenCalledWith("test-token", "support-copilot");
     });
@@ -317,5 +317,181 @@ describe("MLPlatformWorkspace (C1)", () => {
     expect(screen.queryByText(/credential/i)).toBeNull();
     expect(screen.queryByText(/password/i)).toBeNull();
     expect(screen.queryByText(/api[_-]?key/i)).toBeNull();
+  });
+});
+
+describe("MLPlatformWorkspace (C2 operations)", () => {
+  const C2_PERMS = ["aiml.model.create", "aiml.model.approve", "aiml.model.block", "aiml.model.update", "aiml.model.create_version", "aiml.deployment.create", "aiml.deployment.rollback", "aiml.gateway.invoke", "aiml.risk.assess", "aiml.approval.decide", "aiml.evaluation.create", "aiml.guardrail.create", "aiml.monitoring.create", "aiml.policy.create", "aiml.provider.create", "aiml.prompt.create", "aiml.card.create", "aiml.approval.create"];
+
+  beforeEach(() => {
+    installApiMock({});
+    // Upgrade whoami in place so the initial loadAll (triggered by mount)
+    // already sees the richer permission set — avoids a mount→whoami race
+    // where the first render's loadAll still thinks we're unpermissioned.
+    (apiModule.api.whoami as ReturnType<typeof vi.fn>).mockResolvedValue({ permissions: C2_PERMS, user: { id: "u1", email: "u@c.io", username: "u" } });
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    Object.assign(api, {
+      mlModelCreate: vi.fn().mockResolvedValue({ id: "m-9", name: "herald", status: "DRAFT" }),
+      mlModelApprove: vi.fn().mockResolvedValue({ id: "m-1", status: "APPROVED" }),
+      mlDeploymentCreate: vi.fn().mockResolvedValue({ id: "dep-1", status: "deployed", environment: "production" }),
+      mlDeploymentRollback: vi.fn().mockResolvedValue({ id: "dep-1", status: "rolled_back" }),
+      mlGatewayInvoke: vi.fn().mockResolvedValue({ model_id: "m-1", model_name: "atlas", provider: "acme", output: "mocked answer", provider_call: { mocked: true } }),
+      mlGatewayRoute: vi.fn().mockResolvedValue({ decision: "ALLOW", reason: "selected", model_name: "atlas" }),
+      mlMonitoringDrift: vi.fn().mockResolvedValue({ drift_detected: false, sufficient_data: true, sample_count: 40 }),
+      mlRiskAssess: vi.fn().mockResolvedValue({ id: "r-1", assessed_score: 74, note: "score is a governance heuristic — not a legal conclusion" }),
+      mlApprovalDecide: vi.fn().mockResolvedValue({ id: "ap-1", status: "decided" }),
+      mlEvalRunCreate: vi.fn().mockResolvedValue({ id: "run-9", status: "PENDING" }),
+    });
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("registers a model then refetches authoritatively", async () => {
+    const { getByRole } = render(<MLPlatformWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Registry" }));
+    fireEvent.click(await screen.findByRole("button", { name: "New model" }));
+    expect(await screen.findByText("Register model")).toBeTruthy();
+    const dialog = screen.getByRole("dialog");
+    const { within: withinDialog } = await import("@testing-library/react");
+    fireEvent.change(withinDialog(dialog).getByLabelText("Provider"), { target: { value: "acme" } });
+    fireEvent.change(withinDialog(dialog).getByLabelText("Name"), { target: { value: "herald" } });
+    fireEvent.change(withinDialog(dialog).getByLabelText("Version"), { target: { value: "1.0" } });
+    fireEvent.click(withinDialog(dialog).getByRole("button", { name: "Register" }));
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    await waitFor(() => {
+      expect(api.mlModelCreate).toHaveBeenCalledWith(
+        "test-token",
+        expect.objectContaining({ provider: "acme", name: "herald", version: "1.0" }),
+      );
+    });
+    await waitFor(() => {
+      expect((api.mlModels as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(1);
+    });
+  });
+
+  it("hides model mutations without the exact aiml permission", async () => {
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    (api.whoami as ReturnType<typeof vi.fn>).mockResolvedValue({ permissions: [], user: { id: "u1" } });
+    const { getByRole } = render(<MLPlatformWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Registry" }));
+    expect(await screen.findByText("atlas")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "New model" })).toBeNull();
+    fireEvent.click(getByRole("tab", { name: "Deployments" }));
+    expect(await screen.findByText("NOT EXPOSED BY API")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /deploy selected model/i })).toBeNull();
+  });
+
+  it("approves a model through confirmation and refetches", async () => {
+    const { getByRole } = render(<MLPlatformWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Registry" }));
+    expect(await screen.findByText("atlas")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View model atlas" }));
+    const approveBtn = await screen.findByRole("button", { name: "Approve model" });
+    fireEvent.click(approveBtn);
+    expect(await screen.findByText("Approve model?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      expect(apiModule.api.mlModelApprove).toHaveBeenCalledWith("test-token", "m-1");
+    });
+  });
+
+  it("deploys with the returned ID and rolls back with 409 honesty", async () => {
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    (api.mlDeploymentRollback as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new ApiError("unknown", 409, "Deployment already rolled back"),
+    );
+    const { getByRole } = render(<MLPlatformWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Registry" }));
+    expect(await screen.findByText("atlas")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View model atlas" }));
+    fireEvent.click(getByRole("tab", { name: "Deployments" }));
+    fireEvent.click(await screen.findByRole("button", { name: /deploy selected model/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      expect(api.mlDeploymentCreate).toHaveBeenCalledWith(
+        "test-token",
+        expect.objectContaining({ model_id: "m-1", environment: "production" }),
+      );
+    });
+    expect(await screen.findByText("dep-1")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Roll back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      expect(api.mlDeploymentRollback).toHaveBeenCalledWith("test-token", "dep-1");
+    });
+  });
+
+  it("invokes the gateway only after confirmation with mocked labeling", async () => {
+    const { getByRole } = render(<MLPlatformWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Gateway" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Route" }));
+    await waitFor(() => {
+      expect(apiModule.api.mlGatewayRoute).toHaveBeenCalled();
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Invoke model" }));
+    expect(await screen.findByText("Invoke model?")).toBeTruthy();
+    expect(screen.getByText(/MOCKED \/ NON-PRODUCTION/)).toBeTruthy();
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    expect(api.mlGatewayInvoke).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Model ID"), { target: { value: "m-1" } });
+    fireEvent.change(screen.getByLabelText("Prompt"), { target: { value: "summarize this" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      expect(api.mlGatewayInvoke).toHaveBeenCalledWith(
+        "test-token",
+        expect.objectContaining({ model_id: "m-1", prompt: "summarize this" }),
+      );
+    });
+    expect(await screen.findByText("AI GATEWAY RESULT")).toBeTruthy();
+    expect(screen.getAllByText("MOCKED / NON-PRODUCTION").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("mocked answer")).toBeTruthy();
+  });
+
+  it("states gateway timeout explicitly without claiming cancellation", async () => {
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    (api.mlGatewayInvoke as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new ApiError("timeout", 0, "Request timed out after 180000ms"),
+    );
+    const { getByRole } = render(<MLPlatformWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Gateway" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Invoke model" }));
+    fireEvent.change(screen.getByLabelText("Model ID"), { target: { value: "m-1" } });
+    fireEvent.change(screen.getByLabelText("Prompt"), { target: { value: "x" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(await screen.findByText(/REQUEST TIMED OUT/)).toBeTruthy();
+    expect(screen.getByText(/may still be processing/)).toBeTruthy();
+  });
+
+  it("assesses a risk and keeps the caveat attached to the score", async () => {
+    const { getByRole } = render(<MLPlatformWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Risks" }));
+    expect(await screen.findByText("bias-drift")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View risk bias-drift" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Assess risk" }));
+    expect(await screen.findByText("Assess risk?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      expect(apiModule.api.mlRiskAssess).toHaveBeenCalled();
+    });
+    expect(await screen.findByText("74")).toBeTruthy();
+    expect(screen.getAllByText(/governance heuristic — not a legal conclusion/).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("decides an approval with the backend decision vocabulary", async () => {
+    const { getByRole } = render(<MLPlatformWorkspace />);
+    fireEvent.click(getByRole("tab", { name: "Governance" }));
+    fireEvent.change(screen.getByLabelText("Approval ID"), { target: { value: "ap-1" } });
+    fireEvent.change(screen.getByLabelText("Approver"), { target: { value: "ops@acme.test" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Decide" }));
+    await waitFor(() => {
+      expect(apiModule.api.mlApprovalDecide).toHaveBeenCalledWith("test-token", "ap-1", {
+        approver: "ops@acme.test",
+        decision: "approved",
+      });
+    });
   });
 });
