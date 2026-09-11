@@ -19,6 +19,7 @@ export const PERMISSIONS = {
   zeroTrustWrite: "zero_trust:write",
   dataWrite: "data:write",
   dataExport: "data:export",
+  workflowExecute: "workflow:execute",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

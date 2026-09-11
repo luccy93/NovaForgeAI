@@ -693,6 +693,10 @@ export const api = {
     apiRequest<{ status: string; checks: Record<string, boolean> }>("/health/ready"),
   workflowHealth: (token: string) =>
     apiRequest<import("@/types/api").WorkflowHealth>("/workflows/health", { token }),
+  // NOTE (Phase 23): listWorkflowRuns calls GET /workflows/runs, which
+  // does not exist on the V66 backend (OUT OF SCOPE — BACKEND ENDPOINT NOT
+  // AVAILABLE). It is left untouched; the workflows workspace uses the
+  // verified per-workflow GET /workflows/{id}/runs via workflowRuns().
   listWorkflowRuns: (token: string, limit = 5) =>
     apiRequest<{ items: import("@/types/api").WorkflowRun[] }>("/workflows/runs?limit=" + limit, { token }),
   // Fallback: list workflows then runs per workflow if needed
@@ -704,6 +708,86 @@ export const api = {
     apiRequest<SecOpsDashboard>("/secops/dashboard", { token }),
   integrationsList: (token: string) =>
     apiRequest<{ items: import("@/types/api").IntegrationItem[]; total: number }>("/integrations", { token }),
+
+  // ─── Workflow Automation (V66, C1 reads) ──────────────────────────────
+  // Backend: backend/app/api/workflow.py (prefix /workflows). Tenant-scoped;
+  // reads are authenticated-only, mutations need workflow:execute. Lists
+  // return {items} with no total — counts are labeled "listed", never totals.
+  // No endpoint returns definition steps/edges: no DAG type exists by design.
+  workflowsList: (token: string, opts?: { status?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    params.set("limit", String(opts?.limit ?? 20));
+    return apiRequest<{ items: import("@/types/workflows").WorkflowListItem[] }>(
+      `/workflows?${params.toString()}`,
+      { token },
+    );
+  },
+  workflowGet: (token: string, workflowId: string) =>
+    apiRequest<import("@/types/workflows").WorkflowDetail>(
+      `/workflows/${encodeURIComponent(workflowId)}`,
+      { token },
+    ),
+  workflowVersions: (token: string, workflowId: string) =>
+    apiRequest<{ items: import("@/types/workflows").WorkflowVersion[] }>(
+      `/workflows/${encodeURIComponent(workflowId)}/versions`,
+      { token },
+    ),
+  workflowRuns: (token: string, workflowId: string, limit = 20) =>
+    apiRequest<{ items: import("@/types/workflows").WorkflowRunListItem[] }>(
+      `/workflows/${encodeURIComponent(workflowId)}/runs?limit=${limit}`,
+      { token },
+    ),
+  workflowRunGet: (token: string, runId: string) =>
+    apiRequest<import("@/types/workflows").WorkflowRunDetail>(
+      `/workflows/runs/${encodeURIComponent(runId)}`,
+      { token },
+    ),
+  workflowRunSteps: (token: string, runId: string) =>
+    apiRequest<{ items: import("@/types/workflows").WorkflowStepRun[] }>(
+      `/workflows/runs/${encodeURIComponent(runId)}/steps`,
+      { token },
+    ),
+  workflowHealthSummary: (token: string) =>
+    apiRequest<import("@/types/workflows").WorkflowHealthSummary>("/workflows/health", { token }),
+  workflowAnomalies: (token: string, limit = 20) =>
+    apiRequest<{ items: import("@/types/workflows").WorkflowAnomaly[] }>(
+      `/workflows/anomalies?limit=${limit}`,
+      { token },
+    ),
+  workflowSchedules: (token: string, limit = 20) =>
+    apiRequest<{ items: import("@/types/workflows").WorkflowSchedule[] }>(
+      `/workflows/schedules?limit=${limit}`,
+      { token },
+    ),
+  workflowTemplates: (token: string, limit = 20) =>
+    apiRequest<{ items: import("@/types/workflows").WorkflowTemplate[] }>(
+      `/workflows/templates?limit=${limit}`,
+      { token },
+    ),
+  workflowHumanTasks: (token: string, opts?: { status?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    params.set("limit", String(opts?.limit ?? 20));
+    return apiRequest<{ items: import("@/types/workflows").WorkflowHumanTask[] }>(
+      `/workflows/human-tasks?${params.toString()}`,
+      { token },
+    );
+  },
+  workflowBusinessProcesses: (token: string, limit = 20) =>
+    apiRequest<{ items: import("@/types/workflows").WorkflowBusinessProcess[] }>(
+      `/workflows/business-processes?limit=${limit}`,
+      { token },
+    ),
+  workflowApprovals: (token: string, opts?: { status?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    params.set("limit", String(opts?.limit ?? 20));
+    return apiRequest<{ items: import("@/types/workflows").WorkflowApproval[] }>(
+      `/workflows/approvals?${params.toString()}`,
+      { token },
+    );
+  },
 
   // ─── Integrations: registry (C1) ──────────────────────────────────────
   // Backend: backend/app/integrations/api.py. Tenant-scoped; reads need
