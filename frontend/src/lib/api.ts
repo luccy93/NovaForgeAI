@@ -2474,4 +2474,37 @@ export const api = {
     apiRequest<import("@/types/code").AgentOut>(`/ai-dev/agents/${runId}/cancel`, { method: "POST", token, body: { reason } }),
   aiDevAgentApprovePlan: (token: string, runId: string, planId: string, body: { approved: boolean; approved_by: string; reason?: string }) =>
     apiRequest<import("@/types/code").AgentPlanOut>(`/ai-dev/agents/${runId}/plans/${planId}/approve`, { method: "POST", token, body }),
+
+  // ─── Agent Platform (C1 reads) ────────────────────────────────────────
+  // v2 catalog/history: backend/app/api/agents_v2.py (prefix /agents/v2).
+  // Catalog + info are unauthenticated; runs are authenticated + user-scoped.
+  // ai-dev runs: repository:read/write, tenant-scoped (existing aiDev*
+  // methods reused untouched for approve/cancel).
+  agentsV2Catalog: () =>
+    apiRequest<import("@/types/agents").AgentCatalogEntry[]>("/agents/v2", { retryGet: false }),
+  agentsV2Info: (agentName: string) =>
+    apiRequest<import("@/types/agents").AgentCatalogDetail>(
+      `/agents/v2/${encodeURIComponent(agentName)}`,
+      { retryGet: false },
+    ),
+  agentsV2Runs: (token: string, opts?: { agentName?: string; limit?: number; offset?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.agentName) params.set("agent_name", opts.agentName);
+    params.set("limit", String(opts?.limit ?? 20));
+    params.set("offset", String(opts?.offset ?? 0));
+    return apiRequest<import("@/types/agents").AgentV2Run[]>(
+      `/agents/v2/runs?${params.toString()}`,
+      { token },
+    );
+  },
+  agentsV2RunGet: (token: string, runId: string) =>
+    apiRequest<import("@/types/agents").AgentV2RunDetail>(
+      `/agents/v2/runs/${encodeURIComponent(runId)}`,
+      { token },
+    ),
+  agentsAiDevFeedback: (token: string, runId: string, limit = 50) =>
+    apiRequest<import("@/types/agents").PaginatedItems<import("@/types/agents").AgentFeedback>>(
+      `/ai-dev/agents/${runId}/feedback?limit=${limit}`,
+      { token },
+    ),
 };

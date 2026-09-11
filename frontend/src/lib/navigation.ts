@@ -20,7 +20,7 @@ export const NAV_ITEMS: Array<NavItem> = [
   { id: "code", label: "Code", href: "/code", section: "main", auth: true, description: "Code intelligence workspace" },
   { id: "knowledge", label: "Knowledge", href: "/knowledge", section: "main", auth: true, description: "Search the knowledge base" },
   { id: "workflows", label: "Workflows", href: "/workflows", section: "platform", auth: true, description: "Workflow automation" },
-  { id: "agents", label: "Agents", href: "/ai", section: "platform", auth: true, description: "AI agent workspace" },
+  { id: "agents", label: "Agents", href: "/agents", section: "platform", auth: true, description: "AI agent platform" },
   { id: "finops", label: "FinOps", href: "/finops", section: "platform", auth: true, description: "Spend and budgets" },
   { id: "integrations", label: "Integrations", href: "/integrations", section: "platform", auth: true, description: "Connected systems" },
   { id: "data", label: "Data Platform", href: "/data", section: "platform", auth: true, description: "Datasets, pipelines and catalog" },

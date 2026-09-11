@@ -20,6 +20,8 @@ export const PERMISSIONS = {
   dataWrite: "data:write",
   dataExport: "data:export",
   workflowExecute: "workflow:execute",
+  repoRead: "repository:read",
+  repoWrite: "repository:write",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
