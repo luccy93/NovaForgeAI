@@ -5,22 +5,21 @@ import { Menu, Search } from "lucide-react";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { OrgSwitcher } from "@/components/layout/OrgSwitcher";
 import { WorkspaceSwitcher } from "@/components/layout/WorkspaceSwitcher";
+import { useCommandCenter } from "@/components/navigation/CommandCenterProvider";
 
 export function TopHeader({
   email,
   workspaceLabel,
   onMenu,
   onLogout,
-  onOpenPalette,
-  onOpenSearch,
 }: {
   email: string | null;
   workspaceLabel: string | null;
   onMenu: () => void;
   onLogout: () => void;
-  onOpenPalette?: () => void;
-  onOpenSearch?: () => void;
 }) {
+  const { open: openPalette } = useCommandCenter();
+
   return (
     <header className="flex h-16 items-center gap-3 border-b border-outline bg-surface px-4 lg:px-6">
       <button
@@ -48,10 +47,10 @@ export function TopHeader({
         </span>
       ) : null}
       <div className="flex-1" />
-      {onOpenSearch ? (
+      {email ? (
         <button
           type="button"
-          onClick={onOpenSearch}
+          onClick={openPalette}
           aria-label="Search"
           className="hidden border border-outline p-2 text-on-surface-variant hover:border-primary-container hover:text-on-surface sm:block"
         >
@@ -59,7 +58,7 @@ export function TopHeader({
         </button>
       ) : null}
       {email ? (
-        <UserMenu email={email} onLogout={onLogout} onOpenPalette={onOpenPalette} />
+        <UserMenu email={email} onLogout={onLogout} />
       ) : (
         <Link
           href="/auth/login"

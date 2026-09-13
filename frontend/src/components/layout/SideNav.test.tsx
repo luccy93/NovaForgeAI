@@ -7,11 +7,13 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("SideNav", () => {
-  it("shows all sections to authenticated users", () => {
+  it("shows all groups to authenticated users", () => {
     render(<SideNav authenticated />);
-    expect(screen.getByText("Workspace")).toBeInTheDocument();
-    expect(screen.getByText("Platform")).toBeInTheDocument();
-    expect(screen.getByText("System")).toBeInTheDocument();
+    expect(screen.getByText("Command")).toBeInTheDocument();
+    expect(screen.getByText("Engineering")).toBeInTheDocument();
+    expect(screen.getByText("Knowledge & Data")).toBeInTheDocument();
+    expect(screen.getByText("Operations")).toBeInTheDocument();
+    expect(screen.getByText("Security & Governance")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "FinOps" })).toBeInTheDocument();
   });
 

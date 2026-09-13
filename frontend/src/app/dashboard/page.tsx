@@ -10,7 +10,6 @@ import { BrutalEmptyState } from "@/components/ui/BrutalEmptyState";
 import { BrutalErrorState } from "@/components/ui/BrutalErrorState";
 import { BrutalInput } from "@/components/ui/BrutalInput";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
-import { CommandPalette } from "@/components/navigation/CommandPalette";
 import { PlatformStatusPanel } from "@/components/dashboard/PlatformStatusPanel";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { AiActivityPanel } from "@/components/dashboard/AiActivityPanel";
@@ -36,7 +35,6 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
-  const [paletteOpen, setPaletteOpen] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const pushToast = useToastStore((s) => s.push);
   const organizationId = useTenantStore((s) => s.organizationId);
@@ -89,17 +87,6 @@ export default function DashboardPage() {
   // Knowledge metric
   const [knowledgeCount, setKnowledgeCount] = useState<number | null>(null);
   const [knowledgeCountLoading, setKnowledgeCountLoading] = useState(true);
-
-  useEffect(() => {
-    function onKeys(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setPaletteOpen((value) => !value);
-      }
-    }
-    document.addEventListener("keydown", onKeys);
-    return () => document.removeEventListener("keydown", onKeys);
-  }, []);
 
   function sessionExpired() {
     clearToken();
@@ -349,10 +336,7 @@ export default function DashboardPage() {
       email={email}
       workspaceLabel={wsLabel ?? orgLabel ?? (email ? "Workspace" : null)}
       onLogout={logout}
-      onOpenPalette={() => setPaletteOpen(true)}
-      onOpenSearch={() => setPaletteOpen(true)}
     >
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <div className="border-b border-outline bg-surface">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-4 lg:px-6">
           <div>

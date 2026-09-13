@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import { Toasts } from "@/components/feedback/Toasts";
+import { CommandCenterProvider } from "@/components/navigation/CommandCenterProvider";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -22,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full`}>
       <body className="min-h-full flex flex-col bg-surface text-on-surface antialiased">
-        {children}
+        <CommandCenterProvider>{children}</CommandCenterProvider>
         <Toasts />
       </body>
     </html>

@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useCommandCenter } from "@/components/navigation/CommandCenterProvider";
 
 export function UserMenu({
   email,
   onLogout,
-  onOpenPalette,
 }: {
   email: string;
   onLogout: () => void;
-  onOpenPalette?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const { open: openPalette } = useCommandCenter();
 
   useEffect(() => {
     if (!open) return;
@@ -28,7 +28,7 @@ export function UserMenu({
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("pointerdown", onPointer);
     };
-  }, [open ]);
+  }, [open]);
 
   const initial = (email.trim()[0] ?? "?").toUpperCase();
   return (
@@ -57,19 +57,17 @@ export function UserMenu({
             <a href="/settings/members" role="menuitem" onClick={() => setOpen(false)} className="block px-3 py-2 text-sm text-on-surface hover:bg-surface-container-high">Members</a>
             <a href="/settings/workspaces" role="menuitem" onClick={() => setOpen(false)} className="block px-3 py-2 text-sm text-on-surface hover:bg-surface-container-high">Workspaces</a>
             <a href="/settings/roles" role="menuitem" onClick={() => setOpen(false)} className="block px-3 py-2 text-sm text-on-surface hover:bg-surface-container-high">Roles</a>
-            {onOpenPalette ? (
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setOpen(false);
-                  onOpenPalette();
-                }}
-                className="block w-full px-3 py-2 text-left text-sm text-on-surface hover:bg-surface-container-high"
-              >
-                Command palette <span className="font-mono text-xs text-on-surface-variant">⌘K</span>
-              </button>
-            ) : null}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                openPalette();
+              }}
+              className="block w-full px-3 py-2 text-left text-sm text-on-surface hover:bg-surface-container-high"
+            >
+              Command palette <span className="font-mono text-xs text-on-surface-variant">⌘K</span>
+            </button>
             <button
               type="button"
               role="menuitem"

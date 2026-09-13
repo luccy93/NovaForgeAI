@@ -9,15 +9,11 @@ export function AppShell({
   email,
   workspaceLabel,
   onLogout,
-  onOpenPalette,
-  onOpenSearch,
   children,
 }: {
   email: string | null;
   workspaceLabel: string | null;
   onLogout: () => void;
-  onOpenPalette?: () => void;
-  onOpenSearch?: () => void;
   children: ReactNode;
 }) {
   const [navOpen, setNavOpen] = useState(false);
@@ -30,8 +26,6 @@ export function AppShell({
         workspaceLabel={workspaceLabel}
         onMenu={() => setNavOpen(true)}
         onLogout={onLogout}
-        onOpenPalette={onOpenPalette}
-        onOpenSearch={onOpenSearch}
       />
       <div className="flex flex-1">
         <aside className="hidden w-60 shrink-0 border-r border-outline bg-surface p-4 lg:block">

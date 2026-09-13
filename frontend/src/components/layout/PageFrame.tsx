@@ -1,7 +1,9 @@
 "use client";
 
 import { type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { Breadcrumbs, type Crumb } from "@/components/layout/Breadcrumbs";
+import { crumbsForPathname } from "@/lib/navigation";
 
 export function PageFrame({
   eyebrow,
@@ -18,9 +20,11 @@ export function PageFrame({
   crumbs?: Array<Crumb>;
   children: ReactNode;
 }) {
+  const pathname = usePathname();
+  const trail = crumbs ?? crumbsForPathname(pathname);
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 py-8 lg:px-6">
-      {crumbs ? <Breadcrumbs items={crumbs} /> : null}
+      {trail.length > 0 ? <Breadcrumbs items={trail} /> : null}
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           {eyebrow ? (
