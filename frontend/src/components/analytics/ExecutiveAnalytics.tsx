@@ -6,11 +6,15 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { api, getToken } from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth";
+import { useToastStore } from "@/stores/toast";
+import { hasPermission } from "@/lib/permissions";
+import { PERMISSIONS } from "@/types/auth";
 import { BrutalBadge } from "@/components/ui/BrutalBadge";
 import { BrutalButton } from "@/components/ui/BrutalButton";
 import { BrutalCard } from "@/components/ui/BrutalCard";
 import { BrutalEmptyState } from "@/components/ui/BrutalEmptyState";
 import { BrutalErrorState } from "@/components/ui/BrutalErrorState";
+import { BrutalModal } from "@/components/ui/BrutalModal";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
 import { BrutalTable } from "@/components/ui/BrutalTable";
 import {
@@ -59,9 +63,11 @@ import type {
   GovernanceEvidenceCoverage,
   GovernancePosture,
   GovernancePostureHistoryResponse,
+  GovernanceReport,
+  GovernanceReportsResponse,
   GovernanceTrendsResponse,
 } from "@/types/governance";
-import type { UsageSummary, ForecastResult, ModelComparison, Paginated, AggregationBucket, CostAnomaly } from "@/types/finops";
+import type { UsageSummary, ForecastResult, ModelComparison, Paginated, AggregationBucket, CostAnomaly, ChargebackReport } from "@/types/finops";
 import { isForecastReady } from "@/types/finops";
 import type { KnowledgeFreshnessStats, KnowledgeUsageStats } from "@/types/knowledge";
 import type { WorkflowAnomaly, WorkflowHealthSummary, WorkflowListItem } from "@/types/workflows";
@@ -395,6 +401,27 @@ export function ExecutiveAnalytics() {
   const [integrationsError, setIntegrationsError] = useState<string | null>(null);
   const [integrationsListed, setIntegrationsListed] = useState<{ items: IntegrationItem[]; total: number } | null>(null);
   const [integrationsListedError, setIntegrationsListedError] = useState<string | null>(null);
+  const [permissions, setPermissions] = useState<string[] | null>(null);
+  const [finopsReportsList, setFinopsReportsList] = useState<Paginated<ChargebackReport> | null>(null);
+  const [finopsReportsListError, setFinopsReportsListError] = useState<string | null>(null);
+  const [govReportsList, setGovReportsList] = useState<GovernanceReportsResponse | null>(null);
+  const [govReportsListError, setGovReportsListError] = useState<string | null>(null);
+
+  // C2 verified actions: confirmation → backend → toast → authoritative refetch.
+  const [pendingAction, setPendingAction] = useState<
+    | { kind: "finops-report" }
+    | { kind: "governance-report" }
+    | { kind: "aggregation-run" }
+    | { kind: "anomaly-detect" }
+    | null
+  >(null);
+  const [finopsReportType, setFinopsReportType] = useState("showback");
+  const [finopsGroupBy, setFinopsGroupBy] = useState("workspace");
+  const [govReportType, setGovReportType] = useState("posture");
+  const [lookbackDays, setLookbackDays] = useState("14");
+  const [confirming, setConfirming] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const pushToast = useToastStore((s) => s.push);
 
   const abortRef = useRef<AbortController | null>(null);
   const seqRef = useRef(0);
@@ -515,6 +542,13 @@ export function ExecutiveAnalytics() {
     setIntegrationsError(null);
     setIntegrationsListed(null);
     setIntegrationsListedError(null);
+    setPermissions(null);
+    setFinopsReportsList(null);
+    setFinopsReportsListError(null);
+    setGovReportsList(null);
+    setGovReportsListError(null);
+    setPendingAction(null);
+    setActionError(null);
   }, []);
 
   const loadAll = useCallback(async () => {
@@ -690,6 +724,15 @@ export function ExecutiveAnalytics() {
       settle(() => api.dataPipelines(token, { limit: 20 }), setPipelines, (m) => setPipelinesError(m)),
       settle(() => api.enterpriseIntegrationsMetrics(token), setIntegrations, (m) => setIntegrationsError(m)),
       settle(() => api.integrationsList(token), setIntegrationsListed, (m) => setIntegrationsListedError(m)),
+      settle(
+        () => api.whoami(token).then((who) => who.permissions ?? []),
+        setPermissions,
+        () => {},
+      ),
+      settle(() => api.finopsReports(token), setFinopsReportsList, (m) =>
+        setFinopsReportsListError(m),
+      ),
+      settle(() => api.governanceReports(token), setGovReportsList, (m) => setGovReportsListError(m)),
     ]);
 
     // Recorded-metric trends: discover names first, then query up to three.
@@ -732,6 +775,113 @@ export function ExecutiveAnalytics() {
     setLoading(false);
   }, [range, sessionExpired]);
 
+  async function refetchSlice<T>(load: () => Promise<T>, apply: (value: T) => void, seq: number) {
+    try {
+      const value = await load();
+      if (seq !== seqRef.current) return;
+      apply(value);
+    } catch {
+      if (seq !== seqRef.current) return;
+    }
+  }
+
+  function openAction(
+    kind: "finops-report" | "governance-report" | "aggregation-run" | "anomaly-detect",
+  ) {
+    setActionError(null);
+    setPendingAction({ kind });
+  }
+
+  async function runPendingAction() {
+    if (!pendingAction || confirming) return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    const activeRange = RANGES.find((r) => r.id === range) ?? RANGES[2];
+    const window = windowIso(activeRange.days);
+    const seq = seqRef.current;
+    setConfirming(true);
+    setActionError(null);
+    try {
+      if (pendingAction.kind === "finops-report") {
+        if (finopsReportType !== "showback" && finopsReportType !== "chargeback") {
+          setActionError("Report type must be showback or chargeback.");
+          return;
+        }
+        const report = await api.finopsReportGenerate(token, finopsReportType, {
+          start: window.start,
+          end: window.end,
+          group_by: finopsGroupBy,
+        });
+        if (seq !== seqRef.current) return;
+        pushToast("success", `FinOps ${report.report_type} report generated (${formatCentsUsd(report.total_cents) ?? "—"})`);
+        setPendingAction(null);
+        await refetchSlice(() => api.finopsReports(token), setFinopsReportsList, seq);
+      } else if (pendingAction.kind === "governance-report") {
+        if (govReportType !== "posture" && govReportType !== "violations" && govReportType !== "compliance") {
+          setActionError("Report type must be posture, violations, or compliance.");
+          return;
+        }
+        const report: GovernanceReport = await api.governanceGenerateReport(token, {
+          report_type: govReportType,
+          scope_type: "tenant",
+          scope_value: "",
+          days: activeRange.days,
+        });
+        if (seq !== seqRef.current) return;
+        pushToast("success", `Governance ${report.report_type} report generated`);
+        setPendingAction(null);
+        await refetchSlice(() => api.governanceReports(token), setGovReportsList, seq);
+      } else if (pendingAction.kind === "aggregation-run") {
+        const result = await api.finopsAggregationRun(token, {
+          granularity: "day",
+          start: window.start,
+          end: window.end,
+        });
+        if (seq !== seqRef.current) return;
+        pushToast("success", `Aggregation wrote ${result.buckets} buckets from ${result.records_scanned} records`);
+        setPendingAction(null);
+        await refetchSlice(
+          () => api.finopsAggregations(token, { granularity: "day", start: window.start, end: window.end, limit: 100 }),
+          setFinopsBuckets,
+          seq,
+        );
+      } else {
+        const days = Number.parseInt(lookbackDays, 10);
+        if (!Number.isFinite(days) || days < 1 || days > 90) {
+          setActionError("Lookback must be between 1 and 90 days.");
+          return;
+        }
+        const result = await api.finopsAnomalyDetect(token, days);
+        if (seq !== seqRef.current) return;
+        pushToast("success", `Anomaly scan recorded ${result.total} anomal${result.total === 1 ? "y" : "ies"}`);
+        setPendingAction(null);
+        await refetchSlice(() => api.finopsAnomalies(token, { limit: 20 }), setFinopsAnomalies, seq);
+      }
+    } catch (e) {
+      if (seq !== seqRef.current) return;
+      if (e instanceof ApiError && (e.status === 404 || e.status === 409)) {
+        setPendingAction(null);
+        pushToast("warning", "Target changed on the server — lists were refreshed from the backend.");
+        void loadAll();
+        return;
+      }
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      if (e instanceof ApiError && e.kind === "forbidden") {
+        setActionError("Backend denied this action: additional authorization is required for your role.");
+        return;
+      }
+      setActionError(e instanceof Error ? e.message : "Action failed");
+    } finally {
+      if (seq === seqRef.current) setConfirming(false);
+    }
+  }
+
   useEffect(() => {
     void loadAll();
     const handler = () => {
@@ -753,6 +903,11 @@ export function ExecutiveAnalytics() {
 
   const activeRange = RANGES.find((r) => r.id === range) ?? RANGES[2];
   const retry = () => void loadAll();
+
+  const permissionsKnown = permissions !== null;
+  const canFinopsRead = !permissionsKnown || hasPermission(permissions ?? [], PERMISSIONS.billingRead);
+  const canGovernRead = !permissionsKnown || hasPermission(permissions ?? [], PERMISSIONS.orgRead);
+  const canFinopsAdmin = !permissionsKnown || hasPermission(permissions ?? [], PERMISSIONS.billingAdmin);
 
   const costTrendData: TrendDatum[] = (costTrend?.trend ?? [])
     .filter((p) => typeof p.total_usd === "number" && typeof p.period === "string")
@@ -1268,6 +1423,33 @@ export function ExecutiveAnalytics() {
                   emptyMessage="No drift findings"
                 />
               ) : null}
+              <div className="flex flex-wrap gap-2">
+                <BrutalButton variant="ghost" size="sm" onClick={() => openAction("governance-report")} disabled={!canGovernRead || confirming} aria-label="Generate governance report">
+                  Generate report
+                </BrutalButton>
+              </div>
+              {!canGovernRead && permissionsKnown ? (
+                <p className="text-xs text-on-surface-variant">Report generation requires organization:read.</p>
+              ) : null}
+              {govReportsListError ? (
+                <p className="text-xs text-on-surface-variant">Generated reports: {govReportsListError}</p>
+              ) : (govReportsList?.items ?? []).length > 0 ? (
+                <div>
+                  <p className="mb-2 font-mono text-[11px] uppercase tracking-widest text-on-surface-variant">
+                    Generated reports (newest first, backend order)
+                  </p>
+                  <BrutalTable
+                    columns={[
+                      { key: "type", header: "Type", render: (r: GovernanceReport) => <span className="font-mono text-xs">{r.report_type}</span> },
+                      { key: "period", header: "Period", render: (r: GovernanceReport) => <span className="font-mono text-xs">{`${r.period_start ?? "—"} → ${r.period_end ?? "—"}`}</span> },
+                      { key: "violations", header: "Violations", render: (r: GovernanceReport) => formatInt(r.summary?.violations) ?? "—" },
+                      { key: "exceptions", header: "Exceptions", render: (r: GovernanceReport) => formatInt(r.summary?.open_exceptions) ?? "—" },
+                    ]}
+                    rows={(govReportsList?.items ?? []).slice(0, 5)}
+                    emptyMessage="No generated reports"
+                  />
+                </div>
+              ) : null}
             </div>
           ) : null}
         </DomainCard>
@@ -1423,6 +1605,39 @@ export function ExecutiveAnalytics() {
                     emptyMessage="No model spend"
                   />
                   {finopsModels?.note ? <p className="mt-1 text-xs text-on-surface-variant">{finopsModels.note}</p> : null}
+                </div>
+              ) : null}
+              <div className="flex flex-wrap gap-2">
+                <BrutalButton variant="ghost" size="sm" onClick={() => openAction("finops-report")} disabled={!canFinopsRead || confirming} aria-label="Generate FinOps report">
+                  Generate report
+                </BrutalButton>
+                <BrutalButton variant="ghost" size="sm" onClick={() => openAction("aggregation-run")} disabled={!canFinopsAdmin || confirming} aria-label="Run spend aggregation">
+                  Run aggregation
+                </BrutalButton>
+                <BrutalButton variant="ghost" size="sm" onClick={() => openAction("anomaly-detect")} disabled={!canFinopsAdmin || confirming} aria-label="Detect spend anomalies">
+                  Detect anomalies
+                </BrutalButton>
+              </div>
+              {!canFinopsAdmin && permissionsKnown ? (
+                <p className="text-xs text-on-surface-variant">Aggregation runs and anomaly scans require billing:admin.</p>
+              ) : null}
+              {finopsReportsListError ? (
+                <p className="text-xs text-on-surface-variant">Generated reports: {finopsReportsListError}</p>
+              ) : (finopsReportsList?.items ?? []).length > 0 ? (
+                <div>
+                  <p className="mb-2 font-mono text-[11px] uppercase tracking-widest text-on-surface-variant">
+                    Generated reports (newest first, backend order)
+                  </p>
+                  <BrutalTable
+                    columns={[
+                      { key: "type", header: "Type", render: (r: ChargebackReport) => <span className="font-mono text-xs">{r.report_type}</span> },
+                      { key: "period", header: "Period", render: (r: ChargebackReport) => <span className="font-mono text-xs">{`${r.period_start ?? "—"} → ${r.period_end ?? "—"}`}</span> },
+                      { key: "total", header: "Total", render: (r: ChargebackReport) => formatCentsUsd(r.total_cents) ?? "—" },
+                      { key: "lines", header: "Lines", render: (r: ChargebackReport) => formatInt(r.lines?.length) ?? "—" },
+                    ]}
+                    rows={(finopsReportsList?.items ?? []).slice(0, 5)}
+                    emptyMessage="No generated reports"
+                  />
                 </div>
               ) : null}
             </div>
@@ -1694,6 +1909,123 @@ export function ExecutiveAnalytics() {
           </div>
         )}
       </BrutalCard>
+
+      <BrutalModal
+        open={pendingAction !== null}
+        title={
+          pendingAction?.kind === "finops-report"
+            ? "Generate FinOps report"
+            : pendingAction?.kind === "governance-report"
+              ? "Generate governance report"
+              : pendingAction?.kind === "aggregation-run"
+                ? "Run spend aggregation"
+                : "Detect spend anomalies"
+        }
+        onClose={() => {
+          if (!confirming) {
+            setPendingAction(null);
+            setActionError(null);
+          }
+        }}
+        actions={
+          <>
+            <BrutalButton variant="ghost" size="sm" onClick={() => setPendingAction(null)} disabled={confirming}>
+              Cancel
+            </BrutalButton>
+            <BrutalButton variant="primary" size="sm" onClick={() => void runPendingAction()} disabled={confirming}>
+              {pendingAction?.kind === "aggregation-run"
+                ? "Confirm aggregation run"
+                : pendingAction?.kind === "anomaly-detect"
+                  ? "Confirm anomaly detection"
+                  : "Confirm generation"}
+            </BrutalButton>
+          </>
+        }
+      >
+        {pendingAction?.kind === "finops-report" ? (
+          <div className="space-y-4 text-sm">
+            <p>
+              Generates a persisted backend report over the {activeRange.label} window. Nothing is
+              calculated in the browser.
+            </p>
+            <label className="block text-sm">
+              <span className="mb-1 block font-mono text-[11px] uppercase tracking-widest text-on-surface-variant">Report type</span>
+              <select
+                value={finopsReportType}
+                onChange={(e) => setFinopsReportType(e.target.value)}
+                className="w-full border border-outline bg-surface px-2 py-1 text-on-surface"
+              >
+                <option value="showback">showback</option>
+                <option value="chargeback">chargeback</option>
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-mono text-[11px] uppercase tracking-widest text-on-surface-variant">Group by</span>
+              <select
+                value={finopsGroupBy}
+                onChange={(e) => setFinopsGroupBy(e.target.value)}
+                className="w-full border border-outline bg-surface px-2 py-1 text-on-surface"
+              >
+                {["workspace", "project", "service", "environment", "provider", "model"].map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="text-xs text-on-surface-variant">Authorization is enforced server-side using billing:read.</p>
+            {actionError ? <p className="font-bold text-error">{actionError}</p> : null}
+          </div>
+        ) : null}
+        {pendingAction?.kind === "governance-report" ? (
+          <div className="space-y-4 text-sm">
+            <p>
+              Generates a persisted backend report over {activeRange.days} days from live posture,
+              violations, exceptions, drift, and evidence data.
+            </p>
+            <label className="block text-sm">
+              <span className="mb-1 block font-mono text-[11px] uppercase tracking-widest text-on-surface-variant">Report type</span>
+              <select
+                value={govReportType}
+                onChange={(e) => setGovReportType(e.target.value)}
+                className="w-full border border-outline bg-surface px-2 py-1 text-on-surface"
+              >
+                <option value="posture">posture</option>
+                <option value="violations">violations</option>
+                <option value="compliance">compliance</option>
+              </select>
+            </label>
+            <p className="text-xs text-on-surface-variant">Authorization is enforced server-side using organization:read.</p>
+            {actionError ? <p className="font-bold text-error">{actionError}</p> : null}
+          </div>
+        ) : null}
+        {pendingAction?.kind === "aggregation-run" ? (
+          <div className="space-y-4 text-sm">
+            <p>
+              Materializes daily spend buckets over the {activeRange.label} window. Populates the spend
+              trend once written. Requires billing:admin.
+            </p>
+            <p className="text-xs text-on-surface-variant">Authorization is enforced server-side using billing:admin.</p>
+            {actionError ? <p className="font-bold text-error">{actionError}</p> : null}
+          </div>
+        ) : null}
+        {pendingAction?.kind === "anomaly-detect" ? (
+          <div className="space-y-4 text-sm">
+            <p>Runs the backend per-dimension z-score scan and persists new anomalies. Requires billing:admin.</p>
+            <label className="block text-sm">
+              <span className="mb-1 block font-mono text-[11px] uppercase tracking-widest text-on-surface-variant">Lookback (days, 1–90)</span>
+              <input
+                value={lookbackDays}
+                onChange={(e) => setLookbackDays(e.target.value)}
+                inputMode="numeric"
+                className="w-full border border-outline bg-surface px-2 py-1 font-mono text-on-surface"
+              />
+            </label>
+            <p className="text-xs text-on-surface-variant">Authorization is enforced server-side using billing:admin.</p>
+            {actionError ? <p className="font-bold text-error">{actionError}</p> : null}
+          </div>
+        ) : null}
+      </BrutalModal>
 
       <p className="font-mono text-[11px] uppercase tracking-widest text-on-surface-variant">
         Methodology — FinOps cents are integers divided by 100 for USD display and never mixed with analytics

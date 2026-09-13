@@ -4,6 +4,7 @@ import { ExecutiveAnalytics } from "@/components/analytics/ExecutiveAnalytics";
 import * as apiModule from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth";
+import { useToastStore } from "@/stores/toast";
 
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
@@ -299,12 +300,48 @@ function installDefaults() {
       providers: ["github"],
     }),
     integrationsList: vi.fn().mockResolvedValue({ items: [{ id: "i1", name: "GitHub", status: "active" }], total: 1 }),
+    whoami: vi.fn().mockResolvedValue({ permissions: ["billing:read", "billing:admin", "organization:read"] }),
+    finopsReports: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+    governanceReports: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+    finopsReportGenerate: vi.fn().mockResolvedValue({
+      id: "rep-1",
+      tenant: "t",
+      report_type: "showback",
+      period_start: "2026-08-14",
+      period_end: "2026-09-13",
+      scope: { group_by: "workspace" },
+      total_cents: 5000,
+      lines: [],
+      provenance: {},
+    }),
+    governanceGenerateReport: vi.fn().mockResolvedValue({
+      id: "grep-1",
+      tenant: "t",
+      report_type: "posture",
+      scope_type: "tenant",
+      scope_value: "",
+      period_start: "2026-08-14",
+      period_end: "2026-09-13",
+      summary: { violations: 2, open_exceptions: 1 },
+      sections: [],
+    }),
+    finopsAggregationRun: vi.fn().mockResolvedValue({
+      tenant: "t",
+      granularity: "day",
+      buckets: 30,
+      records_scanned: 40,
+      dimensions: {},
+      start: "2026-08-14",
+      end: "2026-09-13",
+    }),
+    finopsAnomalyDetect: vi.fn().mockResolvedValue({ anomalies: [], total: 0 }),
   });
 }
 
 describe("ExecutiveAnalytics", () => {
   beforeEach(() => {
     installDefaults();
+    useToastStore.setState({ toasts: [] });
   });
 
   afterEach(() => {
@@ -483,5 +520,141 @@ describe("ExecutiveAnalytics", () => {
     render(<ExecutiveAnalytics />);
     await screen.findByText("Organization at a glance");
     expect(screen.getByText("Not exposed by API")).toBeInTheDocument();
+  });
+
+  it("never calls mutations during read-only load", async () => {
+    render(<ExecutiveAnalytics />);
+    await screen.findByText("Organization at a glance");
+    expect(api.finopsReportGenerate as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+    expect(api.governanceGenerateReport as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+    expect(api.finopsAggregationRun as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+    expect(api.finopsAnomalyDetect as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+  });
+
+  it("generates a FinOps report with confirmation and refetches the list", async () => {
+    render(<ExecutiveAnalytics />);
+    await screen.findByText("Organization at a glance");
+    fireEvent.click(screen.getByRole("button", { name: "Generate FinOps report" }));
+    expect(screen.getByRole("dialog", { name: "Generate FinOps report" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm generation" }));
+    await waitFor(() =>
+      expect(api.finopsReportGenerate as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        "test-token",
+        "showback",
+        expect.objectContaining({ group_by: "workspace" }),
+      ),
+    );
+    await waitFor(() =>
+      expect((api.finopsReports as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(1),
+    );
+    expect(
+      useToastStore.getState().toasts.some((t) => t.tone === "success" && t.message.includes("showback")),
+    ).toBe(true);
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Generate FinOps report" })).toBeNull(),
+    );
+  });
+
+  it("generates a governance report with confirmation and refetches the list", async () => {
+    render(<ExecutiveAnalytics />);
+    await screen.findByText("Organization at a glance");
+    fireEvent.click(screen.getByRole("button", { name: "Generate governance report" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm generation" }));
+    await waitFor(() =>
+      expect(api.governanceGenerateReport as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        "test-token",
+        expect.objectContaining({ report_type: "posture", scope_type: "tenant", days: 30 }),
+      ),
+    );
+    await waitFor(() =>
+      expect((api.governanceReports as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(1),
+    );
+    expect(
+      useToastStore.getState().toasts.some((t) => t.tone === "success" && t.message.includes("posture")),
+    ).toBe(true);
+  });
+
+  it("runs aggregation and refreshes spend buckets", async () => {
+    render(<ExecutiveAnalytics />);
+    await screen.findByText("Organization at a glance");
+    const calls = (api.finopsAggregations as ReturnType<typeof vi.fn>).mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Run spend aggregation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm aggregation run" }));
+    await waitFor(() =>
+      expect(api.finopsAggregationRun as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+        "test-token",
+        expect.objectContaining({ granularity: "day" }),
+      ),
+    );
+    await waitFor(() =>
+      expect((api.finopsAggregations as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(calls),
+    );
+    expect(
+      useToastStore.getState().toasts.some((t) => t.tone === "success" && t.message.includes("30 buckets")),
+    ).toBe(true);
+  });
+
+  it("detects anomalies and refreshes the anomaly list", async () => {
+    render(<ExecutiveAnalytics />);
+    await screen.findByText("Organization at a glance");
+    const calls = (api.finopsAnomalies as ReturnType<typeof vi.fn>).mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Detect spend anomalies" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm anomaly detection" }));
+    await waitFor(() =>
+      expect(api.finopsAnomalyDetect as ReturnType<typeof vi.fn>).toHaveBeenCalledWith("test-token", 14),
+    );
+    await waitFor(() =>
+      expect((api.finopsAnomalies as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(calls),
+    );
+  });
+
+  it("keeps the confirmation open when the backend denies the action", async () => {
+    (api.finopsReportGenerate as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new ApiError("forbidden", 403, "Forbidden"),
+    );
+    render(<ExecutiveAnalytics />);
+    await screen.findByText("Organization at a glance");
+    fireEvent.click(screen.getByRole("button", { name: "Generate FinOps report" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm generation" }));
+    expect(await screen.findByText(/additional authorization is required/)).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Generate FinOps report" })).toBeInTheDocument();
+    expect(api.finopsReports as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
+  });
+
+  it("validates anomaly lookback input before calling the backend", async () => {
+    render(<ExecutiveAnalytics />);
+    await screen.findByText("Organization at a glance");
+    fireEvent.click(screen.getByRole("button", { name: "Detect spend anomalies" }));
+    fireEvent.change(screen.getByDisplayValue("14"), { target: { value: "abc" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm anomaly detection" }));
+    expect(await screen.findByText(/Lookback must be between 1 and 90 days/)).toBeInTheDocument();
+    expect(api.finopsAnomalyDetect as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+  });
+
+  it("disables admin actions without billing:admin", async () => {
+    (api.whoami as ReturnType<typeof vi.fn>).mockResolvedValue({ permissions: ["billing:read"] });
+    render(<ExecutiveAnalytics />);
+    await screen.findByText("Organization at a glance");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Run spend aggregation" })).toBeDisabled(),
+    );
+    expect(screen.getByRole("button", { name: "Detect spend anomalies" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Generate FinOps report" })).toBeEnabled();
+  });
+
+  it("refreshes lists and warns when the backend reports a stale target", async () => {
+    (api.finopsReportGenerate as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new ApiError("server", 409, "Conflict"),
+    );
+    render(<ExecutiveAnalytics />);
+    await screen.findByText("Organization at a glance");
+    fireEvent.click(screen.getByRole("button", { name: "Generate FinOps report" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm generation" }));
+    await waitFor(() =>
+      expect((api.finopsReports as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(1),
+    );
+    expect(
+      useToastStore.getState().toasts.some((t) => t.tone === "warning"),
+    ).toBe(true);
   });
 });
