@@ -1330,6 +1330,17 @@ export const api = {
     apiRequest<AiopsStatus>("/observability/aiops/status", { token }),
   observabilityAlertFatigue: (token: string) =>
     apiRequest<AlertFatigueReport>("/observability/alerts/fatigue/report", { token }),
+  // Phase 28: GET /observability/anomalies — windowed z-score items, no series.
+  observabilityAnomalies: (token: string, opts?: { metric?: string; window_hours?: number; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.metric) params.set("metric", opts.metric);
+    params.set("window_hours", String(opts?.window_hours ?? 24));
+    params.set("limit", String(opts?.limit ?? 100));
+    return apiRequest<import("@/types/observability").ObservabilityAnomalies>(
+      `/observability/anomalies?${params.toString()}`,
+      { token },
+    );
+  },
   sreStatusSummary: (token: string) =>
     apiRequest<SreStatusSummary>("/sre/status/summary", { token }),
   sreStatusComponents: (token: string, opts?: { limit?: number }) =>
@@ -1814,6 +1825,323 @@ export const api = {
   },
   knowledgeHistory: (token: string, limit = 5) =>
     apiRequest<KnowledgeAuditHistoryResponse>(`/knowledge/audit/history?limit=${limit}`, { token }),
+
+  // ─── Executive Analytics (Phase 28, C1 reads) ───────────────────────
+  // Backend: backend/app/api/analytics.py (prefix /analytics) and
+  // backend/app/api/security.py (prefix /security). BOTH ROUTERS HAVE NO
+  // AUTH and take a client-supplied tenant: C1 ALWAYS sends tenant=default
+  // and the UI labels these BACKEND SCOPE: DEFAULT / UNAUTHENTICATED.
+  // Never pass the frontend organization ID as tenant here.
+  analyticsDashboardOverview: (token: string) =>
+    apiRequest<import("@/types/analytics").AnalyticsDashboardOverview>(
+      "/analytics/dashboard/overview?tenant=default",
+      { token },
+    ),
+  analyticsDashboard: (token: string, body?: {
+    filters?: Record<string, unknown>;
+    start_time?: string;
+    end_time?: string;
+  }) =>
+    apiRequest<import("@/types/analytics").AnalyticsDashboardSnapshot>("/analytics/dashboard", {
+      method: "POST",
+      token,
+      body: { tenant: "default", filters: body?.filters ?? {}, ...(body?.start_time ? { start_time: body.start_time } : {}), ...(body?.end_time ? { end_time: body.end_time } : {}) },
+    }),
+  analyticsCostsSummary: (token: string, body?: {
+    group_by?: string;
+    cost_type?: string;
+    start_time?: string;
+    end_time?: string;
+  }) =>
+    apiRequest<import("@/types/analytics").AnalyticsCostSummary>("/analytics/costs/summary", {
+      method: "POST",
+      token,
+      body: {
+        tenant: "default",
+        group_by: body?.group_by ?? "organization",
+        ...(body?.cost_type ? { cost_type: body.cost_type } : {}),
+        ...(body?.start_time ? { start_time: body.start_time } : {}),
+        ...(body?.end_time ? { end_time: body.end_time } : {}),
+      },
+    }),
+  analyticsCostsTrend: (token: string, body?: {
+    granularity?: string;
+    start_time?: string;
+    end_time?: string;
+  }) =>
+    apiRequest<import("@/types/analytics").AnalyticsCostTrend>("/analytics/costs/trend", {
+      method: "POST",
+      token,
+      body: {
+        tenant: "default",
+        granularity: body?.granularity ?? "day",
+        ...(body?.start_time ? { start_time: body.start_time } : {}),
+        ...(body?.end_time ? { end_time: body.end_time } : {}),
+      },
+    }),
+  analyticsAiBreakdown: (token: string, opts?: { start_time?: string; end_time?: string }) => {
+    const params = new URLSearchParams();
+    params.set("tenant", "default");
+    if (opts?.start_time) params.set("start_time", opts.start_time);
+    if (opts?.end_time) params.set("end_time", opts.end_time);
+    return apiRequest<import("@/types/analytics").AnalyticsAiBreakdown>(
+      `/analytics/costs/ai-breakdown?${params.toString()}`,
+      { token },
+    );
+  },
+  analyticsMetricsQuery: (token: string, body: {
+    metric_name: string;
+    granularity?: string;
+    dimensions?: Record<string, unknown>;
+    start_time?: string;
+    end_time?: string;
+    limit?: number;
+  }) =>
+    apiRequest<import("@/types/analytics").AnalyticsMetricQueryResponse>(
+      "/analytics/metrics/query?tenant=default",
+      {
+        method: "POST",
+        token,
+        body: {
+          metric_name: body.metric_name,
+          granularity: body.granularity ?? "day",
+          dimensions: body.dimensions ?? {},
+          ...(body.start_time ? { start_time: body.start_time } : {}),
+          ...(body.end_time ? { end_time: body.end_time } : {}),
+          limit: body.limit ?? 100,
+        },
+      },
+    ),
+  analyticsMetricsTrend: (token: string, body: {
+    metric_names: string[];
+    granularity?: string;
+    start_time?: string;
+    end_time?: string;
+  }) =>
+    apiRequest<import("@/types/analytics").AnalyticsMetricTrendResponse>(
+      "/analytics/metrics/trend?tenant=default",
+      {
+        method: "POST",
+        token,
+        body: {
+          metric_names: body.metric_names,
+          granularity: body.granularity ?? "day",
+          ...(body.start_time ? { start_time: body.start_time } : {}),
+          ...(body.end_time ? { end_time: body.end_time } : {}),
+        },
+      },
+    ),
+  analyticsMetricsAggregate: (token: string, body: {
+    metric_name: string;
+    granularity?: string;
+    start_time?: string;
+    end_time?: string;
+  }) =>
+    apiRequest<import("@/types/analytics").AnalyticsMetricAggregate>(
+      "/analytics/metrics/aggregate?tenant=default",
+      {
+        method: "POST",
+        token,
+        body: {
+          metric_name: body.metric_name,
+          granularity: body.granularity ?? "day",
+          ...(body.start_time ? { start_time: body.start_time } : {}),
+          ...(body.end_time ? { end_time: body.end_time } : {}),
+        },
+      },
+    ),
+  analyticsMetricsList: (token: string) =>
+    apiRequest<import("@/types/analytics").AnalyticsMetricsList>(
+      "/analytics/metrics/list?tenant=default",
+      { token },
+    ),
+  analyticsMetricsLatest: (token: string, metricName: string) =>
+    apiRequest<import("@/types/analytics").AnalyticsMetricPoint>(
+      `/analytics/metrics/latest/${encodeURIComponent(metricName)}?tenant=default`,
+      { token },
+    ),
+  analyticsDora: (token: string, body?: {
+    project?: string;
+    repository?: string;
+    team?: string;
+    start_time?: string;
+    end_time?: string;
+  }) =>
+    apiRequest<import("@/types/analytics").AnalyticsDora>("/analytics/engineering/dora", {
+      method: "POST",
+      token,
+      body: {
+        tenant: "default",
+        ...(body?.project ? { project: body.project } : {}),
+        ...(body?.repository ? { repository: body.repository } : {}),
+        ...(body?.team ? { team: body.team } : {}),
+        ...(body?.start_time ? { start_time: body.start_time } : {}),
+        ...(body?.end_time ? { end_time: body.end_time } : {}),
+      },
+    }),
+  analyticsAiModelComparison: (token: string, opts?: { start_time?: string; end_time?: string }) => {
+    const params = new URLSearchParams();
+    params.set("tenant", "default");
+    if (opts?.start_time) params.set("start_time", opts.start_time);
+    if (opts?.end_time) params.set("end_time", opts.end_time);
+    return apiRequest<import("@/types/analytics").AnalyticsModelComparison>(
+      `/analytics/ai/model-comparison?${params.toString()}`,
+      { token },
+    );
+  },
+  analyticsSecuritySummary: (token: string, opts?: { repository?: string; start_time?: string; end_time?: string }) => {
+    const params = new URLSearchParams();
+    params.set("tenant", "default");
+    if (opts?.repository) params.set("repository", opts.repository);
+    if (opts?.start_time) params.set("start_time", opts.start_time);
+    if (opts?.end_time) params.set("end_time", opts.end_time);
+    return apiRequest<import("@/types/analytics").AnalyticsSecuritySummary>(
+      `/analytics/security/summary?${params.toString()}`,
+      { token },
+    );
+  },
+  analyticsSloStatus: (token: string, opts?: { service?: string }) => {
+    const params = new URLSearchParams();
+    params.set("tenant", "default");
+    if (opts?.service) params.set("service", opts.service);
+    return apiRequest<import("@/types/analytics").AnalyticsSloStatus>(
+      `/analytics/slo/status?${params.toString()}`,
+      { token },
+    );
+  },
+  analyticsSloBreaches: (token: string, opts?: { service?: string; start_time?: string; end_time?: string }) => {
+    const params = new URLSearchParams();
+    params.set("tenant", "default");
+    if (opts?.service) params.set("service", opts.service);
+    if (opts?.start_time) params.set("start_time", opts.start_time);
+    if (opts?.end_time) params.set("end_time", opts.end_time);
+    return apiRequest<import("@/types/analytics").AnalyticsSloBreaches>(
+      `/analytics/slo/breaches?${params.toString()}`,
+      { token },
+    );
+  },
+  analyticsAlertsSummary: (token: string) =>
+    apiRequest<import("@/types/analytics").AnalyticsAlertsSummary>(
+      "/analytics/alerts/summary?tenant=default",
+      { token },
+    ),
+  analyticsAlertsHistory: (token: string, opts?: { alert_id?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    params.set("tenant", "default");
+    if (opts?.alert_id) params.set("alert_id", opts.alert_id);
+    params.set("limit", String(opts?.limit ?? 50));
+    return apiRequest<import("@/types/analytics").AnalyticsAlertsHistory>(
+      `/analytics/alerts/history?${params.toString()}`,
+      { token },
+    );
+  },
+  analyticsBudgetsStatus: (token: string) =>
+    apiRequest<import("@/types/analytics").AnalyticsBudgetsStatus>(
+      "/analytics/budgets/status?tenant=default",
+      { token },
+    ),
+  analyticsQualityIssues: (token: string, opts?: { issue_type?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    params.set("tenant", "default");
+    if (opts?.issue_type) params.set("issue_type", opts.issue_type);
+    params.set("limit", String(opts?.limit ?? 100));
+    return apiRequest<import("@/types/analytics").AnalyticsQualityIssues>(
+      `/analytics/quality/issues?${params.toString()}`,
+      { token },
+    );
+  },
+  analyticsRecommendations: (token: string, opts?: { category?: string; status?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    params.set("tenant", "default");
+    if (opts?.category) params.set("category", opts.category);
+    if (opts?.status) params.set("status", opts.status);
+    params.set("limit", String(opts?.limit ?? 50));
+    return apiRequest<import("@/types/analytics").AnalyticsRecommendations>(
+      `/analytics/recommendations?${params.toString()}`,
+      { token },
+    );
+  },
+  analyticsMetricForecasts: (token: string, metricName: string, limit = 100) =>
+    apiRequest<import("@/types/analytics").AnalyticsMetricForecasts>(
+      `/analytics/forecast/${encodeURIComponent(metricName)}?tenant=default&limit=${limit}`,
+      { token },
+    ),
+  analyticsMarketplaceSummary: (token: string, opts?: { start_time?: string; end_time?: string }) => {
+    const params = new URLSearchParams();
+    params.set("tenant", "default");
+    if (opts?.start_time) params.set("start_time", opts.start_time);
+    if (opts?.end_time) params.set("end_time", opts.end_time);
+    return apiRequest<import("@/types/analytics").AnalyticsMarketplaceSummary>(
+      `/analytics/marketplace/summary?${params.toString()}`,
+      { token },
+    );
+  },
+  // Security platform reads (prefix /security) share the open-router rule:
+  // tenant=default, labeled NOT TENANT-SCOPED in the UI.
+  securityDashboardFull: (token: string, days = 30) =>
+    apiRequest<import("@/types/analytics").SecurityDashboardFull>(
+      `/security/dashboard?tenant=default&days=${days}`,
+      { token },
+    ),
+  securityFindingsSummary: (token: string) =>
+    apiRequest<import("@/types/analytics").SecurityFindingsSummary>(
+      "/security/findings/summary?tenant=default",
+      { token },
+    ),
+  securityRiskSummary: (token: string) =>
+    apiRequest<import("@/types/analytics").SecurityRiskSummary>(
+      "/security/risk/summary?tenant=default",
+      { token },
+    ),
+  securityRiskScore: (token: string) =>
+    apiRequest<import("@/types/analytics").SecurityRiskScore>(
+      "/security/risk/score?tenant=default",
+      { token },
+    ),
+  securityReport: (token: string, reportType: string, opts?: { repository?: string; days?: number }) => {
+    const params = new URLSearchParams();
+    params.set("tenant", "default");
+    if (opts?.repository) params.set("repository", opts.repository);
+    params.set("days", String(opts?.days ?? 30));
+    return apiRequest<import("@/types/analytics").SecurityReport>(
+      `/security/reports/${encodeURIComponent(reportType)}?${params.toString()}`,
+      { token },
+    );
+  },
+  // Authenticated, tenant-scoped reads (server derives tenant from session).
+  secOpsRiskSnapshots: (token: string, limit = 30) =>
+    apiRequest<import("@/types/analytics").SecOpsRiskSnapshots>(
+      `/secops/risk/snapshots?limit=${limit}`,
+      { token },
+    ),
+  sreDashboard: (token: string) =>
+    apiRequest<import("@/types/analytics").SreDashboard>("/sre/dashboard", { token }),
+  sreCapacityTrend: (token: string, opts?: { service_id?: string; metric?: string; days?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.service_id) params.set("service_id", opts.service_id);
+    if (opts?.metric) params.set("metric", opts.metric);
+    params.set("days", String(opts?.days ?? 7));
+    return apiRequest<import("@/types/analytics").SreCapacityTrend>(
+      `/sre/capacity/trend?${params.toString()}`,
+      { token },
+    );
+  },
+  sreReliabilityScore: (token: string, opts?: { service_id?: string; days?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.service_id) params.set("service_id", opts.service_id);
+    params.set("days", String(opts?.days ?? 30));
+    return apiRequest<import("@/types/analytics").SreReliabilityScore>(
+      `/sre/reliability-score?${params.toString()}`,
+      { token },
+    );
+  },
+  datagovDashboard: (token: string) =>
+    apiRequest<import("@/types/analytics").DatagovDashboard>("/governance/dashboard", { token }),
+  enterpriseIntegrationsMetrics: (token: string) =>
+    apiRequest<import("@/types/analytics").EnterpriseIntegrationsMetrics>(
+      "/enterprise/integrations/metrics/overview",
+      { token },
+    ),
 
   dataCatalogSearch: (token: string, query: string, opts?: { limit?: number }) => {
     const params = new URLSearchParams();

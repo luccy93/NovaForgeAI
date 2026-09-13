@@ -31,6 +31,7 @@ export const NAV_GROUPS: Array<{ id: NavGroup; label: string }> = [
 
 export const NAV_ITEMS: Array<NavItem> = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", section: "main", group: "command", auth: true, description: "Account, usage and search overview" },
+  { id: "analytics", label: "Analytics", href: "/analytics", section: "main", group: "command", auth: true, description: "Executive analytics across the platform" },
   { id: "ai", label: "AI", href: "/ai", section: "main", group: "command", auth: true, description: "AI workspace and conversations" },
   { id: "command", label: "Command Center", href: "/command", section: "main", group: "command", auth: true, description: "Navigation, discovery and actions" },
   { id: "global-search", label: "Global Search", href: "/knowledge/universal", section: "main", group: "command", auth: true, description: "Universal search across the platform" },

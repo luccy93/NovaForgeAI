@@ -22,6 +22,7 @@ describe("navigation model", () => {
     const ids = new Set(NAV_ITEMS.map((item) => item.id));
     for (const required of [
       "dashboard",
+      "analytics",
       "ai",
       "command",
       "global-search",

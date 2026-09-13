@@ -246,3 +246,31 @@ export const INCIDENT_TRANSITIONS: Record<SreIncidentStatus, SreIncidentStatus[]
   resolved: ["closed", "monitoring"],
   closed: [],
 };
+
+/** GET /observability/anomalies item — z-score verdict, hypotheses flagged. */
+export interface ObservabilityAnomaly {
+  anomaly_id?: string;
+  tenant?: string;
+  metric_name?: string;
+  category?: string;
+  observed_value?: number;
+  baseline_mean?: number | null;
+  baseline_std?: number | null;
+  deviation?: number | null;
+  confidence?: number | null;
+  severity?: string;
+  detected_at?: string | null;
+  window_hours?: number;
+  is_hypothesis?: boolean;
+  is_verified_fact?: boolean;
+  evidence?: Record<string, unknown>;
+}
+
+/** GET /observability/anomalies response — windowed items, no series. */
+export interface ObservabilityAnomalies {
+  tenant?: string;
+  metric?: string;
+  window_hours?: number;
+  total?: number;
+  items?: ObservabilityAnomaly[];
+}

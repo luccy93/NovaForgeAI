@@ -91,6 +91,11 @@ describe("CommandPalette", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("lists the Analytics executive workspace without extra wiring", () => {
+    render(<CommandPalette open onClose={() => {}} />);
+    expect(screen.getByText("Go to Analytics")).toBeInTheDocument();
+  });
+
   it("surfaces actionable Zero Trust actions for authorized users", async () => {
     signInAs();
     vi.mocked(api.zeroTrustAccessRequests).mockResolvedValue({
