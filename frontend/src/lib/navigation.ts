@@ -28,7 +28,8 @@ export const NAV_ITEMS: Array<NavItem> = [
   { id: "security", label: "Security", href: "/security", section: "system", auth: true, description: "Posture, findings and zero trust" },
   { id: "governance", label: "Governance", href: "/governance", section: "system", auth: true, description: "Policies, rules and posture" },
   { id: "observability", label: "Observability", href: "/observability", section: "system", auth: true, description: "Operational status and health" },
-  { id: "admin", label: "Administration", href: "/settings/organization", section: "system", auth: true, description: "Workspace administration" },
+  { id: "control-plane", label: "Admin", href: "/admin", section: "system", auth: true, description: "Administrative control-plane overview" },
+  { id: "settings-organization", label: "Administration", href: "/settings/organization", section: "system", auth: true, description: "Workspace administration" },
   { id: "settings", label: "Settings", href: "/settings", section: "system", auth: true, description: "Account settings" },
 ];
 

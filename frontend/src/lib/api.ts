@@ -18,6 +18,15 @@ import type {
   WhoAmI,
 } from "@/types/api";
 import type { CatalogSearchResponse } from "@/types/universal";
+import type {
+  AdminAnalyticsEvent,
+  AdminAuditLog,
+  AdminFeatureFlag,
+  AdminOrganization,
+  AdminOverview,
+  AdminUser,
+  FeatureFlag,
+} from "@/types/admin";
 import type { Organization, OrganizationMember, InviteResult, Workspace, Role } from "@/types/org";
 import type {
   KnowledgeAuditHistoryResponse,
@@ -2171,6 +2180,47 @@ export const api = {
       `/data-platform/access-anomalies?limit=${limit}`,
       { token },
     ),
+
+  // ─── Administration control plane (Phase 26, C1 read-only) ──────────────
+  // Backend: backend/app/api/admin.py, backend/app/api/feature_flags.py.
+  // No POST/PUT/PATCH/DELETE helpers are added here for Phase 26 C1.
+  adminOverview: (token: string) =>
+    apiRequest<AdminOverview>("/admin/overview", { token }),
+  adminOrganizations: (token: string, limit = 50, offset = 0) => {
+    const params = new URLSearchParams();
+    params.set("limit", String(limit));
+    params.set("offset", String(offset));
+    return apiRequest<AdminOrganization[]>(`/admin/organizations?${params.toString()}`, { token });
+  },
+  adminUsers: (token: string, limit = 50, offset = 0) => {
+    const params = new URLSearchParams();
+    params.set("limit", String(limit));
+    params.set("offset", String(offset));
+    return apiRequest<AdminUser[]>(`/admin/users?${params.toString()}`, { token });
+  },
+  adminAuditLog: (token: string, opts?: { limit?: number; offset?: number; organization_id?: string; action?: string }) => {
+    const params = new URLSearchParams();
+    params.set("limit", String(opts?.limit ?? 100));
+    params.set("offset", String(opts?.offset ?? 0));
+    if (opts?.organization_id) params.set("organization_id", opts.organization_id);
+    if (opts?.action) params.set("action", opts.action);
+    return apiRequest<AdminAuditLog[]>(`/admin/audit-log?${params.toString()}`, { token });
+  },
+  adminAnalyticsEvents: (token: string, opts?: { limit?: number; offset?: number; event_type?: string }) => {
+    const params = new URLSearchParams();
+    params.set("limit", String(opts?.limit ?? 100));
+    params.set("offset", String(opts?.offset ?? 0));
+    if (opts?.event_type) params.set("event_type", opts.event_type);
+    return apiRequest<AdminAnalyticsEvent[]>(`/admin/analytics/events?${params.toString()}`, { token });
+  },
+  adminFeatureFlags: (token: string) =>
+    apiRequest<AdminFeatureFlag[]>("/admin/feature-flags", { token }),
+  featureFlags: (token: string, organizationId?: string) => {
+    const params = new URLSearchParams();
+    if (organizationId) params.set("organization_id", organizationId);
+    const suffix = params.size > 0 ? `?${params.toString()}` : "";
+    return apiRequest<FeatureFlag[]>(`/feature-flags${suffix}`, { token });
+  },
 
   // Organizations
   listOrganizations: (token: string) =>

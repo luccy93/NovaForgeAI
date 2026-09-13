@@ -25,7 +25,8 @@ describe("navigation model", () => {
       "security",
       "governance",
       "observability",
-      "admin",
+      "control-plane",
+      "settings-organization",
       "settings",
     ]) {
       expect(ids.has(required)).toBe(true);
