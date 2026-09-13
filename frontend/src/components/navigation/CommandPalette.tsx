@@ -1,18 +1,30 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+/* eslint-disable react-hooks/set-state-in-effect -- authoritative permission/action load from the backend on open is intentional */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { NAV_ITEMS, filterNavByPermission } from "@/lib/navigation";
 import { api, clearToken, getToken } from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
+import { hasPermission } from "@/lib/permissions";
+import { useAuthStore } from "@/stores/auth";
+import { useToastStore } from "@/stores/toast";
+import { PERMISSIONS } from "@/types/auth";
+import type { AccessRequestItem } from "@/types/security";
+import type { ZeroTrustReview } from "@/types/admin";
+import { BrutalButton } from "@/components/ui/BrutalButton";
+import { BrutalModal } from "@/components/ui/BrutalModal";
 
 const DEBOUNCE_MS = 250;
+const LOGIN_PATH = "/auth/login";
 
 interface PaletteItem {
   id: string;
   label: string;
   hint: string;
   disabled?: boolean;
+  keepOpen?: boolean;
   run: () => void;
 }
 
@@ -35,9 +47,24 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const [hits, setHits] = useState<Array<SearchHit>>([]);
   const [permissions, setPermissions] = useState<string[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const seqRef = useRef(0);
+  const actionSeqRef = useRef(0);
+  const pushToast = useToastStore((s) => s.push);
+  const [actionTargets, setActionTargets] = useState<{ requests: AccessRequestItem[]; reviews: ZeroTrustReview[] }>({
+    requests: [],
+    reviews: [],
+  });
+  const [pendingAction, setPendingAction] = useState<
+    | { kind: "approve-request"; id: string; label: string }
+    | { kind: "certify-review"; id: string; label: string }
+    | null
+  >(null);
+  const [confirming, setConfirming] = useState(false);
+  const [certifyChecked, setCertifyChecked] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -47,7 +74,37 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     return undefined;
   }, [open]);
 
-  // Refetch the permission signal on open so navigation gating stays current.
+  const authExpired = useCallback(() => {
+    useAuthStore.getState().markExpired();
+    window.location.href = LOGIN_PATH;
+  }, []);
+
+  // Refetch the permission signal and actionable Zero Trust targets on open so
+  // navigation gating and ACTION items stay current.
+  const loadActionTargets = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    const seq = ++actionSeqRef.current;
+    try {
+      const [requests, reviews] = await Promise.all([
+        api.zeroTrustAccessRequests(token, { limit: 10, status: "REQUESTED" }),
+        api.zeroTrustReviews(token, { limit: 10, status: "pending" }),
+      ]);
+      if (seq !== actionSeqRef.current) return;
+      setActionTargets({
+        requests: Array.isArray(requests.items) ? requests.items : [],
+        reviews: Array.isArray(reviews.items) ? reviews.items : [],
+      });
+    } catch (e) {
+      if (seq !== actionSeqRef.current) return;
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        authExpired();
+        return;
+      }
+      setActionTargets({ requests: [], reviews: [] });
+    }
+  }, [authExpired]);
+
   useEffect(() => {
     if (!open) return;
     const token = getToken();
@@ -56,15 +113,21 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       .whoami(token)
       .then((who) => setPermissions(who.permissions ?? []))
       .catch(() => undefined);
-  }, [open]);
+    void loadActionTargets();
+  }, [open, loadActionTargets]);
 
   // Abort any in-flight search and drop results on tenant/workspace switch to
   // prevent cross-tenant leakage.
   useEffect(() => {
     function onSwitch() {
       abortRef.current?.abort();
+      actionSeqRef.current += 1;
       setHits([]);
       setSearching(false);
+      setActionTargets({ requests: [], reviews: [] });
+      setPendingAction(null);
+      setCertifyChecked(false);
+      setActionError(null);
     }
     window.addEventListener("tenant:switched", onSwitch);
     window.addEventListener("workspace:switched", onSwitch);
@@ -82,11 +145,59 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   function close() {
     if (timerRef.current !== null) clearTimeout(timerRef.current);
     abortRef.current?.abort();
+    actionSeqRef.current += 1;
     setQuery("");
     setHits([]);
     setSearching(false);
     setActiveIndex(0);
+    setActionTargets({ requests: [], reviews: [] });
+    setPendingAction(null);
+    setCertifyChecked(false);
+    setActionError(null);
     onClose();
+  }
+
+  async function runPendingAction() {
+    if (!pendingAction) return;
+    if (pendingAction.kind === "certify-review" && !certifyChecked) return;
+    const token = getToken();
+    if (!token) {
+      authExpired();
+      return;
+    }
+    setConfirming(true);
+    setActionError(null);
+    try {
+      if (pendingAction.kind === "approve-request") {
+        await api.zeroTrustApproveAccessRequest(token, pendingAction.id);
+        pushToast("success", "Access request approved and activated");
+      } else {
+        await api.zeroTrustCertifyReview(token, pendingAction.id);
+        pushToast("success", "Access review certified");
+      }
+      setPendingAction(null);
+      setCertifyChecked(false);
+      await loadActionTargets();
+    } catch (e) {
+      if (e instanceof ApiError && (e.status === 404 || e.status === 409)) {
+        setPendingAction(null);
+        setCertifyChecked(false);
+        pushToast("warning", "Target is no longer actionable — the list was refreshed from the backend.");
+        await loadActionTargets();
+        return;
+      }
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        authExpired();
+        return;
+      }
+      if (e instanceof ApiError && e.kind === "forbidden") {
+        setActionError("Backend denied this action: zero_trust:write authorization is required.");
+        return;
+      }
+      setActionError(e instanceof Error ? e.message : "Action failed");
+    } finally {
+      setConfirming(false);
+    }
   }
 
   function onQueryChange(value: string) {
@@ -223,9 +334,49 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       run: () => {},
     }));
 
+    const actionsEnabled = hasPermission(permissions ?? [], PERMISSIONS.zeroTrustWrite);
+    const actions: Array<PaletteItem> = [];
+    if (actionsEnabled) {
+      for (const row of actionTargets.requests) {
+        if ((row.status ?? "") !== "REQUESTED") continue;
+        const label = `${row.identity ?? row.id} · ${row.action ?? "access"}`;
+        if (q !== "" && !label.toLowerCase().includes(q)) continue;
+        actions.push({
+          id: `approve-${row.id}`,
+          label: `Approve access request: ${label}`,
+          hint: "Explicit backend approval",
+          keepOpen: true,
+          run: () => {
+            setActionError(null);
+            setCertifyChecked(false);
+            setPendingAction({ kind: "approve-request", id: row.id, label });
+          },
+        });
+      }
+      for (const row of actionTargets.reviews) {
+        if ((row.status ?? "") !== "pending") continue;
+        const label = `${row.review_type ?? "review"} · ${row.scope ?? "all"}`;
+        if (q !== "" && !label.toLowerCase().includes(q)) continue;
+        actions.push({
+          id: `certify-${row.id}`,
+          label: `Certify access review: ${label}`,
+          hint: "Explicit backend certification",
+          keepOpen: true,
+          run: () => {
+            setActionError(null);
+            setCertifyChecked(false);
+            setPendingAction({ kind: "certify-review", id: row.id, label });
+          },
+        });
+      }
+    }
+
     const sectionsOut: Array<PaletteSection> = [];
     if (navigation.length > 0 || q === "") {
       sectionsOut.push({ id: "navigation", label: "Navigation", items: navigation });
+    }
+    if (actions.length > 0) {
+      sectionsOut.push({ id: "actions", label: "Actions", items: actions });
     }
     if (search.length > 0 || results.length > 0 || searching) {
       sectionsOut.push({ id: "search", label: "Search", items: [...search, ...results] });
@@ -237,7 +388,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       sectionsOut.push({ id: "help", label: "Help", items: help });
     }
     return sectionsOut;
-  }, [query, hits, searching, permissions]);
+  }, [query, hits, searching, permissions, actionTargets]);
 
   const interactive = useMemo(() => sections.flatMap((s) => s.items).filter((item) => !item.disabled), [sections]);
   const activeIndexSafe = interactive.length === 0 ? 0 : Math.min(activeIndex, interactive.length - 1);
@@ -258,35 +409,59 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     } else if (event.key === "Enter") {
       event.preventDefault();
       if (activeItem) {
-        close();
-        activeItem.run();
+        if (activeItem.keepOpen) {
+          activeItem.run();
+        } else {
+          close();
+          activeItem.run();
+        }
       }
     }
   }
 
+  function onDialogKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "Tab") return;
+    const root = rootRef.current;
+    if (!root) return;
+    const focusables = Array.from(root.querySelectorAll<HTMLElement>("input, button:not([disabled])"));
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   return (
-    <AnimatePresence>
-      {open ? (
-        <motion.div
-          className="fixed inset-0 z-[80] bg-black/70 p-4 pt-24"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.12 }}
-          onClick={close}
-          role="presentation"
-        >
+    <>
+      <AnimatePresence>
+        {open ? (
           <motion.div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Command palette"
-            className="mx-auto max-w-xl border border-outline bg-surface-container"
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
+            className="fixed inset-0 z-[80] bg-black/70 p-4 pt-24"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.12 }}
-            onClick={(event) => event.stopPropagation()}
+            onClick={close}
+            role="presentation"
           >
+            <motion.div
+              ref={rootRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Command palette"
+              className="mx-auto max-w-xl border border-outline bg-surface-container"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.12 }}
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={onDialogKeyDown}
+            >
             <input
               ref={inputRef}
               value={query}
@@ -324,8 +499,12 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                           }}
                           onClick={() => {
                             if (item.disabled) return;
-                            close();
-                            item.run();
+                            if (item.keepOpen) {
+                              item.run();
+                            } else {
+                              close();
+                              item.run();
+                            }
                           }}
                           className={`block w-full px-3 py-2 text-left ${
                             item.disabled
@@ -357,6 +536,60 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           </motion.div>
         </motion.div>
       ) : null}
-    </AnimatePresence>
+      </AnimatePresence>
+      <div className={pendingAction ? "fixed inset-0 z-[90]" : ""}>
+        <BrutalModal
+          open={pendingAction !== null}
+          title={pendingAction?.kind === "certify-review" ? "Certify access review" : "Approve access request"}
+          onClose={() => {
+            if (!confirming) {
+              setPendingAction(null);
+              setActionError(null);
+            }
+          }}
+          actions={
+            <>
+              <BrutalButton variant="ghost" size="sm" onClick={() => setPendingAction(null)} disabled={confirming}>
+                Cancel
+              </BrutalButton>
+              <BrutalButton
+                variant="primary"
+                size="sm"
+                onClick={() => void runPendingAction()}
+                disabled={confirming || (pendingAction?.kind === "certify-review" && !certifyChecked)}
+              >
+                {pendingAction?.kind === "certify-review" ? "Confirm certification" : "Confirm approval"}
+              </BrutalButton>
+            </>
+          }
+        >
+          {pendingAction ? (
+            <div className="space-y-4 text-sm">
+              <p>
+                {pendingAction.kind === "certify-review"
+                  ? "Certifying applies the backend certification flow for this access review."
+                  : "Approving activates the requested privileged access in the backend."}
+                <span className="font-mono text-xs"> {pendingAction.label}</span>
+              </p>
+              <p className="text-xs text-on-surface-variant">
+                Authorization is enforced server-side using zero_trust:write.
+              </p>
+              {pendingAction.kind === "certify-review" ? (
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={certifyChecked}
+                    onChange={(e) => setCertifyChecked(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>I confirm this access review, representing an explicit certify approval.</span>
+                </label>
+              ) : null}
+              {actionError ? <p className="font-bold text-error">{actionError}</p> : null}
+            </div>
+          ) : null}
+        </BrutalModal>
+      </div>
+    </>
   );
 }
