@@ -7,11 +7,15 @@ import { api, getToken } from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth";
 import { useTenantStore } from "@/stores/tenant";
+import { useToastStore } from "@/stores/toast";
+import { hasPermission } from "@/lib/permissions";
+import { PERMISSIONS } from "@/types/auth";
 import { BrutalBadge } from "@/components/ui/BrutalBadge";
 import { BrutalButton } from "@/components/ui/BrutalButton";
 import { BrutalCard } from "@/components/ui/BrutalCard";
 import { BrutalEmptyState } from "@/components/ui/BrutalEmptyState";
 import { BrutalErrorState } from "@/components/ui/BrutalErrorState";
+import { BrutalModal } from "@/components/ui/BrutalModal";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
 import { BrutalTable } from "@/components/ui/BrutalTable";
 import { BrutalTabs } from "@/components/ui/BrutalTabs";
@@ -23,6 +27,7 @@ import type {
   AdminOverview,
   AdminUser,
   FeatureFlag,
+  ZeroTrustReview,
 } from "@/types/admin";
 import type { ApiUser, ApiKeyOut, SessionOut, WhoAmI } from "@/types/api";
 import type { Organization } from "@/types/org";
@@ -121,10 +126,19 @@ export function AdminControlPlane() {
   const [privilegedError, setPrivilegedError] = useState<string | null>(null);
   const [accessRequests, setAccessRequests] = useState<AccessRequestItem[]>([]);
   const [accessRequestsError, setAccessRequestsError] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<ZeroTrustReview[]>([]);
+  const [reviewsError, setReviewsError] = useState<string | null>(null);
   const [governancePosture, setGovernancePosture] = useState<GovernancePosture | null>(null);
   const [governanceError, setGovernanceError] = useState<string | null>(null);
   const [secopsDashboard, setSecopsDashboard] = useState<SecOpsDashboard | null>(null);
   const [secopsError, setSecopsError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<
+    { kind: "approve-request"; id: string; label: string } | { kind: "certify-review"; id: string; label: string } | null
+  >(null);
+  const [confirming, setConfirming] = useState(false);
+  const [certifyChecked, setCertifyChecked] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const pushToast = useToastStore((s) => s.push);
 
   const clearAll = useCallback(() => {
     setGlobalForbidden(false);
@@ -156,6 +170,8 @@ export function AdminControlPlane() {
     setPrivilegedError(null);
     setAccessRequests([]);
     setAccessRequestsError(null);
+    setReviews([]);
+    setReviewsError(null);
     setGovernancePosture(null);
     setGovernanceError(null);
     setSecopsDashboard(null);
@@ -271,6 +287,11 @@ export function AdminControlPlane() {
         (value) => setAccessRequests(Array.isArray(value?.items) ? value.items : []),
         setAccessRequestsError,
       ),
+      settle(
+        () => api.zeroTrustReviews(token, { limit: 20 }),
+        (value) => setReviews(Array.isArray(value?.items) ? value.items : []),
+        setReviewsError,
+      ),
       settle(() => api.governancePosture(token, { scope_type: "tenant" }), setGovernancePosture, setGovernanceError),
       settle(() => api.secOpsDashboard(token), setSecopsDashboard, setSecopsError),
     ]);
@@ -291,6 +312,75 @@ export function AdminControlPlane() {
       if (abortRef.current) abortRef.current.abort();
     };
   }, [loadAll]);
+
+  const canZeroTrustWrite = hasPermission(whoami?.permissions ?? [], PERMISSIONS.zeroTrustWrite);
+
+  function openApproveRequest(row: AccessRequestItem) {
+    setActionError(null);
+    setCertifyChecked(false);
+    setPendingAction({ kind: "approve-request", id: row.id, label: `${row.identity ?? row.id} · ${row.action ?? "access"}` });
+  }
+
+  function openCertifyReview(row: ZeroTrustReview) {
+    setActionError(null);
+    setCertifyChecked(false);
+    setPendingAction({ kind: "certify-review", id: row.id, label: `${row.review_type ?? "review"} · ${row.scope ?? "all"}` });
+  }
+
+  function sessionExpired() {
+    useAuthStore.getState().markExpired();
+    window.location.href = "/auth/login";
+  }
+
+  async function runPendingAction() {
+    if (!pendingAction) return;
+    if (pendingAction.kind === "certify-review" && !certifyChecked) return;
+    const token = getToken();
+    if (!token) {
+      sessionExpired();
+      return;
+    }
+    setConfirming(true);
+    setActionError(null);
+    try {
+      if (pendingAction.kind === "approve-request") {
+        await api.zeroTrustApproveAccessRequest(token, pendingAction.id);
+        pushToast("success", "Access request approved and activated");
+      } else {
+        await api.zeroTrustCertifyReview(token, pendingAction.id);
+        pushToast("success", "Access review certified");
+      }
+      setPendingAction(null);
+      setCertifyChecked(false);
+      await loadAll();
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        setPendingAction(null);
+        setCertifyChecked(false);
+        pushToast("warning", "Target no longer exists — the list was refreshed from the backend.");
+        await loadAll();
+        return;
+      }
+      if (e instanceof ApiError && e.status === 409) {
+        setPendingAction(null);
+        setCertifyChecked(false);
+        pushToast("warning", "Conflicting state — the list was refreshed from the backend.");
+        await loadAll();
+        return;
+      }
+      if (e instanceof ApiError && e.kind === "unauthorized") {
+        sessionExpired();
+        return;
+      }
+      if (e instanceof ApiError && e.kind === "forbidden") {
+        setActionError("Backend denied this action: zero_trust:write authorization is required.");
+        return;
+      }
+      setActionError(e instanceof Error ? e.message : "Action failed");
+    } finally {
+      setConfirming(false);
+    }
+  }
 
   const timeline = [...auditLogs.map((log) => ({
     id: `audit-${log.id}`,
@@ -566,7 +656,7 @@ export function AdminControlPlane() {
                   eyebrow="Zero Trust"
                   title="Privileged access and requests"
                   loading={loading}
-                  error={privilegedError ?? accessRequestsError}
+                  error={privilegedError ?? accessRequestsError ?? reviewsError}
                   empty={privilegedAccess.length === 0 && accessRequests.length === 0 ? <BrutalEmptyState title="No privileged activity" description="No privileged access or access requests were returned." /> : null}
                 >
                   <BrutalTable
@@ -585,12 +675,48 @@ export function AdminControlPlane() {
                         { key: "identity", header: "Identity", render: (r: AccessRequestItem) => <span className="font-mono text-xs">{r.identity ?? "—"}</span> },
                         { key: "action", header: "Action", render: (r: AccessRequestItem) => r.action ?? "—" },
                         { key: "status", header: "Status", render: (r: AccessRequestItem) => <BrutalBadge>{r.status ?? "—"}</BrutalBadge> },
+                        { key: "approve", header: "Approval", render: (r: AccessRequestItem) => (
+                          <BrutalButton
+                            variant="primary"
+                            size="sm"
+                            disabled={!canZeroTrustWrite || r.status !== "REQUESTED"}
+                            onClick={() => openApproveRequest(r)}
+                          >
+                            Approve
+                          </BrutalButton>
+                        ) },
                       ]}
                       rows={accessRequests}
                       emptyMessage="No access requests"
                     />
                   </div>
-                  <p className="mt-4 text-xs text-on-surface-variant">Approval and certification controls arrive in Phase 26 C2. This view is read-only.</p>
+                  <div className="mt-4">
+                    <BrutalTable
+                      columns={[
+                        { key: "id", header: "Review", render: (r: ZeroTrustReview) => <span className="font-mono text-xs">{r.id}</span> },
+                        { key: "type", header: "Type", render: (r: ZeroTrustReview) => r.review_type ?? "—" },
+                        { key: "scope", header: "Scope", render: (r: ZeroTrustReview) => r.scope ?? "—" },
+                        { key: "status", header: "Status", render: (r: ZeroTrustReview) => <BrutalBadge>{r.status ?? "—"}</BrutalBadge> },
+                        { key: "certify", header: "Certification", render: (r: ZeroTrustReview) => (
+                          <BrutalButton
+                            variant="primary"
+                            size="sm"
+                            disabled={!canZeroTrustWrite || r.status !== "pending"}
+                            onClick={() => openCertifyReview(r)}
+                          >
+                            Certify
+                          </BrutalButton>
+                        ) },
+                      ]}
+                      rows={reviews}
+                      emptyMessage="No access reviews"
+                    />
+                  </div>
+                  <p className="mt-4 text-xs text-on-surface-variant">
+                    {canZeroTrustWrite
+                      ? "Approving a request or certifying a review sends an explicit confirm to the backend. Authorization is enforced server-side via zero_trust:write."
+                      : "zero_trust:write is required to approve requests or certify reviews. This view is read-only for your current role."}
+                  </p>
                 </Section>
               </div>
             ),
@@ -688,6 +814,55 @@ export function AdminControlPlane() {
           },
         ]}
       />
+      <BrutalModal
+        open={pendingAction !== null}
+        title={pendingAction?.kind === "certify-review" ? "Certify access review" : "Approve access request"}
+        onClose={() => {
+          if (!confirming) {
+            setPendingAction(null);
+            setActionError(null);
+          }
+        }}
+        actions={
+          <>
+            <BrutalButton variant="ghost" size="sm" onClick={() => setPendingAction(null)} disabled={confirming}>
+              Cancel
+            </BrutalButton>
+            <BrutalButton
+              variant="primary"
+              size="sm"
+              onClick={runPendingAction}
+              disabled={confirming || (pendingAction?.kind === "certify-review" && !certifyChecked)}
+            >
+              {pendingAction?.kind === "certify-review" ? "Confirm certification" : "Confirm approval"}
+            </BrutalButton>
+          </>
+        }
+      >
+        {pendingAction ? (
+          <div className="space-y-4 text-sm">
+            <p>
+              {pendingAction.kind === "certify-review"
+                ? "Certifying an access review applies the backend certification flow for access review"
+                : "Approving activates the requested privileged access in the backend."}{" "}
+              <span className="font-mono text-xs">{pendingAction.label}</span>
+            </p>
+            <p className="text-xs text-on-surface-variant">Authorization is enforced server-side using zero_trust:write.</p>
+            {pendingAction.kind === "certify-review" ? (
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={certifyChecked}
+                  onChange={(e) => setCertifyChecked(e.target.checked)}
+                  className="mt-1"
+                />
+                <span>I confirm this model access review, representing an explicit certify approval.</span>
+              </label>
+            ) : null}
+            {actionError ? <p className="font-bold text-error">{actionError}</p> : null}
+          </div>
+        ) : null}
+      </BrutalModal>
     </div>
   );
 }

@@ -64,3 +64,18 @@ export interface FeatureFlag {
   config: Record<string, unknown>;
   organization_id?: string | null;
 }
+
+export interface ZeroTrustReview {
+  id: string;
+  organization_id?: string | null;
+  review_type?: string | null;
+  scope?: string | null;
+  status?: string | null;
+  initiated_by?: string | null;
+  created_at?: string | null;
+  completed_at?: string | null;
+}
+
+export interface ZeroTrustReviewsResponse {
+  items: ZeroTrustReview[];
+}

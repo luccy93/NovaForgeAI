@@ -26,6 +26,8 @@ import type {
   AdminOverview,
   AdminUser,
   FeatureFlag,
+  ZeroTrustReview,
+  ZeroTrustReviewsResponse,
 } from "@/types/admin";
 import type { Organization, OrganizationMember, InviteResult, Workspace, Role } from "@/types/org";
 import type {
@@ -1457,6 +1459,25 @@ export const api = {
         method: "POST",
         token,
         body: bindingHash ? { binding_hash: bindingHash } : {},
+      },
+    ),
+
+  // ─── Administration control plane (Phase 26, C2 mutations) ────────────
+  // Backend: backend/app/api/zero_trust.py. Approval requires
+  // zero_trust:write; certification requires an explicit certify:true body.
+  zeroTrustReviews: (token: string, opts?: { status?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    params.set("limit", String(opts?.limit ?? 20));
+    return apiRequest<ZeroTrustReviewsResponse>(`/zero-trust/reviews?${params.toString()}`, { token });
+  },
+  zeroTrustCertifyReview: (token: string, reviewId: string) =>
+    apiRequest<ZeroTrustReview>(
+      `/zero-trust/reviews/${encodeURIComponent(reviewId)}/certify`,
+      {
+        method: "POST",
+        token,
+        body: { certify: true },
       },
     ),
 

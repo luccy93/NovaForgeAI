@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { AdminControlPlane } from "@/components/admin/AdminControlPlane";
 import * as apiModule from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
+import { useToastStore } from "@/stores/toast";
 
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
@@ -143,7 +144,13 @@ const privilegedResponse = {
 
 const accessRequestsResponse = {
   items: [
-    { id: "req-1", identity: "ops@example.com", resource: "billing", action: "READ", status: "PENDING" },
+    { id: "req-1", identity: "ops@example.com", resource: "billing", action: "READ", status: "REQUESTED" },
+  ],
+};
+
+const reviewsResponse = {
+  items: [
+    { id: "review-1", review_type: "periodic", scope: "all", status: "pending", initiated_by: "ops@example.com" },
   ],
 };
 
@@ -184,6 +191,9 @@ function installApiMock(overrides: Record<string, unknown> = {}) {
     zeroTrustPosture: vi.fn().mockResolvedValue(postureResponse),
     zeroTrustPrivilegedAccess: vi.fn().mockResolvedValue(privilegedResponse),
     zeroTrustAccessRequests: vi.fn().mockResolvedValue(accessRequestsResponse),
+    zeroTrustReviews: vi.fn().mockResolvedValue(reviewsResponse),
+    zeroTrustApproveAccessRequest: vi.fn().mockResolvedValue({ id: "req-1", status: "APPROVED" }),
+    zeroTrustCertifyReview: vi.fn().mockResolvedValue({ id: "review-1", status: "completed" }),
     governancePosture: vi.fn().mockResolvedValue(governanceResponse),
     secOpsDashboard: vi.fn().mockResolvedValue(secopsResponse),
   };
@@ -253,7 +263,7 @@ describe("AdminControlPlane (C1)", () => {
     expect(screen.getByText("nf_testprefix")).toBeTruthy();
     expect(screen.getByText(/Secret values are never shown/)).toBeTruthy();
     expect(screen.queryByText(/nf_full_secret_value/)).toBeNull();
-    expect(screen.getByText("PENDING")).toBeTruthy();
+    expect(screen.getAllByText("REQUESTED").length).toBeGreaterThan(0);
   });
 
   it("summarizes security posture and links to authoritative workspaces", async () => {
@@ -328,6 +338,109 @@ describe("AdminControlPlane (C1)", () => {
     window.dispatchEvent(new CustomEvent("tenant:switched"));
     await waitFor(() => {
       expect((api.adminOverview as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(callsBefore);
+    });
+  });
+
+  it("shows read-only note when zero_trust:write is not granted", async () => {
+    const { getByRole } = render(<AdminControlPlane />);
+    fireEvent.click(getByRole("tab", { name: "Access" }));
+    expect(await screen.findByText(/zero_trust:write is required/)).toBeTruthy();
+  });
+});
+
+describe("AdminControlPlane (C2)", () => {
+  const authorizeUser = {
+    permissions: ["organization:read", "zero_trust:write"],
+    user: { id: "user-1", email: "ops@example.com", username: "ops" },
+    mfa_enabled: true,
+  };
+
+  beforeEach(() => {
+    installApiMock({
+      whoami: vi.fn().mockResolvedValue(authorizeUser),
+    });
+    useToastStore.setState({ toasts: [] });
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("enables Approve and Certify actions and completes approval flow with refetch", async () => {
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    const getToastMessages = () => useToastStore.getState().toasts.map((t) => t.message);
+
+    render(<AdminControlPlane />);
+    fireEvent.click(screen.getByRole("tab", { name: "Access" }));
+    expect(await screen.findByRole("button", { name: "Approve" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Certify" })).toBeTruthy();
+    await waitFor(() => expect(screen.getByText(/Approving a request or certifying/)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    expect(await screen.findByText("Approve access request")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm approval" }));
+    await waitFor(() => {
+      expect(api.zeroTrustApproveAccessRequest).toHaveBeenCalled();
+    });
+    expect(getToastMessages()).toContainEqual("Access request approved and activated");
+    await waitFor(() => {
+      expect((api.adminOverview as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  it("requires explicit certification checkbox before completing review", async () => {
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    const getToastMessages = () => useToastStore.getState().toasts.map((t) => t.message);
+
+    render(<AdminControlPlane />);
+    fireEvent.click(screen.getByRole("tab", { name: "Access" }));
+    expect(await screen.findByRole("button", { name: "Certify" })).toBeTruthy();
+    await waitFor(() => expect(screen.getByText(/Approving a request or certifying/)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Certify" }));
+    expect(await screen.findByText("Certify access review")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm certification" }));
+    expect(api.zeroTrustCertifyReview).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm certification" }));
+    await waitFor(() => {
+      expect(api.zeroTrustCertifyReview).toHaveBeenCalled();
+    });
+    expect(getToastMessages()).toContainEqual("Access review certified");
+    await waitFor(() => {
+      expect((api.adminOverview as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  it("surfaces backend zero_trust:write denial without clearing the action", async () => {
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    api.zeroTrustApproveAccessRequest.mockRejectedValueOnce(new ApiError("forbidden", 403, "Backend denied this action: zero_trust:write authorization is required."));
+    render(<AdminControlPlane />);
+    fireEvent.click(screen.getByRole("tab", { name: "Access" }));
+    expect(await screen.findByRole("button", { name: "Approve" })).toBeTruthy();
+    await waitFor(() => expect(screen.getByText(/Approving a request or certifying/)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    expect(await screen.findByText("Approve access request")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm approval" }));
+    expect(await screen.findByText(/Backend denied this action/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Confirm approval" })).toBeTruthy();
+  });
+
+  it("shows a warning and refreshes when the target is already gone", async () => {
+    const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    api.zeroTrustApproveAccessRequest.mockRejectedValueOnce(new ApiError("forbidden", 404, "Not found"));
+    render(<AdminControlPlane />);
+    fireEvent.click(screen.getByRole("tab", { name: "Access" }));
+    expect(await screen.findByRole("button", { name: "Approve" })).toBeTruthy();
+    await waitFor(() => expect(screen.getByText(/Approving a request or certifying/)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    expect(await screen.findByText("Approve access request")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm approval" }));
+    await waitFor(() => {
+      expect(useToastStore.getState().toasts.some((t) => /no longer exists/.test(t.message))).toBeTruthy();
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("Approve access request")).toBeNull();
     });
   });
 });
