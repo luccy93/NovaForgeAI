@@ -41,6 +41,7 @@ describe("navigation model", () => {
       "control-plane",
       "settings-organization",
       "settings",
+      "preferences",
     ]) {
       expect(ids.has(required)).toBe(true);
     }

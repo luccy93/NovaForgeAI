@@ -101,6 +101,11 @@ describe("CommandPalette", () => {
     expect(screen.getByText("Go to Notifications")).toBeInTheDocument();
   });
 
+  it("lists the Preferences entry derived from the navigation model", () => {
+    render(<CommandPalette open onClose={() => {}} />);
+    expect(screen.getByText("Go to Preferences")).toBeInTheDocument();
+  });
+
   it("surfaces actionable Zero Trust actions for authorized users", async () => {
     signInAs();
     vi.mocked(api.zeroTrustAccessRequests).mockResolvedValue({

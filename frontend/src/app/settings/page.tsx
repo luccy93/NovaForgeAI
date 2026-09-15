@@ -39,6 +39,12 @@ export default function SettingsPage() {
                 <BrutalButton href="/settings/security" variant="default" size="sm">Security</BrutalButton>
               </div>
             </BrutalCard>
+            <BrutalCard eyebrow="Account" title="Preferences" actions={<BrutalButton href="/settings/preferences" variant="ghost" size="sm">Open</BrutalButton>}>
+              <p className="text-sm text-on-surface-variant">Appearance, workspace experience, accessibility and supported user preferences.</p>
+              <div className="mt-4">
+                <BrutalButton href="/settings/preferences" variant="default" size="sm">Open preferences</BrutalButton>
+              </div>
+            </BrutalCard>
             <BrutalCard eyebrow="Organization" title="Organization" actions={<BrutalButton href="/settings/organization" variant="ghost" size="sm">Open</BrutalButton>}>
               <p className="text-sm text-on-surface-variant">Organization identity, tenants and workspaces.</p>
               <div className="mt-4 flex gap-2">

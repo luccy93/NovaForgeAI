@@ -52,6 +52,7 @@ export function UserMenu({
           <p className="truncate px-3 py-2 font-mono text-xs text-on-surface-variant">{email}</p>
           <div className="border-t border-outline-variant">
             <a href="/settings/profile" role="menuitem" onClick={() => setOpen(false)} className="block px-3 py-2 text-sm text-on-surface hover:bg-surface-container-high">Profile</a>
+            <a href="/settings/preferences" role="menuitem" onClick={() => setOpen(false)} className="block px-3 py-2 text-sm text-on-surface hover:bg-surface-container-high">Preferences</a>
             <a href="/settings/security" role="menuitem" onClick={() => setOpen(false)} className="block px-3 py-2 text-sm text-on-surface hover:bg-surface-container-high">Security</a>
             <a href="/settings/organization" role="menuitem" onClick={() => setOpen(false)} className="block px-3 py-2 text-sm text-on-surface hover:bg-surface-container-high">Organization</a>
             <a href="/settings/members" role="menuitem" onClick={() => setOpen(false)} className="block px-3 py-2 text-sm text-on-surface hover:bg-surface-container-high">Members</a>

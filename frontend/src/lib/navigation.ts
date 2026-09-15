@@ -50,6 +50,7 @@ export const NAV_ITEMS: Array<NavItem> = [
   { id: "control-plane", label: "Admin", href: "/admin", section: "system", group: "security", auth: true, description: "Administrative control-plane overview" },
   { id: "settings-organization", label: "Administration", href: "/settings/organization", section: "system", group: "security", auth: true, description: "Workspace administration" },
   { id: "settings", label: "Settings", href: "/settings", section: "system", group: "security", auth: true, description: "Account settings" },
+  { id: "preferences", label: "Preferences", href: "/settings/preferences", section: "system", group: "security", auth: true, description: "Personalization overview" },
 ];
 
 export function visibleNavItems(authenticated: boolean): Array<NavItem> {
