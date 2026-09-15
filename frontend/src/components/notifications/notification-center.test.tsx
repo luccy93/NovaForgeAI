@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent, cleanup, act } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, cleanup, within, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import NotificationsPage from "@/app/notifications/page";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
@@ -6,6 +6,7 @@ import * as apiModule from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
 import { useTenantStore } from "@/stores/tenant";
 import { useAuthStore } from "@/stores/auth";
+import { useToastStore } from "@/stores/toast";
 import type { Notification } from "@/types/notifications";
 
 vi.mock("next/navigation", () => ({
@@ -391,5 +392,241 @@ describe("Notification Center — read-only (C1)", () => {
     expect(api().notificationUpdateChannel).not.toHaveBeenCalled();
     expect(api().notificationDeleteChannel).not.toHaveBeenCalled();
     expect(api().notificationTestChannel).not.toHaveBeenCalled();
+  });
+});
+
+describe("Notification Center — actions (C2)", () => {
+  beforeEach(() => {
+    installApiMock();
+    useTenantStore.getState().setContext("org-1", "ws-1");
+    useToastStore.setState({ toasts: [] });
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.history.replaceState(null, "", "/notifications");
+  });
+
+  function expectToast(message: string) {
+    expect(
+      useToastStore.getState().toasts.some((t) => t.tone === "success" && t.message.includes(message)),
+    ).toBe(true);
+  }
+
+  it("marks a single notification read and refetches the board", async () => {
+    render(<NotificationCenter />);
+    await initialSettle();
+    const callsBefore = api().notificationsList.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: /Deployment complete/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mark read" }));
+    await waitFor(() => expect(api().notificationMarkRead).toHaveBeenCalledWith("test-token", "n1"));
+    await waitFor(() =>
+      expect(api().notificationsList.mock.calls.length).toBeGreaterThan(callsBefore),
+    );
+    expectToast("Notification marked as read");
+  });
+
+  it("marks all read only after explicit confirmation", async () => {
+    render(<NotificationCenter />);
+    await initialSettle();
+    fireEvent.click(screen.getByRole("button", { name: "Mark all read" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(api().notificationsMarkAllRead).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(api().notificationsMarkAllRead).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark all read" }));
+    const dialog2 = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog2).getByRole("button", { name: "Mark all read" }));
+    await waitFor(() => expect(api().notificationsMarkAllRead).toHaveBeenCalledWith("test-token"));
+    expectToast("Marked all notifications as read");
+  });
+
+  it("hides the mark-read action for already-read notifications", async () => {
+    api().notificationsList.mockResolvedValue([
+      notification({}),
+      notification({
+        id: "n2",
+        title: "Security alert",
+        notification_type: "security_alert",
+        is_read: true,
+        read_at: "2026-01-01T01:00:00Z",
+      }),
+    ]);
+    render(<NotificationCenter />);
+    await waitFor(() => expect(screen.getByText("Security alert")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /Security alert/ }));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Mark read" })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("edits preferences and saves the full matrix as a bulk PUT", async () => {
+    render(<NotificationCenter />);
+    await initialSettle();
+    await openTab("PREFERENCES");
+    fireEvent.click(screen.getByRole("button", { name: "Edit preferences" }));
+    fireEvent.click(screen.getByLabelText("Enable deployment_complete"));
+    fireEvent.click(screen.getByRole("button", { name: "Save preferences" }));
+    await waitFor(() => expect(api().notificationUpdatePreferences).toHaveBeenCalled());
+    const body = api().notificationUpdatePreferences.mock.calls[0][1];
+    expect(body.preferences).toHaveLength(2);
+    expect(
+      body.preferences.find((p: { event_type: string }) => p.event_type === "deployment_complete")
+        .enabled,
+    ).toBe(false);
+    expect(
+      body.preferences.find((p: { event_type: string }) => p.event_type === "security_alert")
+        .enabled,
+    ).toBe(false);
+    await waitFor(() =>
+      expect(api().notificationsList.mock.calls.length).toBeGreaterThan(1),
+    );
+  });
+
+  it("creates a webhook channel with per-type config", async () => {
+    render(<NotificationCenter />);
+    await initialSettle();
+    await openTab("CHANNELS");
+    fireEvent.click(screen.getByRole("button", { name: "Add channel" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText(/Channel name/), {
+      target: { value: "alerts-webhook" },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/Channel type/), {
+      target: { value: "webhook" },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/Webhook URL/), {
+      target: { value: "https://hooks.example/abc" },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/Secret \(optional\)/), {
+      target: { value: "xoxb-1" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create channel" }));
+    await waitFor(() =>
+      expect(api().notificationCreateChannel).toHaveBeenCalledWith("test-token", {
+        channel_type: "webhook",
+        name: "alerts-webhook",
+        config: { url: "https://hooks.example/abc", secret: "xoxb-1" },
+      }),
+    );
+    expectToast("Notification channel created");
+  });
+
+  it("validates the channel form before submitting", async () => {
+    render(<NotificationCenter />);
+    await initialSettle();
+    await openTab("CHANNELS");
+    fireEvent.click(screen.getByRole("button", { name: "Add channel" }));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create channel" }));
+    expect(await within(dialog).findByText("Channel name is required.")).toBeInTheDocument();
+    expect(api().notificationCreateChannel).not.toHaveBeenCalled();
+
+    fireEvent.change(within(dialog).getByLabelText(/Channel name/), {
+      target: { value: "ops" },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/Channel type/), {
+      target: { value: "slack" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create channel" }));
+    expect(await within(dialog).findByText("A webhook URL is required.")).toBeInTheDocument();
+    expect(api().notificationCreateChannel).not.toHaveBeenCalled();
+
+    fireEvent.change(within(dialog).getByLabelText(/Webhook URL/), {
+      target: { value: "http://insecure.example" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create channel" }));
+    expect(
+      await within(dialog).findByText("Webhook URL must start with https://."),
+    ).toBeInTheDocument();
+    expect(api().notificationCreateChannel).not.toHaveBeenCalled();
+  });
+
+  it("toggles a channel active state with a PATCH", async () => {
+    render(<NotificationCenter />);
+    await initialSettle();
+    await openTab("CHANNELS");
+    fireEvent.click(screen.getByRole("button", { name: "Deactivate" }));
+    await waitFor(() =>
+      expect(api().notificationUpdateChannel).toHaveBeenCalledWith("test-token", "c1", {
+        is_active: false,
+      }),
+    );
+    expectToast("Notification channel deactivated");
+  });
+
+  it("deletes a channel only after confirmation", async () => {
+    render(<NotificationCenter />);
+    await initialSettle();
+    await openTab("CHANNELS");
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(api().notificationDeleteChannel).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(api().notificationDeleteChannel).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    const dialog2 = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog2).getByRole("button", { name: "Delete channel" }));
+    await waitFor(() =>
+      expect(api().notificationDeleteChannel).toHaveBeenCalledWith("test-token", "c1"),
+    );
+    expectToast("Notification channel deleted");
+  });
+
+  it("reports the backend test status verbatim", async () => {
+    render(<NotificationCenter />);
+    await initialSettle();
+    await openTab("CHANNELS");
+    fireEvent.click(screen.getByRole("button", { name: "Test" }));
+    await waitFor(() =>
+      expect(api().notificationTestChannel).toHaveBeenCalledWith("test-token", "c1"),
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/CHANNEL TEST \(c1\): STATUS sent/)).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/DELIVERY NOT GUARANTEED/)).toBeInTheDocument();
+  });
+
+  it("surfaces backend rejection errors without erasing the board", async () => {
+    api().notificationMarkRead.mockRejectedValueOnce(
+      new ApiError("forbidden", 403, "Forbidden"),
+    );
+    render(<NotificationCenter />);
+    await initialSettle();
+    fireEvent.click(screen.getByRole("button", { name: /Deployment complete/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mark read" }));
+    await waitFor(() =>
+      expect(
+        screen.getByText("Backend denied this action: additional authorization is required for your role."),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Deployment complete")).toBeInTheDocument();
+  });
+
+  it("warns and refreshes when a target changed on the server (409)", async () => {
+    api().notificationMarkRead.mockRejectedValueOnce(new ApiError("server", 409, "Changed"));
+    render(<NotificationCenter />);
+    await initialSettle();
+    const callsBefore = api().notificationsList.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: /Deployment complete/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mark read" }));
+    await waitFor(() =>
+      expect(
+        useToastStore
+          .getState()
+          .toasts.some(
+            (t) => t.tone === "warning" && t.message.includes("Changed on the server"),
+          ),
+      ).toBe(true),
+    );
+    await waitFor(() =>
+      expect(api().notificationsList.mock.calls.length).toBeGreaterThan(callsBefore),
+    );
   });
 });
