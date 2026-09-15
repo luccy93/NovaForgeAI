@@ -83,6 +83,21 @@ describe("navigation model", () => {
     expect(knownDenied).toHaveLength(0);
   });
 
+  it("keeps a single preferences route resolved just after settings", () => {
+    const matches = NAV_ITEMS.filter((item) => item.href === "/settings/preferences");
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({
+      id: "preferences",
+      label: "Preferences",
+      section: "system",
+      group: "security",
+      auth: true,
+    });
+    const settingsIndex = NAV_ITEMS.findIndex((item) => item.href === "/settings");
+    const preferencesIndex = NAV_ITEMS.findIndex((item) => item.href === "/settings/preferences");
+    expect(preferencesIndex).toBe(settingsIndex + 1);
+  });
+
   it("derives breadcrumbs from the navigation model", () => {
     expect(crumbsForPathname("/dashboard")).toEqual([{ label: "Home", href: "/dashboard" }, { label: "Dashboard" }]);
     expect(crumbsForPathname("/knowledge/universal")).toEqual([{ label: "Home", href: "/dashboard" }, { label: "Global Search" }]);

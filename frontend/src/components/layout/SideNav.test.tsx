@@ -1,12 +1,18 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SideNav } from "@/components/layout/SideNav";
 
+const navPath = vi.hoisted(() => ({ value: "/dashboard" }));
+
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/dashboard",
+  usePathname: () => navPath.value,
 }));
 
 describe("SideNav", () => {
+  beforeEach(() => {
+    navPath.value = "/dashboard";
+  });
+
   it("shows all groups to authenticated users", () => {
     render(<SideNav authenticated />);
     expect(screen.getByText("Command")).toBeInTheDocument();
@@ -30,5 +36,13 @@ describe("SideNav", () => {
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
     fireEvent.click(screen.getByRole("link", { name: "AI" }));
     expect(onNavigate).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks Preferences active only on the preferences route", () => {
+    navPath.value = "/settings/preferences";
+    render(<SideNav authenticated />);
+    expect(screen.getByRole("link", { name: "Preferences" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Settings" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveAttribute("aria-current");
   });
 });
