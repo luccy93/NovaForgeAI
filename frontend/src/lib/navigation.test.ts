@@ -23,6 +23,7 @@ describe("navigation model", () => {
     for (const required of [
       "dashboard",
       "analytics",
+      "notifications",
       "ai",
       "command",
       "global-search",

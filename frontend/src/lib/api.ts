@@ -1826,6 +1826,76 @@ export const api = {
   knowledgeHistory: (token: string, limit = 5) =>
     apiRequest<KnowledgeAuditHistoryResponse>(`/knowledge/audit/history?limit=${limit}`, { token }),
 
+  // ─── Notifications (Phase 29) ─────────────────────────────────────────
+  // Backend: backend/app/api/notifications.py (prefix /notifications).
+  // ALL endpoints are AUTH (Bearer) and USER-scoped (current_user.id) —
+  // auth-only, no additional IAM permission. The unsafe /analytics/events
+  // source is NEVER consumed by the notification workspace.
+  notificationsList: (token: string, opts?: { limit?: number; offset?: number; unreadOnly?: boolean }) => {
+    const params = new URLSearchParams();
+    params.set("limit", String(opts?.limit ?? 50));
+    params.set("offset", String(opts?.offset ?? 0));
+    if (opts?.unreadOnly) params.set("unread_only", "true");
+    return apiRequest<import("@/types/notifications").Notification[]>(
+      `/notifications?${params.toString()}`,
+      { token },
+    );
+  },
+  notificationsUnreadCount: (token: string) =>
+    apiRequest<import("@/types/notifications").NotificationsUnreadCount>(
+      "/notifications/unread-count",
+      { token },
+    ),
+  notificationMarkRead: (token: string, notificationId: string) =>
+    apiRequest<import("@/types/notifications").Notification>(`/notifications/${notificationId}/read`, {
+      method: "PATCH",
+      token,
+    }),
+  notificationsMarkAllRead: (token: string) =>
+    apiRequest<null>("/notifications/read-all", { method: "PUT", token }),
+  notificationPreferences: (token: string) =>
+    apiRequest<import("@/types/notifications").NotificationPreferences>("/notifications/preferences", {
+      token,
+    }),
+  notificationUpdatePreferences: (
+    token: string,
+    body: import("@/types/notifications").NotificationPreferences,
+  ) =>
+    apiRequest<import("@/types/notifications").NotificationPreferences>("/notifications/preferences", {
+      method: "PUT",
+      token,
+      body,
+    }),
+  notificationChannels: (token: string) =>
+    apiRequest<import("@/types/notifications").NotificationChannel[]>("/notifications/channels", {
+      token,
+    }),
+  notificationCreateChannel: (
+    token: string,
+    body: import("@/types/notifications").NotificationChannelCreate,
+  ) =>
+    apiRequest<import("@/types/notifications").NotificationChannel>("/notifications/channels", {
+      method: "POST",
+      token,
+      body,
+    }),
+  notificationUpdateChannel: (
+    token: string,
+    channelId: string,
+    body: import("@/types/notifications").NotificationChannelUpdate,
+  ) =>
+    apiRequest<import("@/types/notifications").NotificationChannel>(
+      `/notifications/channels/${channelId}`,
+      { method: "PATCH", token, body },
+    ),
+  notificationDeleteChannel: (token: string, channelId: string) =>
+    apiRequest<null>(`/notifications/channels/${channelId}`, { method: "DELETE", token }),
+  notificationTestChannel: (token: string, channelId: string) =>
+    apiRequest<{ status: string }>(`/notifications/channels/${channelId}/test`, {
+      method: "POST",
+      token,
+    }),
+
   // ─── Executive Analytics (Phase 28, C1 reads) ───────────────────────
   // Backend: backend/app/api/analytics.py (prefix /analytics) and
   // backend/app/api/security.py (prefix /security). BOTH ROUTERS HAVE NO

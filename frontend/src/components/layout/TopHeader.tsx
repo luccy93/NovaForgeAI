@@ -6,6 +6,7 @@ import { UserMenu } from "@/components/layout/UserMenu";
 import { OrgSwitcher } from "@/components/layout/OrgSwitcher";
 import { WorkspaceSwitcher } from "@/components/layout/WorkspaceSwitcher";
 import { useCommandCenter } from "@/components/navigation/CommandCenterProvider";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 export function TopHeader({
   email,
@@ -57,6 +58,7 @@ export function TopHeader({
           <Search className="h-4 w-4" />
         </button>
       ) : null}
+      {email ? <NotificationBell /> : null}
       {email ? (
         <UserMenu email={email} onLogout={onLogout} />
       ) : (

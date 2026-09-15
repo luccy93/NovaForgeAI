@@ -32,6 +32,7 @@ export const NAV_GROUPS: Array<{ id: NavGroup; label: string }> = [
 export const NAV_ITEMS: Array<NavItem> = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", section: "main", group: "command", auth: true, description: "Account, usage and search overview" },
   { id: "analytics", label: "Analytics", href: "/analytics", section: "main", group: "command", auth: true, description: "Executive analytics across the platform" },
+  { id: "notifications", label: "Notifications", href: "/notifications", section: "main", group: "command", auth: true, description: "Notifications, unread activity and preferences" },
   { id: "ai", label: "AI", href: "/ai", section: "main", group: "command", auth: true, description: "AI workspace and conversations" },
   { id: "command", label: "Command Center", href: "/command", section: "main", group: "command", auth: true, description: "Navigation, discovery and actions" },
   { id: "global-search", label: "Global Search", href: "/knowledge/universal", section: "main", group: "command", auth: true, description: "Universal search across the platform" },
@@ -53,6 +54,22 @@ export const NAV_ITEMS: Array<NavItem> = [
 
 export function visibleNavItems(authenticated: boolean): Array<NavItem> {
   return NAV_ITEMS.filter((item) => !item.auth || authenticated);
+}
+
+/** Routes that exist beyond the NAV_ITEMS model (all /settings/* and nested workspaces). */
+const EXTRA_ROUTES = ["/knowledge/universal", "/knowledge/graph"];
+
+/**
+ * Validate a backend-provided destination (e.g. notification action_url)
+ * against known NovaForge routes before navigation. Never allows arbitrary
+ * external URLs — only same-app paths that actually exist.
+ */
+export function isSafeNotificationTarget(href: string | null | undefined): boolean {
+  if (typeof href !== "string" || href === "") return false;
+  if (href[0] !== "/" || href.startsWith("//")) return false;
+  if (href.includes("://")) return false;
+  if (href.startsWith("/settings/")) return true;
+  return NAV_ITEMS.some((item) => item.href === href) || EXTRA_ROUTES.includes(href);
 }
 
 /**
