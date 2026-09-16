@@ -17,6 +17,12 @@ const gettingStarted = [
   { icon: Code2, title: "First Visualization", desc: "Render your codebase in 3D space.", href: "#" },
 ];
 
+const developerResources = [
+  { icon: Code2, title: "Developer SDK", desc: "Build against NovaForge programmatically — Python SDK with IntegrationMixin (17 methods) and token exchange via /auth/token-exchange.", href: "/docs" },
+  { icon: Terminal, title: "NovaForge CLI", desc: "Manage platform operations from the command line — nova integrations list and 30-volume orchestration via cli/novaforge_cli.py.", href: "/docs" },
+  { icon: Network, title: "MCP Servers", desc: "Connect developer tools through MCP — marketplace can register mcp_server packages and validate via /plugin/mcp/validate; no runtime transport exposed.", href: "/docs", badge: "NOT EXPOSED" },
+];
+
 const apiReference = [
   { icon: Cpu, title: "Core API", desc: "Main engine methods — init, analyze, render, destroy.", badge: "v2.0" },
   { icon: Layers, title: "Spatial Engine", desc: "Three.js integration, camera controls, node layouts.", badge: "v2.0" },
@@ -107,6 +113,36 @@ export default function DocsPage() {
                   Read more <ArrowRight className="h-3.5 w-3.5" />
                 </div>
               </motion.a>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Developer Resources — Platform Extensions */}
+      <section className="py-20 bg-surface border-t border-outline">
+        <div className="mx-auto max-w-[1400px] px-6 lg:px-12">
+          <span className="label text-primary-container">Platform Extensions</span>
+          <h2 className="mt-4 text-3xl font-bold text-on-surface">SDK · CLI · MCP</h2>
+          <p className="mt-3 text-body-md text-on-surface-variant max-w-2xl">Backend-verified developer surfaces — handoffs only, no synthetic marketplace.</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 border-t border-l border-outline mt-10">
+            {developerResources.map((item) => (
+              <Link
+                key={item.title}
+                href={item.href}
+                className="border-b border-r border-outline p-6 group hover:bg-surface-container transition-colors duration-300 flex flex-col"
+              >
+                <div className="h-10 w-10 border border-outline flex items-center justify-center mb-5 group-hover:border-primary-container transition-colors">
+                  <item.icon className="h-5 w-5 text-primary-container" />
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-lg font-bold text-on-surface">{item.title}</h3>
+                  {item.badge ? <span className="label text-on-surface-variant border border-outline px-2 py-0.5 text-[10px]">{item.badge}</span> : null}
+                </div>
+                <p className="text-sm text-on-surface-variant flex-1">{item.desc}</p>
+                <div className="mt-4 flex items-center gap-1 text-primary-container text-sm font-semibold group-hover:gap-2 transition-all">
+                  View documentation <ArrowRight className="h-3.5 w-3.5" />
+                </div>
+              </Link>
             ))}
           </div>
         </div>
