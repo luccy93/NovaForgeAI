@@ -5,6 +5,7 @@ import {
   NAV_ITEMS,
   crumbsForPathname,
   filterNavByPermission,
+  isSafeNotificationTarget,
   visibleNavItems,
 } from "@/lib/navigation";
 
@@ -117,6 +118,19 @@ describe("navigation model", () => {
   it("derives breadcrumbs from the navigation model", () => {
     expect(crumbsForPathname("/dashboard")).toEqual([{ label: "Home", href: "/dashboard" }, { label: "Dashboard" }]);
     expect(crumbsForPathname("/knowledge/universal")).toEqual([{ label: "Home", href: "/dashboard" }, { label: "Global Search" }]);
+    expect(crumbsForPathname("/settings/identity")).toEqual([{ label: "Home", href: "/dashboard" }, { label: "Identity & Access" }]);
     expect(crumbsForPathname("/unknown")).toEqual([]);
+  });
+
+  it("allows identity as safe notification target and blocks external URLs", () => {
+    expect(isSafeNotificationTarget("/settings/identity")).toBe(true);
+    expect(isSafeNotificationTarget("/settings/security")).toBe(true);
+    expect(isSafeNotificationTarget("/admin")).toBe(true);
+    expect(isSafeNotificationTarget("https://evil.com")).toBe(false);
+    expect(isSafeNotificationTarget("//evil.com")).toBe(false);
+    expect(isSafeNotificationTarget("http://evil")).toBe(false);
+    expect(isSafeNotificationTarget("/unknown-route-xyz")).toBe(false);
+    expect(isSafeNotificationTarget(null)).toBe(false);
+    expect(isSafeNotificationTarget("")).toBe(false);
   });
 });

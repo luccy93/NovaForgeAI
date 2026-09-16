@@ -45,4 +45,12 @@ describe("SideNav", () => {
     expect(screen.getByRole("link", { name: "Settings" })).not.toHaveAttribute("aria-current");
     expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveAttribute("aria-current");
   });
+
+  it("marks Identity & Access active only on the identity route", () => {
+    navPath.value = "/settings/identity";
+    render(<SideNav authenticated />);
+    expect(screen.getByRole("link", { name: "Identity & Access" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Preferences" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Settings" })).not.toHaveAttribute("aria-current");
+  });
 });
