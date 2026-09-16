@@ -51,6 +51,7 @@ export const NAV_ITEMS: Array<NavItem> = [
   { id: "settings-organization", label: "Administration", href: "/settings/organization", section: "system", group: "security", auth: true, description: "Workspace administration" },
   { id: "settings", label: "Settings", href: "/settings", section: "system", group: "security", auth: true, description: "Account settings" },
   { id: "preferences", label: "Preferences", href: "/settings/preferences", section: "system", group: "security", auth: true, description: "Personalization overview" },
+  { id: "identity", label: "Identity & Access", href: "/settings/identity", section: "system", group: "security", auth: true, description: "Enterprise identity, authentication and access visibility" },
 ];
 
 export function visibleNavItems(authenticated: boolean): Array<NavItem> {

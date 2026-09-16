@@ -34,4 +34,11 @@ describe("Settings hub", () => {
     expect(card).not.toBeNull();
     expect(card?.querySelectorAll("button")).toHaveLength(0);
   });
+
+  it("exposes a single Identity & Access tile that resolves to the identity route", () => {
+    render(<SettingsPage />);
+    expect(screen.getByText("Verified identity, MFA, sessions, API keys, organization access and Zero Trust posture.")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Open identity" })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Open identity" })).toHaveAttribute("href", "/settings/identity");
+  });
 });

@@ -42,6 +42,7 @@ describe("navigation model", () => {
       "settings-organization",
       "settings",
       "preferences",
+      "identity",
     ]) {
       expect(ids.has(required)).toBe(true);
     }
@@ -96,6 +97,21 @@ describe("navigation model", () => {
     const settingsIndex = NAV_ITEMS.findIndex((item) => item.href === "/settings");
     const preferencesIndex = NAV_ITEMS.findIndex((item) => item.href === "/settings/preferences");
     expect(preferencesIndex).toBe(settingsIndex + 1);
+  });
+
+  it("keeps a single identity route resolved just after preferences", () => {
+    const matches = NAV_ITEMS.filter((item) => item.href === "/settings/identity");
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({
+      id: "identity",
+      label: "Identity & Access",
+      section: "system",
+      group: "security",
+      auth: true,
+    });
+    const preferencesIndex = NAV_ITEMS.findIndex((item) => item.href === "/settings/preferences");
+    const identityIndex = NAV_ITEMS.findIndex((item) => item.href === "/settings/identity");
+    expect(identityIndex).toBe(preferencesIndex + 1);
   });
 
   it("derives breadcrumbs from the navigation model", () => {
