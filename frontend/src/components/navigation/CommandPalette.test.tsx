@@ -111,6 +111,11 @@ describe("CommandPalette", () => {
     expect(screen.getByText("Go to Identity & Access")).toBeInTheDocument();
   });
 
+  it("lists the Integrations entry derived from the navigation model", () => {
+    render(<CommandPalette open onClose={() => {}} />);
+    expect(screen.getByText("Go to Integrations")).toBeInTheDocument();
+  });
+
   it("surfaces actionable Zero Trust actions for authorized users", async () => {
     signInAs();
     vi.mocked(api.zeroTrustAccessRequests).mockResolvedValue({

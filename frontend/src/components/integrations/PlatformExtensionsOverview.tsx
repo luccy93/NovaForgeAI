@@ -70,6 +70,18 @@ export function PlatformExtensionsOverview() {
           setError("Not found on the backend.");
           return null;
         }
+        if (e instanceof ApiError && e.status === 409) {
+          setError("Changed on the server — use Refresh to reload.");
+          return null;
+        }
+        if (e instanceof ApiError && e.status === 422) {
+          setError("Backend rejected the request.");
+          return null;
+        }
+        if (e instanceof ApiError && e.status >= 500) {
+          setError("Extension service temporarily unavailable");
+          return null;
+        }
         return null;
       }
     }

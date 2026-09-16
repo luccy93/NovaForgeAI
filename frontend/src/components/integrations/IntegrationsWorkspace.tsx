@@ -344,12 +344,24 @@ export function IntegrationsWorkspace() {
         pushToast("warning", "You don't have permission to perform this action");
         return;
       }
+      if (e instanceof ApiError && e.status === 404) {
+        pushToast("error", "Not found on the backend.");
+        return;
+      }
       if (e instanceof ApiError && e.status === 409) {
         pushToast("info", "State changed on the server; refreshing");
         refetch?.();
         return;
       }
-      pushToast("error", e instanceof Error ? e.message : fallback);
+      if (e instanceof ApiError && e.status === 422) {
+        pushToast("error", "Backend rejected the request.");
+        return;
+      }
+      if (e instanceof ApiError && e.status >= 500) {
+        pushToast("error", "Extension service temporarily unavailable");
+        return;
+      }
+      pushToast("error", fallback);
     },
     [pushToast],
   );
