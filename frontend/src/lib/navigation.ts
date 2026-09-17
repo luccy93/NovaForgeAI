@@ -37,6 +37,7 @@ export const NAV_ITEMS: Array<NavItem> = [
   { id: "command", label: "Command Center", href: "/command", section: "main", group: "command", auth: true, description: "Navigation, discovery and actions" },
   { id: "global-search", label: "Global Search", href: "/knowledge/universal", section: "main", group: "command", auth: true, description: "Universal search across the platform" },
   { id: "code", label: "Code", href: "/code", section: "main", group: "engineering", auth: true, description: "Code intelligence workspace" },
+  { id: "developer", label: "Developer", href: "/developer", section: "platform", group: "engineering", auth: true, description: "SDK, CLI and MCP surfaces" },
   { id: "agents", label: "Agents", href: "/agents", section: "platform", group: "engineering", auth: true, description: "AI agent platform" },
   { id: "workflows", label: "Workflows", href: "/workflows", section: "platform", group: "engineering", auth: true, description: "Workflow automation" },
   { id: "ml", label: "AI / ML", href: "/ml", section: "platform", group: "engineering", auth: true, description: "Models, evaluations and deployments" },
