@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+/* eslint-disable react-hooks/set-state-in-effect -- deterministic search index reset on query change */
+import { useEffect, useMemo, useState } from "react";
 import { BrutalBadge } from "@/components/ui/BrutalBadge";
 import { BrutalButton } from "@/components/ui/BrutalButton";
 import { BrutalCard } from "@/components/ui/BrutalCard";
@@ -19,9 +20,36 @@ function filterDocs(query: string) {
 
 export function DocsOverview() {
   const [query, setQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const results = useMemo(() => filterDocs(query), [query]);
   const hasQuery = query.trim().length > 0;
+  const activeId = results[activeIndex] ? `docs-result-${results[activeIndex].id}` : undefined;
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [query]);
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    const visibleCount = Math.min(results.length, 12);
+    if (visibleCount === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev + 1) % visibleCount);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev - 1 + visibleCount) % visibleCount);
+    } else if (e.key === "Enter") {
+      const hit = results[activeIndex];
+      if (hit) {
+        e.preventDefault();
+        window.location.href = hit.href;
+      }
+    } else if (e.key === "Escape") {
+      setQuery("");
+      setActiveIndex(0);
+    }
+  }
 
   return (
     <div className="space-y-6" data-testid="docs-overview">
@@ -41,19 +69,23 @@ export function DocsOverview() {
           placeholder="Search docs, APIs, guides..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={onKeyDown}
           aria-label="Search documentation"
+          aria-controls="docs-results-list"
+          aria-activedescendant={activeId}
         />
         <p className="mt-2 text-xs text-on-surface-variant">Deterministic local search over verified documentation content. Results originate only from DOCS_INDEX.</p>
         <div className="mt-4" role="region" aria-live="polite" aria-label="Search results">
           {results.length === 0 ? (
             <BrutalEmptyState title="No documentation matches" description={`No results for "${query.trim()}" — try a verified keyword like API, SDK, or Integrations.`} />
           ) : (
-            <ul role="listbox" aria-label="Documentation results" className="space-y-2">
-              {results.slice(0, 12).map((entry) => (
-                <li key={entry.id} role="option" aria-selected={false}>
+            <ul id="docs-results-list" role="listbox" aria-label="Documentation results" className="space-y-2">
+              {results.slice(0, 12).map((entry, idx) => (
+                <li key={entry.id} id={`docs-result-${entry.id}`} role="option" aria-selected={idx === activeIndex}>
                   <a
                     href={entry.href}
-                    className="flex items-center justify-between border border-outline bg-surface px-3 py-2 hover:border-primary-container focus-visible:outline-2 focus-visible:outline-primary-container"
+                    onMouseEnter={() => setActiveIndex(idx)}
+                    className={`flex items-center justify-between border bg-surface px-3 py-2 hover:border-primary-container focus-visible:outline-2 focus-visible:outline-primary-container ${idx === activeIndex ? "border-primary-container" : "border-outline"}`}
                   >
                     <div>
                       <p className="text-sm font-bold text-on-surface">{entry.title}</p>
