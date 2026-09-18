@@ -10,9 +10,9 @@ import {
 } from "@/lib/navigation";
 
 describe("navigation model", () => {
-  it("hides authenticated routes from logged-out visitors", () => {
+  it("hides authenticated routes from logged-out visitors except public docs", () => {
     const items = visibleNavItems(false);
-    expect(items.length).toBe(0);
+    expect(items.map((i) => i.id)).toEqual(["docs"]);
   });
 
   it("shows everything to authenticated users", () => {
@@ -29,6 +29,7 @@ describe("navigation model", () => {
       "command",
       "global-search",
       "code",
+      "developer",
       "knowledge",
       "workflows",
       "agents",
@@ -44,6 +45,7 @@ describe("navigation model", () => {
       "settings",
       "preferences",
       "identity",
+      "docs",
     ]) {
       expect(ids.has(required)).toBe(true);
     }
@@ -119,10 +121,13 @@ describe("navigation model", () => {
     expect(crumbsForPathname("/dashboard")).toEqual([{ label: "Home", href: "/dashboard" }, { label: "Dashboard" }]);
     expect(crumbsForPathname("/knowledge/universal")).toEqual([{ label: "Home", href: "/dashboard" }, { label: "Global Search" }]);
     expect(crumbsForPathname("/settings/identity")).toEqual([{ label: "Home", href: "/dashboard" }, { label: "Identity & Access" }]);
+    expect(crumbsForPathname("/docs")).toEqual([{ label: "Home", href: "/dashboard" }, { label: "Documentation" }]);
     expect(crumbsForPathname("/unknown")).toEqual([]);
   });
 
   it("allows identity as safe notification target and blocks external URLs", () => {
+    expect(isSafeNotificationTarget("/docs")).toBe(true);
+    expect(isSafeNotificationTarget("/developer")).toBe(true);
     expect(isSafeNotificationTarget("/settings/identity")).toBe(true);
     expect(isSafeNotificationTarget("/settings/security")).toBe(true);
     expect(isSafeNotificationTarget("/admin")).toBe(true);

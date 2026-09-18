@@ -41,6 +41,7 @@ export const NAV_ITEMS: Array<NavItem> = [
   { id: "agents", label: "Agents", href: "/agents", section: "platform", group: "engineering", auth: true, description: "AI agent platform" },
   { id: "workflows", label: "Workflows", href: "/workflows", section: "platform", group: "engineering", auth: true, description: "Workflow automation" },
   { id: "ml", label: "AI / ML", href: "/ml", section: "platform", group: "engineering", auth: true, description: "Models, evaluations and deployments" },
+  { id: "docs", label: "Documentation", href: "/docs", section: "platform", group: "knowledge", auth: false, description: "Documentation and help" },
   { id: "knowledge", label: "Knowledge", href: "/knowledge", section: "main", group: "knowledge", auth: true, description: "Search the knowledge base" },
   { id: "data", label: "Data Platform", href: "/data", section: "platform", group: "knowledge", auth: true, description: "Datasets, pipelines and catalog" },
   { id: "observability", label: "Observability", href: "/observability", section: "system", group: "operations", auth: true, description: "Operational status and health" },
