@@ -1,10 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { Protected } from "@/components/auth/Protected";
 import { AppShell } from "@/components/layout/AppShell";
-import { KnowledgeGraph } from "@/components/knowledge/KnowledgeGraph";
+import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
 import { api, clearToken, getToken } from "@/lib/api";
+
+const KnowledgeGraph = dynamic(
+  () => import("@/components/knowledge/KnowledgeGraph").then((m) => m.KnowledgeGraph),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="space-y-3 p-4" role="status" aria-label="Loading knowledge graph">
+        <BrutalSkeleton className="h-24" />
+        <BrutalSkeleton className="h-24" />
+      </div>
+    ),
+  },
+);
 import { ApiError } from "@/lib/api-client";
 import { useTenantStore } from "@/stores/tenant";
 import type { ApiUser } from "@/types/api";

@@ -2,7 +2,7 @@
 
 /* eslint-disable react-hooks/set-state-in-effect -- dashboard must clear stale tenant data synchronously on switch */
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Protected } from "@/components/auth/Protected";
 import { AppShell } from "@/components/layout/AppShell";
 import { BrutalButton } from "@/components/ui/BrutalButton";
@@ -361,8 +361,8 @@ export default function DashboardPage() {
   }
 
   const email = typeof user?.email === "string" ? user.email : null;
-  const orgLabel = organizationId ? `Org ${organizationId.slice(0, 8)}` : null;
-  const wsLabel = workspaceId ? `WS ${workspaceId.slice(0, 8)}` : email ? "Workspace" : null;
+  const orgLabel = useMemo(() => (organizationId ? `Org ${organizationId.slice(0, 8)}` : null), [organizationId]);
+  const wsLabel = useMemo(() => (workspaceId ? `WS ${workspaceId.slice(0, 8)}` : email ? "Workspace" : null), [workspaceId, email]);
 
   return (
     <Protected>

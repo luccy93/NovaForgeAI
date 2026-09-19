@@ -106,6 +106,7 @@ export function isLanguageSupported(language: string | null | undefined): boolea
 }
 
 const memo = new Map<string, HighlightResult>();
+const MAX_MEMO_SIZE = 100;
 
 function hashString(value: string): string {
   let hash = 0;
@@ -140,6 +141,10 @@ async function getHighlighter(
   if (cached !== undefined) return cached;
   const createHighlighter = await getCreateHighlighter();
   if (!createHighlighter) {
+    if (highlighterCache.size >= 5) {
+      const firstKey = highlighterCache.keys().next().value as string | undefined;
+      if (firstKey) highlighterCache.delete(firstKey);
+    }
     highlighterCache.set(language, null);
     return null;
   }
@@ -151,9 +156,17 @@ async function getHighlighter(
       themes: ["github-dark"],
       engine,
     });
+    if (highlighterCache.size >= 5) {
+      const firstKey = highlighterCache.keys().next().value as string | undefined;
+      if (firstKey) highlighterCache.delete(firstKey);
+    }
     highlighterCache.set(language, highlighter);
     return highlighter;
   } catch {
+    if (highlighterCache.size >= 5) {
+      const firstKey = highlighterCache.keys().next().value as string | undefined;
+      if (firstKey) highlighterCache.delete(firstKey);
+    }
     highlighterCache.set(language, null);
     return null;
   }
@@ -176,6 +189,10 @@ export async function highlightCode(code: string, language: string | null): Prom
     const highlighter = await getHighlighter(language);
     if (!highlighter) {
       const fallback = plainResult(code);
+      if (memo.size >= MAX_MEMO_SIZE) {
+        const firstKey = memo.keys().next().value as string | undefined;
+        if (firstKey) memo.delete(firstKey);
+      }
       memo.set(key, fallback);
       return fallback;
     }
@@ -192,10 +209,18 @@ export async function highlightCode(code: string, language: string | null): Prom
       backgroundColor: tokensResult.bg ?? null,
       foregroundColor: tokensResult.fg ?? null,
     };
+    if (memo.size >= MAX_MEMO_SIZE) {
+      const firstKey = memo.keys().next().value as string | undefined;
+      if (firstKey) memo.delete(firstKey);
+    }
     memo.set(key, result);
     return result;
   } catch {
     const fallback = plainResult(code);
+    if (memo.size >= MAX_MEMO_SIZE) {
+      const firstKey = memo.keys().next().value as string | undefined;
+      if (firstKey) memo.delete(firstKey);
+    }
     memo.set(key, fallback);
     return fallback;
   }
