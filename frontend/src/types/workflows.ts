@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Workflow Automation (V66) domain types. Shapes mirror the exact backend
  * serializers in backend/app/api/workflow.py — never invent fields.
@@ -215,3 +213,4 @@ export const WORKFLOW_RUN_STATUSES = [
 ] as const;
 export const WORKFLOW_APPROVAL_STATUSES = ["PENDING", "APPROVED", "DENIED", "EXPIRED", "CANCELLED"] as const;
 export const WORKFLOW_APPROVAL_DECISIONS = ["APPROVED", "DENIED", "CANCELLED"] as const;
+

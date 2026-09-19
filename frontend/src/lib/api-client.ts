@@ -99,7 +99,16 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
         } catch {
           parsed = null;
         }
-        throw classify(resp.status, extractMessage(resp.status, parsed), parsed);
+        // Preserve Retry-After for 429 handling
+        let details: unknown = parsed;
+        if (resp.status === 429) {
+          const retryAfter = resp.headers.get("Retry-After");
+          if (retryAfter) {
+            const base = (parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {}) as Record<string, unknown>;
+            details = { ...base, retryAfter };
+          }
+        }
+        throw classify(resp.status, extractMessage(resp.status, parsed), details);
       }
       if (resp.status === 204) return undefined as T;
       return (await resp.json()) as T;
@@ -126,7 +135,28 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       error instanceof ApiError &&
       (error.kind === "network" || error.kind === "timeout" || error.status === 429 || error.status >= 500);
     if (!retryable) throw error;
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    if (outerSignal?.aborted) throw error;
+    let delay = 500;
+    if (error instanceof ApiError && error.status === 429 && error.details && typeof error.details === "object") {
+      const ra = (error.details as Record<string, unknown>).retryAfter ?? (error.details as Record<string, unknown>).retry_after;
+      if (ra != null) {
+        const parsed = Number(ra);
+        if (!Number.isNaN(parsed) && parsed > 0) delay = Math.min(parsed * 1000, 5000);
+      }
+    }
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(resolve, delay);
+      if (outerSignal) {
+        const onAbort = () => {
+          clearTimeout(timer);
+          reject(error);
+        };
+        outerSignal.addEventListener("abort", onAbort, { once: true });
+        // also clean up if resolved before abort
+        setTimeout(() => outerSignal.removeEventListener("abort", onAbort), delay + 10);
+      }
+    });
+    if (outerSignal?.aborted) throw error;
     return attempt();
   }
 }

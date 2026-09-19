@@ -1,5 +1,3 @@
-"use client";
-
 /** Security Operations (secops) dashboard — verbatim response shapes. */
 export interface SecOpsAlertsSummary {
   total: number;

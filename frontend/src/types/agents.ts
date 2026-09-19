@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Agent Platform domain types. Shapes mirror the exact backend serializers —
  * never invent fields.
@@ -157,3 +155,4 @@ export const AGENT_V2_STATUSES = [
 
 /** Rationale/output preview length: presentation safeguard, not a safety claim. */
 export const RATIONALE_PREVIEW_CHARS = 800;
+

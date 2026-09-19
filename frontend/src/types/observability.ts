@@ -1,5 +1,3 @@
-"use client";
-
 /** Alert lifecycle statuses as returned by the observability platform. */
 export type ObservabilityAlertStatus =
   | "FIRING"

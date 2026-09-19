@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Data Platform (V65) domain types. Shapes mirror the exact backend
  * serializers in backend/app/api/data_platform.py and
@@ -328,3 +326,4 @@ export interface AccessAnomaly {
   count: number;
   type: string;
 }
+

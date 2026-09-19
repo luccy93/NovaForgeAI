@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Knowledge (Volume 68) API types. Shape mirrors the exact payloads returned
  * by /api/v1/knowledge/* — never invent extra fields.

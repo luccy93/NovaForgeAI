@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Universal search (Volume 68 C2) types. Shapes mirror the exact authorized
  * endpoints they come from — never invent fields or pretend a domain exposes

@@ -2,7 +2,7 @@
 
 /* eslint-disable react-hooks/set-state-in-effect -- dashboard must clear stale tenant data synchronously on switch */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Protected } from "@/components/auth/Protected";
 import { AppShell } from "@/components/layout/AppShell";
 import { BrutalButton } from "@/components/ui/BrutalButton";
@@ -40,6 +40,8 @@ export default function DashboardPage() {
   const pushToast = useToastStore((s) => s.push);
   const organizationId = useTenantStore((s) => s.organizationId);
   const workspaceId = useTenantStore((s) => s.workspaceId);
+  const seqRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Platform status
   const [health, setHealth] = useState<HealthDependencies | null>(null);
@@ -91,6 +93,10 @@ export default function DashboardPage() {
 
   function sessionExpired() {
     clearToken();
+    try {
+      const tenant = useTenantStore.getState();
+      tenant.clear();
+    } catch {}
     window.location.href = "/auth/login";
   }
 
@@ -100,6 +106,13 @@ export default function DashboardPage() {
       window.location.href = "/auth/login";
       return;
     }
+    seqRef.current += 1;
+    const seq = seqRef.current;
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const isStale = () => controller.signal.aborted || seq !== seqRef.current;
+
     setLoading(true);
     setHealthLoading(true);
     setAiLoading(true);
@@ -118,126 +131,141 @@ export default function DashboardPage() {
     setIntError(null);
     setActError(null);
 
-    try {
-      const [me, finops] = await Promise.all([api.me(token), api.finopsSummary(token)]);
-      setUser(me);
-      setSummary(finops);
-      setLastUpdated(new Date().toLocaleTimeString());
-    } catch (e) {
-      if (e instanceof ApiError && e.kind === "unauthorized") {
-        sessionExpired();
-        return;
+    const safe = async <T,>(
+      fn: () => Promise<T>,
+      onSuccess: (v: T) => void,
+      onError: (e: unknown) => void,
+      onFinally: () => void,
+    ) => {
+      try {
+        const v = await fn();
+        if (isStale()) return;
+        onSuccess(v);
+      } catch (e) {
+        if (isStale()) return;
+        onError(e);
+      } finally {
+        if (!isStale()) onFinally();
       }
-      const message = e instanceof Error ? e.message : "Failed to load dashboard";
-      setError(message);
-      pushToast("error", message);
-    } finally {
-      setLoading(false);
-    }
+    };
 
-    // Platform health - no auth needed but try with token
-    try {
-      const h = await api.healthDependencies();
-      setHealth(h);
-    } catch (e) {
-      setHealthError(e instanceof Error ? e.message : "Health unavailable");
-    } finally {
-      setHealthLoading(false);
-    }
-
-    // AI activity
-    try {
-      const res = await api.aiUsage(token, 5);
-      setAiItems(res.items ?? []);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 404) setAiSupported(false);
-      else setAiError(e instanceof Error ? e.message : "AI unavailable");
-    } finally {
-      setAiLoading(false);
-    }
-
-    // Workflows
-    try {
-      const [h, runsRes] = await Promise.all([
-        api.workflowHealth(token).catch(() => null),
-        api.listWorkflowRuns(token, 5).catch(() => ({ items: [] })),
-      ]);
-      setWfHealth(h as WorkflowHealth | null);
-      setWfRuns((runsRes as { items: WorkflowRun[] })?.items ?? []);
-    } catch (e) {
-      setWfError(e instanceof Error ? e.message : "Workflows unavailable");
-    } finally {
-      setWfLoading(false);
-    }
-
-    // Security - hide panel if backend capability not available
-    try {
-      const s = await api.securityDashboard(token);
-      setSecData(s as Record<string, unknown>);
-      setSecSupported(true);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 404) {
-        setSecSupported(false);
-        setSecData(null);
-      } else setSecError(e instanceof Error ? e.message : "Security unavailable");
-    } finally {
-      setSecLoading(false);
-    }
-
-    // Governance
-    try {
-      const g = await api.governancePosture(token);
-      setGovData(g as Record<string, unknown>);
-      setGovSupported(true);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 404) {
-        setGovSupported(false);
-        setGovData(null);
-      } else setGovError(e instanceof Error ? e.message : "Governance unavailable");
-    } finally {
-      setGovLoading(false);
-    }
-
-    // Integrations
-    try {
-      const res = await api.integrationsList(token);
-      setIntItems(res.items ?? []);
-      setIntSupported(true);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 404) {
-        setIntSupported(false);
-        setIntItems([]);
-      } else setIntError(e instanceof Error ? e.message : "Integrations unavailable");
-    } finally {
-      setIntLoading(false);
-    }
-
-    // Recent activity
-    try {
-      const res = await api.recentActivity(token, 8);
-      setActivity(res.events ?? []);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 404) setActivity([]);
-      else setActError(e instanceof Error ? e.message : "Activity unavailable");
-    } finally {
-      setActLoading(false);
-    }
-
-    // Knowledge metric (for top card)
-    try {
-      const res = await api.knowledgeHistory(token, 1);
-      setKnowledgeCount(res.total ?? 0);
-    } catch {
-      setKnowledgeCount(null);
-    } finally {
-      setKnowledgeCountLoading(false);
-    }
+    await Promise.all([
+      (async () => {
+        try {
+          const [me, finops] = await Promise.all([api.me(token), api.finopsSummary(token)]);
+          if (isStale()) return;
+          setUser(me);
+          setSummary(finops);
+          setLastUpdated(new Date().toLocaleTimeString());
+        } catch (e) {
+          if (isStale()) return;
+          if (e instanceof ApiError && e.kind === "unauthorized") {
+            sessionExpired();
+            return;
+          }
+          const message = e instanceof Error ? e.message : "Failed to load dashboard";
+          setError(message);
+          pushToast("error", message);
+        } finally {
+          if (!isStale()) setLoading(false);
+        }
+      })(),
+      safe(
+        () => api.healthDependencies(),
+        (h) => setHealth(h as HealthDependencies),
+        (e) => setHealthError(e instanceof Error ? e.message : "Health unavailable"),
+        () => setHealthLoading(false),
+      ),
+      safe(
+        () => api.aiUsage(token, 5),
+        (res) => setAiItems((res as { items: AiUsageItem[] }).items ?? []),
+        (e) => {
+          if (e instanceof ApiError && e.status === 404) setAiSupported(false);
+          else setAiError(e instanceof Error ? e.message : "AI unavailable");
+        },
+        () => setAiLoading(false),
+      ),
+      (async () => {
+        try {
+          const [h, runsRes] = await Promise.all([
+            api.workflowHealth(token).catch(() => null),
+            api.listWorkflowRuns(token, 5).catch(() => ({ items: [] })),
+          ]);
+          if (isStale()) return;
+          setWfHealth(h as WorkflowHealth | null);
+          setWfRuns((runsRes as { items: WorkflowRun[] })?.items ?? []);
+        } catch (e) {
+          if (isStale()) return;
+          setWfError(e instanceof Error ? e.message : "Workflows unavailable");
+        } finally {
+          if (!isStale()) setWfLoading(false);
+        }
+      })(),
+      safe(
+        () => api.securityDashboard(token),
+        (s) => {
+          setSecData(s as Record<string, unknown>);
+          setSecSupported(true);
+        },
+        (e) => {
+          if (e instanceof ApiError && e.status === 404) {
+            setSecSupported(false);
+            setSecData(null);
+          } else setSecError(e instanceof Error ? e.message : "Security unavailable");
+        },
+        () => setSecLoading(false),
+      ),
+      safe(
+        () => api.governancePosture(token),
+        (g) => {
+          setGovData(g as Record<string, unknown>);
+          setGovSupported(true);
+        },
+        (e) => {
+          if (e instanceof ApiError && e.status === 404) {
+            setGovSupported(false);
+            setGovData(null);
+          } else setGovError(e instanceof Error ? e.message : "Governance unavailable");
+        },
+        () => setGovLoading(false),
+      ),
+      safe(
+        () => api.integrationsList(token),
+        (res) => {
+          setIntItems((res as { items: IntegrationItem[] }).items ?? []);
+          setIntSupported(true);
+        },
+        (e) => {
+          if (e instanceof ApiError && e.status === 404) {
+            setIntSupported(false);
+            setIntItems([]);
+          } else setIntError(e instanceof Error ? e.message : "Integrations unavailable");
+        },
+        () => setIntLoading(false),
+      ),
+      safe(
+        () => api.recentActivity(token, 8),
+        (res) => setActivity((res as { events: RecentActivityItem[] }).events ?? []),
+        (e) => {
+          if (e instanceof ApiError && e.status === 404) setActivity([]);
+          else setActError(e instanceof Error ? e.message : "Activity unavailable");
+        },
+        () => setActLoading(false),
+      ),
+      safe(
+        () => api.knowledgeHistory(token, 1),
+        (res) => setKnowledgeCount((res as { total: number }).total ?? 0),
+        () => setKnowledgeCount(null),
+        () => setKnowledgeCountLoading(false),
+      ),
+    ]);
   }, [pushToast]);
 
   useEffect(() => {
     void fetchAll();
-    // Re-fetch on tenant/workspace switch - clear stale data first
     const handler = () => {
+      seqRef.current += 1;
+      if (abortRef.current) abortRef.current.abort();
       setSummary(null);
       setHealth(null);
       setAiItems(null);
@@ -256,6 +284,7 @@ export default function DashboardPage() {
     return () => {
       window.removeEventListener("tenant:switched", handler as EventListener);
       window.removeEventListener("workspace:switched", handler as EventListener);
+      if (abortRef.current) abortRef.current.abort();
     };
   }, [fetchAll, organizationId, workspaceId]);
 
@@ -325,6 +354,9 @@ export default function DashboardPage() {
 
   function logout() {
     clearToken();
+    try {
+      useTenantStore.getState().clear();
+    } catch {}
     window.location.href = "/";
   }
 

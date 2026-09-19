@@ -1,7 +1,6 @@
 "use client";
 
 import { type ButtonHTMLAttributes, type ReactNode } from "react";
-import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 type Variant = "primary" | "ghost" | "yellow" | "default";
@@ -45,16 +44,8 @@ export function BrutalButton({
   type = "button",
   ...rest
 }: BrutalButtonProps) {
-  const cls = cn(base, sizes[size], variants[variant], fullWidth && "w-full", className);
-  const content = (
-    <motion.span
-      className="relative z-10 flex items-center gap-2"
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-    >
-      {children}
-    </motion.span>
-  );
+  const cls = cn(base, sizes[size], variants[variant], fullWidth && "w-full", "hover:scale-[1.02] active:scale-[0.98]", className);
+  const content = <span className="relative z-10 flex items-center gap-2">{children}</span>;
   if (href) {
     return (
       <a href={href} onClick={onClick} className={cls}>

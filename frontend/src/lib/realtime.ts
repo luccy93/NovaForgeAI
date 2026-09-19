@@ -17,6 +17,7 @@ export class EventStream {
   private backoffMs = 1000;
   private closed = false;
   private listeners = new Set<(state: ConnectionState) => void>();
+  private reconnectTimer: number | null = null;
 
   constructor(
     private readonly path: string,
@@ -61,7 +62,9 @@ export class EventStream {
       this.setState("error");
       const delay = this.backoffMs;
       this.backoffMs = Math.min(this.backoffMs * 2, MAX_BACKOFF_MS);
-      setTimeout(() => {
+      if (this.reconnectTimer !== null) clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = window.setTimeout(() => {
+        this.reconnectTimer = null;
         if (!this.closed) this.connect();
       }, delay);
     };
@@ -69,6 +72,10 @@ export class EventStream {
 
   close(): void {
     this.closed = true;
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.source?.close();
     this.source = null;
     this.setState("closed");

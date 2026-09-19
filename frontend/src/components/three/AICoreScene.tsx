@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useMemo, useEffect, useState } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, Float, MeshDistortMaterial } from "@react-three/drei";
+import { Float, MeshDistortMaterial } from "@react-three/drei";
 import { EffectComposer, Bloom, ChromaticAberration } from "@react-three/postprocessing";
 import { BlendFunction } from "postprocessing";
-import * as THREE from "three";
+import { AdditiveBlending } from "three";
+import type { Points, Group, Mesh } from "three";
 
 /**
  * Deterministic PRNG so static scene geometry is stable across renders
@@ -23,7 +24,7 @@ function mulberry32(seed: number): () => number {
 }
 
 function ParticleField({ count = 1200 }) {
-  const ref = useRef<THREE.Points>(null!);
+  const ref = useRef<Points>(null!);
   const positions = useMemo(() => {
     const rand = mulberry32(count);
     const pos = new Float32Array(count * 3);
@@ -47,7 +48,7 @@ function ParticleField({ count = 1200 }) {
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
-      <pointsMaterial size={0.04} color="#FFD400" transparent opacity={0.6} sizeAttenuation blending={THREE.AdditiveBlending} depthWrite={false} />
+      <pointsMaterial size={0.04} color="#FFD400" transparent opacity={0.6} sizeAttenuation blending={AdditiveBlending} depthWrite={false} />
     </points>
   );
 }
@@ -64,7 +65,7 @@ function NeuralNode({ position, color = "#FFD400" }: { position: [number, number
 }
 
 function NeuralConnections() {
-  const ref = useRef<THREE.Group>(null!);
+  const ref = useRef<Group>(null!);
   const nodes = useMemo(() => {
     const rand = mulberry32(12);
     const n: [number, number, number][] = [];
@@ -116,7 +117,7 @@ function NeuralConnections() {
 }
 
 function CoreGlow() {
-  const ref = useRef<THREE.Mesh>(null!);
+  const ref = useRef<Mesh>(null!);
   useFrame((state) => {
     if (ref.current) {
       ref.current.scale.setScalar(1 + Math.sin(state.clock.elapsedTime * 0.5) * 0.05);
@@ -139,12 +140,12 @@ function CoreGlow() {
   );
 }
 
-function Scene({ mouse }: { mouse: { x: number; y: number } }) {
-  const groupRef = useRef<THREE.Group>(null!);
+function Scene({ mouseRef }: { mouseRef: React.MutableRefObject<{ x: number; y: number }> }) {
+  const groupRef = useRef<Group>(null!);
   useFrame(() => {
     if (groupRef.current) {
-      groupRef.current.rotation.x = mouse.y * 0.1;
-      groupRef.current.rotation.y = mouse.x * 0.1;
+      groupRef.current.rotation.x = mouseRef.current.y * 0.1;
+      groupRef.current.rotation.y = mouseRef.current.x * 0.1;
     }
   });
 
@@ -164,21 +165,27 @@ function Scene({ mouse }: { mouse: { x: number; y: number } }) {
 }
 
 export function AICoreScene({ className }: { className?: string }) {
-  const [mouse, setMouse] = useState({ x: 0, y: 0 });
+  const mouseRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      setMouse({ x: (e.clientX / window.innerWidth) * 2 - 1, y: -(e.clientY / window.innerHeight) * 2 + 1 });
+      mouseRef.current.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouseRef.current.y = -(e.clientY / window.innerHeight) * 2 + 1;
     };
-    window.addEventListener("mousemove", handler);
+    window.addEventListener("mousemove", handler, { passive: true });
     return () => window.removeEventListener("mousemove", handler);
   }, []);
 
   return (
     <div className={className}>
-      <Canvas camera={{ position: [0, 0, 6], fov: 45 }} dpr={[1, 2]} gl={{ antialias: true, alpha: true }}>
-        <Scene mouse={mouse} />
-        <OrbitControls enableZoom={false} enablePan={false} enableRotate={false} />
+      <Canvas
+        camera={{ position: [0, 0, 6], fov: 45 }}
+        dpr={[1, 1.5]}
+        gl={{ antialias: false, alpha: true }}
+        frameloop="demand"
+        performance={{ min: 0.5 }}
+      >
+        <Scene mouseRef={mouseRef} />
         <EffectComposer>
           <Bloom luminanceThreshold={0.2} luminanceSmoothing={0.9} intensity={0.8} />
           <ChromaticAberration blendFunction={BlendFunction.NORMAL} offset={[0.002, 0.002]} />

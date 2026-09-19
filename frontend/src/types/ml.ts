@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * AI/ML Platform domain types. Shapes mirror the exact backend serializers
  * in backend/app/api/aiml.py (`_*_to_dict`) — never invent fields.
@@ -325,3 +323,4 @@ export const ML_APPROVAL_DECISIONS = ["approved", "rejected", "approve", "reject
 
 /** Rationale/output preview length: presentation safeguard, not a safety claim. */
 export const ML_PREVIEW_CHARS = 800;
+

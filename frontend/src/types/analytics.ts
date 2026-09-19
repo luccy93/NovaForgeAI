@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Executive Analytics (Phase 28, C1 read-only) — verbatim backend shapes.
  *
@@ -430,3 +428,4 @@ export interface EnterpriseIntegrationsMetrics {
   total_sync_jobs?: number;
   providers?: string[];
 }
+
