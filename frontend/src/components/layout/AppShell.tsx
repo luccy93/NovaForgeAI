@@ -28,10 +28,12 @@ export function AppShell({
         onLogout={onLogout}
       />
       <div className="flex flex-1">
-        <aside className="hidden w-60 shrink-0 border-r border-outline bg-surface p-4 lg:block">
+        <aside className="hidden w-60 shrink-0 border-r border-outline bg-surface p-4 lg:block" aria-label="Primary navigation">
           <SideNav authenticated={authenticated} />
         </aside>
-        <main className="min-w-0 flex-1">{children}</main>
+        <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 outline-none">
+          {children}
+        </main>
       </div>
       <BrutalDrawer open={navOpen} title="Navigate" onClose={() => setNavOpen(false)} side="left">
         <SideNav authenticated={authenticated} onNavigate={() => setNavOpen(false)} />

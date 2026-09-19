@@ -2440,7 +2440,7 @@ export function MLPlatformWorkspace() {
               </div>
               <div className="rounded-none border border-outline bg-surface p-3">
                 <p className="mb-2 font-mono text-xs uppercase tracking-widest text-on-surface-variant">System cards</p>
-                <BrutalInput label="System" value={systemCardInput} onChange={(e) => setSystemCardInput(e.target.value)} placeholder="name or card ID" />
+                <BrutalInput label="System name" value={systemCardInput} onChange={(e) => setSystemCardInput(e.target.value)} placeholder="name or card ID" />
                 <div className="mt-2 flex flex-wrap gap-2">
                   <BrutalButton variant="ghost" size="sm" onClick={() => void loadSystemCards()} disabled={systemCardsLoading}>
                     {systemCardsLoading ? "Loading…" : "Look up"}

@@ -58,9 +58,9 @@ export default function ResetPasswordPage() {
             <p className="text-body-md text-on-surface-variant mb-8">Enter your reset token and a new password.</p>
             <div className="border border-outline bg-surface-container p-8 text-left">
               <form onSubmit={onSubmit} noValidate className="space-y-4">
-                <BrutalInput label="Reset token" placeholder="Paste token from email" value={token} onChange={(e) => setToken(e.target.value)} />
-                <BrutalInput label="New password" type="password" placeholder="At least 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
-                <BrutalInput label="Confirm password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
+                <BrutalInput label="Reset token" placeholder="Paste token from email" value={token} onChange={(e) => setToken(e.target.value)} required aria-required="true" />
+                <BrutalInput label="New password" type="password" placeholder="At least 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required aria-required="true" />
+                <BrutalInput label="Confirm password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" required aria-required="true" />
                 {error ? <p role="alert" className="text-sm text-error">{error}</p> : null}
                 {success ? <p role="status" className="text-sm text-primary-container">Password updated — redirecting to sign in…</p> : null}
                 <BrutalButton variant="yellow" size="lg" fullWidth type="submit" disabled={busy}>

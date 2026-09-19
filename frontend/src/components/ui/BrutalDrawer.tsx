@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useId, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 export function BrutalDrawer({
@@ -16,13 +16,39 @@ export function BrutalDrawer({
   children: ReactNode;
   side?: "left" | "right";
 }) {
+  const panelRef = useRef<HTMLElement>(null);
+  const titleId = useId();
+  const previousActiveRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     if (!open) return;
+    previousActiveRef.current = document.activeElement as HTMLElement | null;
+    const frame = window.requestAnimationFrame(() => panelRef.current?.focus());
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") onClose();
+      if (event.key === "Tab") {
+        const root = panelRef.current;
+        if (!root) return;
+        const focusables = Array.from(root.querySelectorAll<HTMLElement>("button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"));
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
     }
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      window.cancelAnimationFrame(frame);
+      const prev = previousActiveRef.current;
+      if (prev && typeof prev.focus === "function") window.requestAnimationFrame(() => prev.focus());
+    };
   }, [open, onClose]);
 
   const x = side === "right" ? "100%" : "-100%";
@@ -39,10 +65,12 @@ export function BrutalDrawer({
           role="presentation"
         >
           <motion.aside
+            ref={panelRef as unknown as React.RefObject<HTMLDivElement>}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
-            aria-label={title}
-            className={`absolute top-0 bottom-0 ${side === "right" ? "right-0" : "left-0"} w-full max-w-sm border-outline bg-surface-container p-6 ${
+            aria-labelledby={titleId}
+            className={`absolute top-0 bottom-0 ${side === "right" ? "right-0" : "left-0"} w-full max-w-sm border-outline bg-surface-container p-6 outline-none ${
               side === "right" ? "border-l" : "border-r"
             }`}
             initial={{ x }}
@@ -52,7 +80,7 @@ export function BrutalDrawer({
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between gap-4">
-              <h2 className="text-xl font-bold text-on-surface">{title}</h2>
+              <h2 id={titleId} className="text-xl font-bold text-on-surface">{title}</h2>
               <button
                 type="button"
                 onClick={onClose}

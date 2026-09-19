@@ -18,7 +18,7 @@ export function SideNav({ authenticated, onNavigate }: { authenticated: boolean;
     <nav aria-label="Application" className="flex h-full flex-col gap-6 overflow-y-auto">
       {groups.map(({ id, label, items: groupItems }) => (
         <div key={id}>
-          <p className="mb-2 font-mono text-[11px] uppercase tracking-widest text-on-surface-variant">{label}</p>
+          <h2 className="mb-2 font-mono text-[11px] uppercase tracking-widest text-on-surface-variant">{label}</h2>
           <ul className="space-y-1">
             {groupItems.map((item) => {
               const active = pathname === item.href;

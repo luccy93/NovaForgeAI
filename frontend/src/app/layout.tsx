@@ -23,6 +23,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full`}>
       <body className="min-h-full flex flex-col bg-surface text-on-surface antialiased">
+        <a
+          href="#main-content"
+          className="sr-only left-4 top-4 z-[100] bg-primary-container px-4 py-2 font-mono text-xs uppercase tracking-widest text-black focus:not-sr-only focus:fixed focus:outline-2 focus:outline-primary-container"
+        >
+          Skip to content
+        </a>
         <CommandCenterProvider>{children}</CommandCenterProvider>
         <Toasts />
       </body>

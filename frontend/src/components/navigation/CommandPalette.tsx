@@ -406,6 +406,12 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       setActiveIndex((activeIndexSafe - 1 + interactive.length) % interactive.length);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setActiveIndex(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      setActiveIndex(interactive.length - 1);
     } else if (event.key === "Enter") {
       event.preventDefault();
       if (activeItem) {

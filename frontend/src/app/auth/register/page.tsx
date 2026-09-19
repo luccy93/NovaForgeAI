@@ -72,9 +72,9 @@ export default function RegisterPage() {
             <p className="text-body-md text-on-surface-variant mb-8">Start building with NovaForge AI in minutes.</p>
             <div className="border border-outline bg-surface-container p-8 text-left">
               <form onSubmit={onSubmit} noValidate className="space-y-4">
-                <BrutalInput label="Email" type="email" placeholder="you@company.io" value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} autoComplete="email" autoFocus />
-                <BrutalInput label="Username" placeholder="your_name" value={username} onChange={(e) => setUsername(e.target.value)} error={errors.username} autoComplete="username" />
-                <BrutalInput label="Password" type="password" placeholder="At least 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} error={errors.password} autoComplete="new-password" />
+                <BrutalInput label="Email" type="email" placeholder="you@company.io" value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} autoComplete="email" autoFocus required aria-required="true" />
+                <BrutalInput label="Username" placeholder="your_name" value={username} onChange={(e) => setUsername(e.target.value)} error={errors.username} autoComplete="username" required aria-required="true" />
+                <BrutalInput label="Password" type="password" placeholder="At least 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} error={errors.password} autoComplete="new-password" required aria-required="true" />
                 {serverError ? <p role="alert" className="text-sm text-error">{serverError}</p> : null}
                 {success ? <p role="status" className="text-sm text-primary-container">Account created — redirecting…</p> : null}
                 <BrutalButton variant="yellow" size="lg" fullWidth type="submit" disabled={busy}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useId, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 export function BrutalModal({
@@ -17,10 +17,14 @@ export function BrutalModal({
   actions?: ReactNode;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const previousActiveRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    panelRef.current?.focus();
+    previousActiveRef.current = document.activeElement as HTMLElement | null;
+    // Use timeout to ensure element is mounted before focusing
+    const frame = window.requestAnimationFrame(() => panelRef.current?.focus());
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") onClose();
       if (event.key === "Tab") {
@@ -40,7 +44,15 @@ export function BrutalModal({
       }
     }
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      window.cancelAnimationFrame(frame);
+      const prev = previousActiveRef.current;
+      if (prev && typeof prev.focus === "function") {
+        // restore focus to trigger
+        window.requestAnimationFrame(() => prev.focus());
+      }
+    };
   }, [open, onClose]);
 
   return (
@@ -59,7 +71,7 @@ export function BrutalModal({
             ref={panelRef}
             role="dialog"
             aria-modal="true"
-            aria-labelledby="brutal-modal-title"
+            aria-labelledby={titleId}
             tabIndex={-1}
             className="w-full max-w-lg border border-outline bg-surface-container p-6 outline-none"
             initial={{ opacity: 0, y: 16 }}
@@ -69,7 +81,7 @@ export function BrutalModal({
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between gap-4">
-              <h2 id="brutal-modal-title" className="text-xl font-bold text-on-surface">{title}</h2>
+              <h2 id={titleId} className="text-xl font-bold text-on-surface">{title}</h2>
               <button
                 type="button"
                 onClick={onClose}

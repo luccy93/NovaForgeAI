@@ -91,6 +91,8 @@ export default function LoginPage() {
                   error={errors.email}
                   autoComplete="email"
                   autoFocus
+                  required
+                  aria-required="true"
                 />
                 <BrutalInput
                   label="Password"
@@ -100,6 +102,8 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   error={errors.password}
                   autoComplete="current-password"
+                  required
+                  aria-required="true"
                 />
                 {serverError ? (
                   <p role="alert" className="text-sm text-error">

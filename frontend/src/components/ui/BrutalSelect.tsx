@@ -1,6 +1,6 @@
 "use client";
 
-import { type SelectHTMLAttributes, forwardRef } from "react";
+import { type SelectHTMLAttributes, forwardRef, useId } from "react";
 import { cn } from "@/lib/utils";
 
 export interface BrutalSelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
@@ -11,7 +11,8 @@ export interface BrutalSelectProps extends SelectHTMLAttributes<HTMLSelectElemen
 
 export const BrutalSelect = forwardRef<HTMLSelectElement, BrutalSelectProps>(
   function BrutalSelect({ label, error, id, options, className, ...rest }, ref) {
-    const inputId = id ?? `brutal-select-${label?.replace(/\s+/g, "-").toLowerCase() ?? "field"}`;
+    const autoId = useId();
+    const inputId = id ?? (label ? `brutal-select-${label.replace(/\s+/g, "-").toLowerCase()}-${autoId}` : `brutal-select-field-${autoId}`);
     return (
       <div className="w-full text-left">
         {label ? (
@@ -26,6 +27,7 @@ export const BrutalSelect = forwardRef<HTMLSelectElement, BrutalSelectProps>(
           ref={ref}
           id={inputId}
           aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${inputId}-error` : undefined}
           className={cn(
             "w-full border border-outline bg-surface px-4 py-3 text-body-md text-on-surface outline-none focus:border-primary-container transition-colors disabled:opacity-50",
             error && "border-error",
@@ -40,7 +42,7 @@ export const BrutalSelect = forwardRef<HTMLSelectElement, BrutalSelectProps>(
           ))}
         </select>
         {error ? (
-          <p role="alert" className="mt-2 text-sm text-error">
+          <p id={`${inputId}-error`} role="alert" className="mt-2 text-sm text-error">
             {error}
           </p>
         ) : null}

@@ -51,7 +51,7 @@ export default function MfaPage() {
             <p className="text-body-md text-on-surface-variant mb-8">Enter the code from your authenticator app or a backup code.</p>
             <div className="border border-outline bg-surface-container p-8 text-left">
               <form onSubmit={onSubmit} noValidate className="space-y-4">
-                <BrutalInput label="MFA code" placeholder="123456 or backup code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" autoFocus />
+                <BrutalInput label="MFA code" placeholder="123456 or backup code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]*" required aria-required="true" autoFocus />
                 {error ? <p role="alert" className="text-sm text-error">{error}</p> : null}
                 {!challengeToken ? <p className="text-sm text-error">No active MFA challenge. <a href="/auth/login" className="underline">Sign in again</a>.</p> : null}
                 <BrutalButton variant="yellow" size="lg" fullWidth type="submit" disabled={busy || !challengeToken}>

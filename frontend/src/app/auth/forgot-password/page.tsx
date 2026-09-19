@@ -49,7 +49,7 @@ export default function ForgotPasswordPage() {
             <p className="text-body-md text-on-surface-variant mb-8">We&apos;ll send a reset link if the account exists.</p>
             <div className="border border-outline bg-surface-container p-8 text-left">
               <form onSubmit={onSubmit} noValidate className="space-y-4">
-                <BrutalInput label="Email" type="email" placeholder="you@company.io" value={email} onChange={(e) => setEmail(e.target.value)} error={error} autoComplete="email" autoFocus />
+                <BrutalInput label="Email" type="email" placeholder="you@company.io" value={email} onChange={(e) => setEmail(e.target.value)} error={error} autoComplete="email" autoFocus required aria-required="true" />
                 {success ? <p role="status" className="text-sm text-primary-container">If the email exists, a reset link has been sent.</p> : null}
                 <BrutalButton variant="yellow" size="lg" fullWidth type="submit" disabled={busy}>
                   {busy ? "Sending…" : <>Send reset link <ArrowRight className="h-4 w-4" /></>}

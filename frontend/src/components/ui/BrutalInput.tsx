@@ -1,6 +1,6 @@
 "use client";
 
-import { type InputHTMLAttributes, forwardRef } from "react";
+import { type InputHTMLAttributes, forwardRef, useId } from "react";
 import { cn } from "@/lib/utils";
 
 export interface BrutalInputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -13,7 +13,8 @@ const inputCls =
 
 export const BrutalInput = forwardRef<HTMLInputElement, BrutalInputProps>(
   function BrutalInput({ label, error, id, className, ...rest }, ref) {
-    const inputId = id ?? `brutal-input-${label?.replace(/\s+/g, "-").toLowerCase() ?? "field"}`;
+    const autoId = useId();
+    const inputId = id ?? (label ? `brutal-input-${label.replace(/\s+/g, "-").toLowerCase()}-${autoId}` : `brutal-input-field-${autoId}`);
     return (
       <div className="w-full text-left">
         {label ? (

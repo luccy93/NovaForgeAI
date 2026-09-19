@@ -42,19 +42,33 @@ export function BrutalButton({
   fullWidth,
   className,
   type = "button",
+  disabled,
+  "aria-label": ariaLabel,
+  "aria-disabled": ariaDisabled,
+  id,
   ...rest
-}: BrutalButtonProps) {
+}: BrutalButtonProps & { "aria-label"?: string; "aria-disabled"?: boolean; id?: string }) {
   const cls = cn(base, sizes[size], variants[variant], fullWidth && "w-full", "hover:scale-[1.02] active:scale-[0.98]", className);
   const content = <span className="relative z-10 flex items-center gap-2">{children}</span>;
   if (href) {
+    const isDisabled = Boolean(disabled || ariaDisabled);
     return (
-      <a href={href} onClick={onClick} className={cls}>
+      <a
+        href={isDisabled ? undefined : href}
+        aria-label={ariaLabel}
+        aria-disabled={isDisabled || undefined}
+        id={id}
+        onClick={onClick}
+        className={cn(cls, isDisabled && "opacity-50 pointer-events-none")}
+        role={isDisabled ? "link" : undefined}
+        tabIndex={isDisabled ? -1 : undefined}
+      >
         {content}
       </a>
     );
   }
   return (
-    <button type={type} onClick={onClick} className={cls} {...rest}>
+    <button type={type} onClick={onClick} disabled={disabled} aria-label={ariaLabel} aria-disabled={ariaDisabled} id={id} className={cls} {...rest}>
       {content}
     </button>
   );

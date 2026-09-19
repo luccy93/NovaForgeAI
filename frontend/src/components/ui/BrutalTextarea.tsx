@@ -1,6 +1,6 @@
 "use client";
 
-import { type TextareaHTMLAttributes, forwardRef } from "react";
+import { type TextareaHTMLAttributes, forwardRef, useId } from "react";
 import { cn } from "@/lib/utils";
 
 export interface BrutalTextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -10,7 +10,8 @@ export interface BrutalTextareaProps extends TextareaHTMLAttributes<HTMLTextArea
 
 export const BrutalTextarea = forwardRef<HTMLTextAreaElement, BrutalTextareaProps>(
   function BrutalTextarea({ label, error, id, className, ...rest }, ref) {
-    const inputId = id ?? `brutal-textarea-${label?.replace(/\s+/g, "-").toLowerCase() ?? "field"}`;
+    const autoId = useId();
+    const inputId = id ?? (label ? `brutal-textarea-${label.replace(/\s+/g, "-").toLowerCase()}-${autoId}` : `brutal-textarea-field-${autoId}`);
     return (
       <div className="w-full text-left">
         {label ? (
@@ -25,6 +26,7 @@ export const BrutalTextarea = forwardRef<HTMLTextAreaElement, BrutalTextareaProp
           ref={ref}
           id={inputId}
           aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${inputId}-error` : undefined}
           className={cn(
             "w-full border border-outline bg-surface px-4 py-3 text-body-md text-on-surface placeholder:text-on-surface-variant/50 outline-none focus:border-primary-container transition-colors disabled:opacity-50",
             error && "border-error",
@@ -33,7 +35,7 @@ export const BrutalTextarea = forwardRef<HTMLTextAreaElement, BrutalTextareaProp
           {...rest}
         />
         {error ? (
-          <p role="alert" className="mt-2 text-sm text-error">
+          <p id={`${inputId}-error`} role="alert" className="mt-2 text-sm text-error">
             {error}
           </p>
         ) : null}
