@@ -3,6 +3,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- dashboard must clear stale tenant data synchronously on switch */
 
 import { useEffect, useState, useCallback } from "react";
+import { Protected } from "@/components/auth/Protected";
 import { AppShell } from "@/components/layout/AppShell";
 import { BrutalButton } from "@/components/ui/BrutalButton";
 import { BrutalCard } from "@/components/ui/BrutalCard";
@@ -332,11 +333,12 @@ export default function DashboardPage() {
   const wsLabel = workspaceId ? `WS ${workspaceId.slice(0, 8)}` : email ? "Workspace" : null;
 
   return (
-    <AppShell
-      email={email}
-      workspaceLabel={wsLabel ?? orgLabel ?? (email ? "Workspace" : null)}
-      onLogout={logout}
-    >
+    <Protected>
+      <AppShell
+        email={email}
+        workspaceLabel={wsLabel ?? orgLabel ?? (email ? "Workspace" : null)}
+        onLogout={logout}
+      >
       <div className="border-b border-outline bg-surface">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-4 lg:px-6">
           <div>
@@ -453,6 +455,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-    </AppShell>
+      </AppShell>
+    </Protected>
   );
 }

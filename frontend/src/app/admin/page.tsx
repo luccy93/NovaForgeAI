@@ -9,6 +9,7 @@ import { api, clearToken, getToken } from "@/lib/api";
 import type { ApiUser } from "@/types/api";
 import { ApiError } from "@/lib/api-client";
 import { useTenantStore } from "@/stores/tenant";
+import { PERMISSIONS } from "@/types/auth";
 
 export default function AdminPage() {
   const [user, setUser] = useState<ApiUser | null>(null);
@@ -45,7 +46,7 @@ export default function AdminPage() {
   const wsLabel = workspaceId ? `WS ${workspaceId.slice(0, 8)}` : email ? "Workspace" : null;
 
   return (
-    <Protected>
+    <Protected requiredPermissions={[PERMISSIONS.admin, PERMISSIONS.opsAdmin]}>
       <AppShell
         email={email}
         workspaceLabel={wsLabel ?? orgLabel ?? (email ? "Workspace" : null)}

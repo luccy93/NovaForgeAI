@@ -27,7 +27,10 @@ export default function LoginPage() {
   const [serverError, setServerError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const nextUrl = safeNext(typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null);
+  function getNextUrl(): string {
+    if (typeof window === "undefined") return "/dashboard";
+    return safeNext(new URLSearchParams(window.location.search).get("next"));
+  }
 
   function validate(): boolean {
     const next: typeof errors = {};
@@ -49,7 +52,7 @@ export default function LoginPage() {
         router.push("/auth/mfa");
         return;
       }
-      router.push(nextUrl);
+      router.push(getNextUrl());
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 401) setServerError("Invalid email or password");

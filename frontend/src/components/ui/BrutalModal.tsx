@@ -23,6 +23,21 @@ export function BrutalModal({
     panelRef.current?.focus();
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") onClose();
+      if (event.key === "Tab") {
+        const root = panelRef.current;
+        if (!root) return;
+        const focusables = Array.from(root.querySelectorAll<HTMLElement>("button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"));
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -44,7 +59,7 @@ export function BrutalModal({
             ref={panelRef}
             role="dialog"
             aria-modal="true"
-            aria-label={title}
+            aria-labelledby="brutal-modal-title"
             tabIndex={-1}
             className="w-full max-w-lg border border-outline bg-surface-container p-6 outline-none"
             initial={{ opacity: 0, y: 16 }}
@@ -54,7 +69,7 @@ export function BrutalModal({
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between gap-4">
-              <h2 className="text-xl font-bold text-on-surface">{title}</h2>
+              <h2 id="brutal-modal-title" className="text-xl font-bold text-on-surface">{title}</h2>
               <button
                 type="button"
                 onClick={onClose}

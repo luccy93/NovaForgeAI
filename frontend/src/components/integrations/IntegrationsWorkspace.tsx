@@ -1951,7 +1951,7 @@ export function IntegrationsWorkspace() {
                 <StatRow label="OAuth ID" value={oauthStartResult.id} />
                 <p className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">Authorize URL</p>
                 <p className="break-all font-mono text-xs text-on-surface">{oauthStartResult.authorize_url}</p>
-                <a href={oauthStartResult.authorize_url} target="_blank" rel="noreferrer" className="inline-block border border-outline px-3 py-1 font-mono text-xs uppercase tracking-widest hover:border-primary-container">Open provider authorization</a>
+                <a href={oauthStartResult.authorize_url} target="_blank" rel="noopener noreferrer" className="inline-block border border-outline px-3 py-1 font-mono text-xs uppercase tracking-widest hover:border-primary-container">Open provider authorization</a>
               </div>
             ) : (
               <BrutalEmptyState title="No flow started" description="Use Start flow to generate a provider authorization URL." />
