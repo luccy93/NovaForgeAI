@@ -50,7 +50,7 @@ export function BrutalTabs({ tabs, initialId }: { tabs: Array<BrutalTab>; initia
             tabIndex={tab.id === active ? 0 : -1}
             onClick={() => setActive(tab.id)}
             className={cn(
-              "border px-4 py-2 font-mono text-xs uppercase tracking-widest transition-colors focus-visible:outline-2 focus-visible:outline-primary-container",
+              "border px-4 py-2 font-mono text-xs uppercase tracking-widest transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-container min-h-[44px]",
               tab.id === active
                 ? "border-primary-container bg-primary-container text-black"
                 : "border-outline bg-transparent text-on-surface-variant hover:border-on-surface hover:text-on-surface",

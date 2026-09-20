@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import { Toasts } from "@/components/feedback/Toasts";
+import { MotionProvider } from "@/components/feedback/MotionProvider";
 import { CommandCenterProvider } from "@/components/navigation/CommandCenterProvider";
 import "./globals.css";
 
@@ -29,8 +30,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Skip to content
         </a>
-        <CommandCenterProvider>{children}</CommandCenterProvider>
-        <Toasts />
+        <MotionProvider>
+          <CommandCenterProvider>{children}</CommandCenterProvider>
+          <Toasts />
+        </MotionProvider>
       </body>
     </html>
   );

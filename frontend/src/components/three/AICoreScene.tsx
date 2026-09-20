@@ -1,12 +1,26 @@
 "use client";
 
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect, useSyncExternalStore } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Float, MeshDistortMaterial } from "@react-three/drei";
 import { EffectComposer, Bloom, ChromaticAberration } from "@react-three/postprocessing";
 import { BlendFunction } from "postprocessing";
 import { AdditiveBlending } from "three";
 import type { Points, Group, Mesh } from "three";
+
+function subscribeReducedMotion(onChange: () => void) {
+  const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+
+function getReducedMotionSnapshot() {
+  return typeof window === "undefined" ? false : window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function usePrefersReducedMotion() {
+  return useSyncExternalStore(subscribeReducedMotion, getReducedMotionSnapshot, () => false);
+}
 
 /**
  * Deterministic PRNG so static scene geometry is stable across renders
@@ -23,7 +37,7 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-function ParticleField({ count = 1200 }) {
+function ParticleField({ count = 1200, reducedMotion = false }) {
   const ref = useRef<Points>(null!);
   const positions = useMemo(() => {
     const rand = mulberry32(count);
@@ -37,10 +51,9 @@ function ParticleField({ count = 1200 }) {
   }, [count]);
 
   useFrame((state) => {
-    if (ref.current) {
-      ref.current.rotation.y = state.clock.elapsedTime * 0.02;
-      ref.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.01) * 0.1;
-    }
+    if (!ref.current || reducedMotion) return;
+    ref.current.rotation.y = state.clock.elapsedTime * 0.02;
+    ref.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.01) * 0.1;
   });
 
   return (
@@ -53,7 +66,15 @@ function ParticleField({ count = 1200 }) {
   );
 }
 
-function NeuralNode({ position, color = "#FFD400" }: { position: [number, number, number]; color?: string }) {
+function NeuralNode({ position, color = "#FFD400", reducedMotion = false }: { position: [number, number, number]; color?: string; reducedMotion?: boolean }) {
+  if (reducedMotion) {
+    return (
+      <mesh position={position}>
+        <icosahedronGeometry args={[0.3, 1]} />
+        <MeshDistortMaterial color={color} emissive={color} emissiveIntensity={0.5} roughness={0.2} metalness={0.8} wireframe />
+      </mesh>
+    );
+  }
   return (
     <Float speed={1.5} rotationIntensity={0.4} floatIntensity={0.5}>
       <mesh position={position}>
@@ -64,7 +85,7 @@ function NeuralNode({ position, color = "#FFD400" }: { position: [number, number
   );
 }
 
-function NeuralConnections() {
+function NeuralConnections({ reducedMotion = false }: { reducedMotion?: boolean }) {
   const ref = useRef<Group>(null!);
   const nodes = useMemo(() => {
     const rand = mulberry32(12);
@@ -98,13 +119,14 @@ function NeuralConnections() {
   }, [lines, nodes]);
 
   useFrame((state) => {
-    if (ref.current) ref.current.rotation.y = state.clock.elapsedTime * 0.05;
+    if (!ref.current || reducedMotion) return;
+    ref.current.rotation.y = state.clock.elapsedTime * 0.05;
   });
 
   return (
     <group ref={ref}>
       {nodes.map((pos, i) => (
-        <NeuralNode key={i} position={pos} color={i % 3 === 0 ? "#FFD400" : i % 3 === 1 ? "#FFE177" : "#EBC300"} />
+        <NeuralNode key={i} position={pos} color={i % 3 === 0 ? "#FFD400" : i % 3 === 1 ? "#FFE177" : "#EBC300"} reducedMotion={reducedMotion} />
       ))}
       <lineSegments>
         <bufferGeometry>
@@ -116,12 +138,11 @@ function NeuralConnections() {
   );
 }
 
-function CoreGlow() {
+function CoreGlow({ reducedMotion = false }: { reducedMotion?: boolean }) {
   const ref = useRef<Mesh>(null!);
   useFrame((state) => {
-    if (ref.current) {
-      ref.current.scale.setScalar(1 + Math.sin(state.clock.elapsedTime * 0.5) * 0.05);
-    }
+    if (!ref.current || reducedMotion) return;
+    ref.current.scale.setScalar(1 + Math.sin(state.clock.elapsedTime * 0.5) * 0.05);
   });
 
   return (
@@ -140,21 +161,20 @@ function CoreGlow() {
   );
 }
 
-function Scene({ mouseRef }: { mouseRef: React.MutableRefObject<{ x: number; y: number }> }) {
+function Scene({ mouseRef, reducedMotion }: { mouseRef: React.MutableRefObject<{ x: number; y: number }>; reducedMotion: boolean }) {
   const groupRef = useRef<Group>(null!);
   useFrame(() => {
-    if (groupRef.current) {
-      groupRef.current.rotation.x = mouseRef.current.y * 0.1;
-      groupRef.current.rotation.y = mouseRef.current.x * 0.1;
-    }
+    if (!groupRef.current || reducedMotion) return;
+    groupRef.current.rotation.x = mouseRef.current.y * 0.1;
+    groupRef.current.rotation.y = mouseRef.current.x * 0.1;
   });
 
   return (
     <>
       <group ref={groupRef}>
-        <CoreGlow />
-        <NeuralConnections />
-        <ParticleField />
+        <CoreGlow reducedMotion={reducedMotion} />
+        <NeuralConnections reducedMotion={reducedMotion} />
+        <ParticleField reducedMotion={reducedMotion} />
       </group>
       <ambientLight intensity={0.2} />
       <directionalLight position={[5, 5, 5]} intensity={1.5} color="#FFD400" />
@@ -166,15 +186,17 @@ function Scene({ mouseRef }: { mouseRef: React.MutableRefObject<{ x: number; y: 
 
 export function AICoreScene({ className }: { className?: string }) {
   const mouseRef = useRef({ x: 0, y: 0 });
+  const reducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {
+    if (reducedMotion) return;
     const handler = (e: MouseEvent) => {
       mouseRef.current.x = (e.clientX / window.innerWidth) * 2 - 1;
       mouseRef.current.y = -(e.clientY / window.innerHeight) * 2 + 1;
     };
     window.addEventListener("mousemove", handler, { passive: true });
     return () => window.removeEventListener("mousemove", handler);
-  }, []);
+  }, [reducedMotion]);
 
   return (
     <div className={className}>
@@ -182,10 +204,10 @@ export function AICoreScene({ className }: { className?: string }) {
         camera={{ position: [0, 0, 6], fov: 45 }}
         dpr={[1, 1.5]}
         gl={{ antialias: false, alpha: true }}
-        frameloop="demand"
+        frameloop={reducedMotion ? "never" : "demand"}
         performance={{ min: 0.5 }}
       >
-        <Scene mouseRef={mouseRef} />
+        <Scene mouseRef={mouseRef} reducedMotion={reducedMotion} />
         <EffectComposer>
           <Bloom luminanceThreshold={0.2} luminanceSmoothing={0.9} intensity={0.8} />
           <ChromaticAberration blendFunction={BlendFunction.NORMAL} offset={[0.002, 0.002]} />

@@ -17,6 +17,7 @@ import { ApiError } from "@/lib/api-client";
 import { hasPermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/types/auth";
 import { useToastStore } from "@/stores/toast";
+import { useTablistKeyboard } from "@/lib/useTablistKeyboard";
 import type {
   AgentCatalogDetail,
   AgentCatalogEntry,
@@ -841,6 +842,13 @@ export function AgentWorkspace() {
     { id: "timeline", label: "Timeline" },
   ];
 
+  const { onKeyDown: onTablistKeyDown, tabProps, panelProps } = useTablistKeyboard({
+    tabs,
+    activeId: active,
+    setActiveId: setActive,
+    idPrefix: "agent",
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4 border border-outline bg-surface-container px-4 py-3">
@@ -865,13 +873,14 @@ export function AgentWorkspace() {
         </div>
       </div>
 
-      <div role="tablist" aria-label="Agent sections" className="flex flex-wrap gap-2">
+      <div role="tablist" aria-label="Agent sections" className="flex flex-wrap gap-2" onKeyDown={onTablistKeyDown}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             role="tab"
             aria-selected={tab.id === active}
+            {...tabProps(tab.id)}
             onClick={() => setActive(tab.id)}
             className={
               tab.id === active
@@ -885,7 +894,7 @@ export function AgentWorkspace() {
       </div>
 
       {active === "overview" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("overview")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Catalog" title="Registered agents">
             <PanelBody loading={loading} error={catalogError} onRetry={() => void loadAll()} emptyTitle="No agents registered" emptyDescription="The backend registry publishes the available agent catalog.">
               {catalog && catalog.length > 0 ? (
@@ -940,7 +949,7 @@ export function AgentWorkspace() {
       ) : null}
 
       {active === "catalog" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("catalog")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Catalog" title="Agent registry">
             <p className="mb-2 font-mono text-xs text-on-surface-variant">Published by the backend registry. No authentication required to browse.</p>
             <PanelBody loading={loading} error={catalogError} onRetry={() => void loadAll()} emptyTitle="No agents registered" emptyDescription="The backend registry publishes the available agent catalog.">
@@ -1039,7 +1048,7 @@ export function AgentWorkspace() {
       ) : null}
 
       {active === "runs" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("runs")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Runs" title="My run history">
             <div className="mb-3 flex flex-wrap items-end gap-2">
               <div className="min-w-28 flex-1">
@@ -1131,7 +1140,7 @@ export function AgentWorkspace() {
       ) : null}
 
       {active === "executions" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("executions")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Executions" title="Agent executions">
             <div className="mb-3 space-y-2">
               <BrutalInput label="Repository ID" value={aiRepoFilter} onChange={(e) => setAiRepoFilter(e.target.value)} placeholder="optional uuid" />
@@ -1307,7 +1316,7 @@ export function AgentWorkspace() {
       ) : null}
 
       {active === "timeline" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("timeline")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Timeline" title="Execution timeline">
             <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
               Record history only — never internal reasoning. Select a run in Runs or Executions first.

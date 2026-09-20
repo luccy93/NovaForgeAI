@@ -17,6 +17,7 @@ import { ApiError } from "@/lib/api-client";
 import { hasAnyPermission, hasPermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/types/auth";
 import { useToastStore } from "@/stores/toast";
+import { useTablistKeyboard } from "@/lib/useTablistKeyboard";
 import type {
   MLEvaluationCompare,
   MLEvaluationRun,
@@ -1609,6 +1610,13 @@ export function MLPlatformWorkspace() {
     { id: "timeline", label: "Timeline" },
   ];
 
+  const { onKeyDown: onTablistKeyDown, tabProps, panelProps } = useTablistKeyboard({
+    tabs,
+    activeId: active,
+    setActiveId: setActive,
+    idPrefix: "ml",
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4 border border-outline bg-surface-container px-4 py-3">
@@ -1628,13 +1636,14 @@ export function MLPlatformWorkspace() {
         </div>
       </div>
 
-      <div role="tablist" aria-label="ML sections" className="flex flex-wrap gap-2">
+      <div role="tablist" aria-label="ML sections" className="flex flex-wrap gap-2" onKeyDown={onTablistKeyDown}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             role="tab"
             aria-selected={tab.id === active}
+            {...tabProps(tab.id)}
             onClick={() => setActive(tab.id)}
             className={
               tab.id === active
@@ -1648,7 +1657,7 @@ export function MLPlatformWorkspace() {
       </div>
 
       {active === "overview" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("overview")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Registry" title="Models listed">
             <PanelBody loading={loading} error={modelsError} onRetry={() => void loadAll()} emptyTitle="No models" emptyDescription="Register a model to start tracking it here.">
               {models ? (
@@ -1692,7 +1701,7 @@ export function MLPlatformWorkspace() {
       ) : null}
 
       {active === "registry" ? (
-        <div className="space-y-6">
+        <div {...panelProps("registry")} className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-3">
             <BrutalCard eyebrow="Registry" title="Models">
               <div className="mb-3 grid grid-cols-2 gap-2">
@@ -1866,7 +1875,7 @@ export function MLPlatformWorkspace() {
       ) : null}
 
       {active === "prompts" ? (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div {...panelProps("prompts")} className="grid gap-6 lg:grid-cols-2">
           <BrutalCard eyebrow="Prompts" title="Prompt registry">
             {hasPermission(permissions, PERMISSIONS.mlPromptCreate) ? (
               <div className="mb-3">
@@ -1941,7 +1950,7 @@ export function MLPlatformWorkspace() {
       ) : null}
 
       {active === "evaluations" ? (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div {...panelProps("evaluations")} className="grid gap-6 lg:grid-cols-2">
           <BrutalCard eyebrow="Evaluations" title="Run lookup">
             <p className="mb-2 font-mono text-xs text-on-surface-variant">No run-list endpoint exists — look up runs by ID. Metrics are echoed verbatim, never scored.</p>
             {hasPermission(permissions, PERMISSIONS.mlEvalCreate) ? (
@@ -2027,7 +2036,7 @@ export function MLPlatformWorkspace() {
       ) : null}
 
       {active === "risks" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("risks")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Risks" title="Risk records">
             {hasPermission(permissions, PERMISSIONS.mlRiskCreate) ? (
               <div className="mb-3">
@@ -2164,7 +2173,7 @@ export function MLPlatformWorkspace() {
       ) : null}
 
       {active === "monitoring" ? (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div {...panelProps("monitoring")} className="grid gap-6 lg:grid-cols-2">
           <BrutalCard eyebrow="Monitoring" title="Model snapshots">
             <p className="mb-2 font-mono text-xs text-on-surface-variant">Snapshots for the selected model, newest reported last. Values echoed verbatim — never scored.</p>
             <div className="mb-3 flex flex-wrap gap-2">
@@ -2248,7 +2257,7 @@ export function MLPlatformWorkspace() {
       ) : null}
 
       {active === "deployments" ? (
-        <div className="space-y-6">
+        <div {...panelProps("deployments")} className="space-y-6">
           <BrutalCard eyebrow="Deployments" title="Deployment state">
             <p className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">NOT EXPOSED BY API</p>
             <p className="mt-2 text-sm text-on-surface-variant">
@@ -2286,7 +2295,7 @@ export function MLPlatformWorkspace() {
       ) : null}
 
       {active === "gateway" ? (
-        <div className="space-y-6">
+        <div {...panelProps("gateway")} className="space-y-6">
           <BrutalCard eyebrow="Gateway" title="Route selection">
             <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
               Route selection is a server-side read-effect hint — never a policy decision.
@@ -2355,7 +2364,7 @@ export function MLPlatformWorkspace() {
       ) : null}
 
       {active === "governance" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("governance")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Governance" title="Policy decisions">
             <div className="mb-3 flex flex-wrap items-end gap-2">
               <div className="min-w-32 flex-1">
@@ -2535,6 +2544,7 @@ export function MLPlatformWorkspace() {
       ) : null}
 
       {active === "timeline" ? (
+        <div {...panelProps("timeline")}>
         <BrutalCard eyebrow="Timeline" title="Lifecycle record history">
           <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
             Timestamps echoed from returned records only — never fabricated. Select a model or load an evaluation run first.
@@ -2555,6 +2565,7 @@ export function MLPlatformWorkspace() {
             <BrutalEmptyState title="No timeline" description="Select a model or load an evaluation run to build its record history." />
           )}
         </BrutalCard>
+        </div>
       ) : null}
 
       <BrutalCard eyebrow="Intelligence" title="Ask AI">

@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth";
 import { useToastStore } from "@/stores/toast";
 import { isSafeNotificationTarget } from "@/lib/navigation";
+import { useTablistKeyboard } from "@/lib/useTablistKeyboard";
 import { BrutalBadge } from "@/components/ui/BrutalBadge";
 import { BrutalButton } from "@/components/ui/BrutalButton";
 import { BrutalCard } from "@/components/ui/BrutalCard";
@@ -599,6 +600,13 @@ export function NotificationCenter() {
 
   const tab = TABS.find((t) => t.id === activeTab) ?? TABS[0];
 
+  const { onKeyDown: onTablistKeyDown, tabProps, panelProps } = useTablistKeyboard({
+    tabs: TABS,
+    activeId: activeTab,
+    setActiveId: handleTabChange,
+    idPrefix: "notifications",
+  });
+
   return (
     <div className="space-y-6">
       <BrutalCard eyebrow="NOTIFICATION CENTER" title="Notifications" className="border-0">
@@ -650,13 +658,14 @@ export function NotificationCenter() {
       ) : null}
 
       <div>
-        <div role="tablist" aria-label="Notification sections" className="mb-4 flex flex-wrap gap-2">
+        <div role="tablist" aria-label="Notification sections" className="mb-4 flex flex-wrap gap-2" onKeyDown={onTablistKeyDown}>
           {TABS.map((item) => (
             <button
               key={item.id}
               type="button"
               role="tab"
               aria-selected={item.id === activeTab}
+              {...tabProps(item.id)}
               onClick={() => handleTabChange(item.id)}
               className={
                 item.id === activeTab
@@ -669,7 +678,7 @@ export function NotificationCenter() {
           ))}
         </div>
 
-        <div role="tabpanel">
+        <div {...panelProps(activeTab)}>
           {tab.id === "all" ? (
             <NotificationFeedPanel
               title="ALL NOTIFICATIONS"

@@ -19,7 +19,7 @@ describe("Perf C2 — heavy splits", () => {
       "utf-8",
     );
     expect(content).toContain("dpr={[1, 1.5]}");
-    expect(content).toContain('frameloop="demand"');
+    expect(content).toContain('frameloop={reducedMotion ? "never" : "demand"}');
     expect(content).not.toContain("OrbitControls");
   });
 });

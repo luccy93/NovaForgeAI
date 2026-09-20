@@ -16,7 +16,7 @@ interface BrutalButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>
 }
 
 const base =
-  "inline-flex items-center justify-center font-sans font-bold transition-all duration-200 relative overflow-hidden group tracking-[0.05em] uppercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-container disabled:opacity-50 disabled:pointer-events-none";
+  "inline-flex items-center justify-center font-sans font-bold transition-all duration-200 relative overflow-hidden group tracking-[0.05em] uppercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-container disabled:opacity-60 disabled:pointer-events-none disabled:cursor-not-allowed min-h-[44px] min-w-[44px]";
 const sizes: Record<Size, string> = {
   sm: "px-4 py-2 text-xs",
   md: "px-8 py-3 text-sm",
@@ -59,7 +59,7 @@ export function BrutalButton({
         aria-disabled={isDisabled || undefined}
         id={id}
         onClick={onClick}
-        className={cn(cls, isDisabled && "opacity-50 pointer-events-none")}
+        className={cn(cls, isDisabled && "opacity-60 pointer-events-none")}
         role={isDisabled ? "link" : undefined}
         tabIndex={isDisabled ? -1 : undefined}
       >

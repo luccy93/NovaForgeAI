@@ -13,23 +13,34 @@ export function BrutalTable<T>({
   columns,
   rows,
   emptyMessage = "No rows yet.",
+  title,
   className,
 }: {
   columns: Array<BrutalColumn<T>>;
   rows: Array<T>;
   emptyMessage?: string;
+  title?: string;
   className?: string;
 }) {
   if (rows.length === 0) {
     return (
-      <div className={cn("border border-outline bg-surface p-8 text-center", className)}>
+      <div
+        role="status"
+        className={cn("border border-outline bg-surface p-8 text-center", className)}
+      >
         <p className="text-sm text-on-surface-variant">{emptyMessage}</p>
       </div>
     );
   }
   return (
-    <div className={cn("overflow-x-auto border border-outline", className)}>
+    <div
+      role="region"
+      aria-label={title ?? "Data table"}
+      tabIndex={0}
+      className={cn("overflow-x-auto border border-outline focus-visible:outline-2 focus-visible:outline-primary-container focus-visible:outline-offset-2", className)}
+    >
       <table className="w-full border-collapse text-left text-sm">
+        {title ? <caption className="sr-only">{title}</caption> : null}
         <thead>
           <tr className="border-b border-outline bg-surface">
             {columns.map((col) => (

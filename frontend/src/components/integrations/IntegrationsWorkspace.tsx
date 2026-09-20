@@ -17,6 +17,7 @@ import { ApiError } from "@/lib/api-client";
 import { hasPermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/types/auth";
 import { useToastStore } from "@/stores/toast";
+import { useTablistKeyboard } from "@/lib/useTablistKeyboard";
 import type {
   ConnectorDefinition,
   ConnectorSyncRecord,
@@ -1552,6 +1553,13 @@ export function IntegrationsWorkspace() {
     { id: "advanced", label: "Advanced" },
   ];
 
+  const { onKeyDown: onTablistKeyDown, tabProps, panelProps } = useTablistKeyboard({
+    tabs,
+    activeId: active,
+    setActiveId: setActive,
+    idPrefix: "integrations",
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4 border border-outline bg-surface-container px-4 py-3">
@@ -1581,13 +1589,14 @@ export function IntegrationsWorkspace() {
         </div>
       </div>
 
-      <div role="tablist" aria-label="Integrations sections" className="flex flex-wrap gap-2">
+      <div role="tablist" aria-label="Integrations sections" className="flex flex-wrap gap-2" onKeyDown={onTablistKeyDown}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             role="tab"
             aria-selected={tab.id === active}
+            {...tabProps(tab.id)}
             onClick={() => setActive(tab.id)}
             className={
               tab.id === active
@@ -1601,7 +1610,7 @@ export function IntegrationsWorkspace() {
       </div>
 
       {active === "registry" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("registry")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Registry" title="Integrations">
             <div className="mb-3 flex flex-wrap gap-2">
               <div className="min-w-32 flex-1">
@@ -1692,7 +1701,7 @@ export function IntegrationsWorkspace() {
       ) : null}
 
       {active === "connectors" ? (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div {...panelProps("connectors")} className="grid gap-6 lg:grid-cols-2">
           <BrutalCard eyebrow="Catalog" title="Available connectors">
             <PanelBody loading={loading} error={catalogError} onRetry={() => void loadAll()} emptyTitle="No connectors" emptyDescription="The backend publishes a fixed connector catalog.">
               {catalog && catalog.length > 0 ? (
@@ -1746,7 +1755,7 @@ export function IntegrationsWorkspace() {
       ) : null}
 
       {active === "connections" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("connections")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Connections" title="Managed connections">
             <div className="mb-3 flex gap-2">
               {canAdmin ? (
@@ -1894,7 +1903,7 @@ export function IntegrationsWorkspace() {
       ) : null}
 
       {active === "oauth" ? (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div {...panelProps("oauth")} className="grid gap-6 lg:grid-cols-2">
           <BrutalCard eyebrow="OAuth" title="OAuth connections">
             <div className="mb-3 flex flex-wrap gap-2">
               <div className="min-w-32 flex-1">
@@ -1961,7 +1970,7 @@ export function IntegrationsWorkspace() {
       ) : null}
 
       {active === "health" ? (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div {...panelProps("health")} className="grid gap-6 lg:grid-cols-2">
           <BrutalCard eyebrow="Health" title="Connection health">
             <p className="mb-3 text-xs text-on-surface-variant">Runs a bounded health check through the governed outbound client and records the result. Select the connection in the Connections tab first.</p>
             <BrutalButton variant="primary" size="sm" onClick={() => void runConnectionHealth()} disabled={healthRunning || !selectedConnectionId}>
@@ -2027,7 +2036,7 @@ export function IntegrationsWorkspace() {
       ) : null}
 
       {active === "webhooks" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("webhooks")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Outbound" title="Webhooks">
             <div className="mb-3 flex flex-wrap gap-2">
               <div className="min-w-32 flex-1">
@@ -2113,7 +2122,7 @@ export function IntegrationsWorkspace() {
       ) : null}
 
       {active === "policies" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("policies")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Governance" title="Transfer policies">
             <div className="mb-3 flex gap-2">
               {canAdmin ? (
@@ -2220,7 +2229,7 @@ export function IntegrationsWorkspace() {
       ) : null}
 
       {active === "advanced" ? (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div {...panelProps("advanced")} className="grid gap-6 lg:grid-cols-2">
           <BrutalCard eyebrow="Bridges" title="Cross-domain operations">
             <p className="mb-3 text-xs text-on-surface-variant">Thin adapters into FinOps, Knowledge, Workflow and AI governance. Each reuses the domain&apos;s authoritative service — no duplicated accounting or engines. Admin only.</p>
             {!canAdmin ? (

@@ -13,8 +13,14 @@ const tones: Record<ToastTone, string> = {
 export function Toasts() {
   const toasts = useToastStore((state) => state.toasts);
   const dismiss = useToastStore((state) => state.dismiss);
+  const hasError = toasts.some((toast) => toast.tone === "error");
   return (
-    <div aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-[90] flex w-80 flex-col gap-2">
+    <div
+      aria-live={hasError ? "assertive" : "polite"}
+      aria-atomic="false"
+      aria-relevant="additions text"
+      className="pointer-events-none fixed bottom-4 right-4 z-[90] flex w-80 flex-col gap-2"
+    >
       {toasts.map((toast) => (
         <div
           key={toast.id}
@@ -27,9 +33,9 @@ export function Toasts() {
               type="button"
               aria-label="Dismiss notification"
               onClick={() => dismiss(toast.id)}
-              className="font-mono text-xs text-on-surface-variant hover:text-on-surface"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center font-mono text-xs text-on-surface-variant hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary-container focus-visible:outline-offset-2"
             >
-              ✕
+              <span aria-hidden="true">✕</span>
             </button>
           </div>
         </div>

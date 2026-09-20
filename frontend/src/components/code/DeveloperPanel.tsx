@@ -7,6 +7,7 @@ import { DeveloperExplain } from "@/components/code/DeveloperExplain";
 import { DeveloperGraph } from "@/components/code/DeveloperGraph";
 import { DeveloperPatches } from "@/components/code/DeveloperPatches";
 import { DeveloperTests } from "@/components/code/DeveloperTests";
+import { useTablistKeyboard } from "@/lib/useTablistKeyboard";
 
 type DevTabId = "explain" | "changes" | "tests" | "graph" | "agents" | "patches";
 
@@ -28,19 +29,27 @@ export function DeveloperPanel({
 }) {
   const [active, setActive] = useState<DevTabId>("explain");
 
+  const { onKeyDown: onTablistKeyDown, tabProps, panelProps } = useTablistKeyboard({
+    tabs,
+    activeId: active,
+    setActiveId: setActive,
+    idPrefix: "dev",
+  });
+
   return (
     <section
       aria-label="Developer intelligence"
       className="flex h-80 w-full shrink-0 flex-col border-t border-outline bg-surface"
     >
       <div className="border-b border-outline-variant px-1 pt-1">
-        <div role="tablist" aria-label="Developer intelligence" className="flex flex-wrap gap-1">
+        <div role="tablist" aria-label="Developer intelligence" className="flex flex-wrap gap-1" onKeyDown={onTablistKeyDown}>
           {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
               role="tab"
               aria-selected={tab.id === active}
+              {...tabProps(tab.id)}
               onClick={() => setActive(tab.id)}
               className={
                 tab.id === active
@@ -53,7 +62,7 @@ export function DeveloperPanel({
           ))}
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto bg-surface-container/50 p-3">
+      <div {...panelProps(active)} className="min-h-0 flex-1 overflow-y-auto bg-surface-container/50 p-3">
         {active === "explain" ? <DeveloperExplain repoId={repoId} /> : null}
         {active === "changes" ? <DeveloperChanges repoId={repoId} /> : null}
         {active === "tests" ? <DeveloperTests repoId={repoId} defaultBranch={defaultBranch} /> : null}

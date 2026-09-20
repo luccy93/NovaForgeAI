@@ -78,11 +78,11 @@ describe("Perf C1 — Three.js + BrutalButton", () => {
   it("AICoreScene uses DPR cap 1.5 (static import check)", async () => {
     const src = await import("@/components/three/AICoreScene");
     expect(src.AICoreScene).toBeDefined();
-    // source check: file should contain dpr={[1, 1.5]} and frameloop="demand"
+    // source check: file should contain dpr={[1, 1.5]} and demand frameloop (guarded by reduced motion)
     const { readFileSync } = await import("node:fs");
     const content = readFileSync("C:\\Users\\Devendraprasad\\Downloads\\GraphRAG-main\\frontend\\src\\components\\three\\AICoreScene.tsx", "utf-8");
     expect(content).toContain("dpr={[1, 1.5]}");
-    expect(content).toContain('frameloop="demand"');
+    expect(content).toContain('frameloop={reducedMotion ? "never" : "demand"}');
     expect(content).not.toContain("OrbitControls");
   });
 });

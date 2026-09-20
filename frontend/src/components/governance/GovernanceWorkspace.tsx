@@ -17,6 +17,7 @@ import { ApiError } from "@/lib/api-client";
 import { hasPermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/types/auth";
 import { useToastStore } from "@/stores/toast";
+import { useTablistKeyboard } from "@/lib/useTablistKeyboard";
 import type {
   DomainGovernResult,
   GovernanceBinding,
@@ -1297,6 +1298,13 @@ export function GovernanceWorkspace() {
     { id: "advanced", label: "Advanced" },
   ];
 
+  const { onKeyDown: onTablistKeyDown, tabProps, panelProps } = useTablistKeyboard({
+    tabs,
+    activeId: active,
+    setActiveId: setActive,
+    idPrefix: "governance",
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4 border border-outline bg-surface-container px-4 py-3">
@@ -1326,13 +1334,14 @@ export function GovernanceWorkspace() {
         </div>
       </div>
 
-      <div role="tablist" aria-label="Governance sections" className="flex flex-wrap gap-2">
+      <div role="tablist" aria-label="Governance sections" className="flex flex-wrap gap-2" onKeyDown={onTablistKeyDown}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             role="tab"
             aria-selected={tab.id === active}
+            {...tabProps(tab.id)}
             onClick={() => setActive(tab.id)}
             className={
               tab.id === active
@@ -1346,7 +1355,7 @@ export function GovernanceWorkspace() {
       </div>
 
       {active === "overview" ? (
-        <div className="space-y-6">
+        <div {...panelProps("overview")} className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-3">
             <BrutalCard eyebrow="Policy" title="Policy posture">
               <PanelBody
@@ -1531,7 +1540,7 @@ export function GovernanceWorkspace() {
       ) : null}
 
       {active === "policies" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("policies")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Policy" title="Policies">
             <div className="mb-3 flex flex-wrap items-end gap-2">
               <div className="min-w-28 flex-1">
@@ -1651,7 +1660,7 @@ export function GovernanceWorkspace() {
       ) : null}
 
       {active === "bindings" ? (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div {...panelProps("bindings")} className="grid gap-6 lg:grid-cols-2">
           <BrutalCard eyebrow="Policy" title="Bindings">
             <div className="mb-3 flex flex-wrap items-end gap-2">
               <div className="min-w-28 flex-1">
@@ -1741,7 +1750,7 @@ export function GovernanceWorkspace() {
       ) : null}
 
       {active === "decisions" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("decisions")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Decision" title="Recent decisions">
             <div className="mb-3 max-w-xs">
               <BrutalSelect
@@ -1843,7 +1852,7 @@ export function GovernanceWorkspace() {
       ) : null}
 
       {active === "evidence" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("evidence")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Evidence" title="Evidence coverage">
             <PanelBody
               loading={loading}
@@ -1914,6 +1923,7 @@ export function GovernanceWorkspace() {
       ) : null}
 
       {active === "drift" ? (
+        <div {...panelProps("drift")} className="space-y-6">
         <BrutalCard
           eyebrow="Drift"
           title="Configuration drift"
@@ -1979,10 +1989,11 @@ export function GovernanceWorkspace() {
             ) : null}
           </PanelBody>
         </BrutalCard>
+        </div>
       ) : null}
 
       {active === "exceptions" ? (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div {...panelProps("exceptions")} className="grid gap-6 lg:grid-cols-2">
           <BrutalCard eyebrow="Exceptions" title="Policy exceptions">
             <div className="mb-3 max-w-xs">
               <BrutalSelect
@@ -2082,7 +2093,7 @@ export function GovernanceWorkspace() {
       ) : null}
 
       {active === "reports" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("reports")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Reports" title="Reports">
             <div className="mb-3 flex flex-wrap items-end gap-2">
               <div className="min-w-28 flex-1">
@@ -2172,7 +2183,7 @@ export function GovernanceWorkspace() {
       ) : null}
 
       {active === "ai-governance" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("ai-governance")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="AI Governance" title="Domain check">
             <p className="mb-3 text-xs text-on-surface-variant">
               Central policy first, then the domain layer. Verdicts carry decision, allowed, layer and reason only — no scores are computed anywhere.
@@ -2233,7 +2244,7 @@ export function GovernanceWorkspace() {
       ) : null}
 
       {active === "advanced" ? (
-        <div className="space-y-6">
+        <div {...panelProps("advanced")} className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
             <BrutalCard eyebrow="Advanced" title="Evaluate tester">
               <p className="mb-3 text-xs text-on-surface-variant">

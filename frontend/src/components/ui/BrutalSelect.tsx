@@ -29,7 +29,7 @@ export const BrutalSelect = forwardRef<HTMLSelectElement, BrutalSelectProps>(
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${inputId}-error` : undefined}
           className={cn(
-            "w-full border border-outline bg-surface px-4 py-3 text-body-md text-on-surface outline-none focus:border-primary-container transition-colors disabled:opacity-50",
+            "w-full border border-outline bg-surface px-4 py-3 text-body-md text-on-surface outline-none focus:border-primary-container focus-visible:outline-2 focus-visible:outline-primary-container focus-visible:outline-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed",
             error && "border-error",
             className,
           )}

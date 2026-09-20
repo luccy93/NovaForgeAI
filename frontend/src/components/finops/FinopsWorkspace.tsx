@@ -13,6 +13,7 @@ import { BrutalModal } from "@/components/ui/BrutalModal";
 import { BrutalSelect } from "@/components/ui/BrutalSelect";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
 import { BrutalTable } from "@/components/ui/BrutalTable";
+import { useTablistKeyboard } from "@/lib/useTablistKeyboard";
 import { api, clearToken, getToken } from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
 import { hasPermission } from "@/lib/permissions";
@@ -128,15 +129,36 @@ function TrendBars({ buckets }: { buckets: AggregationBucket[] }) {
   }
   const max = Math.max(...ordered.map((b) => b.total_cents), 1);
   return (
-    <div className="flex h-28 items-end gap-1" role="img" aria-label={`Spend trend over ${ordered.length} buckets`}>
-      {ordered.map((b) => (
-        <div
-          key={b.id}
-          className="min-w-0 flex-1 border border-outline bg-primary-container"
-          style={{ height: `${Math.max(Math.round((b.total_cents / max) * 100), 3)}%` }}
-          title={`${b.bucket_start}: ${formatCents(b.total_cents)} across ${b.record_count} records`}
-        />
-      ))}
+    <div>
+      <div className="flex h-28 items-end gap-1" aria-hidden="true">
+        {ordered.map((b) => (
+          <div
+            key={b.id}
+            className="min-w-0 flex-1 border border-outline bg-primary-container"
+            style={{ height: `${Math.max(Math.round((b.total_cents / max) * 100), 3)}%` }}
+            title={`${b.bucket_start}: ${formatCents(b.total_cents)} across ${b.record_count} records`}
+          />
+        ))}
+      </div>
+      <table className="sr-only">
+        <caption>Spend trend over {ordered.length} buckets</caption>
+        <thead>
+          <tr>
+            <th scope="col">Bucket</th>
+            <th scope="col">Spend</th>
+            <th scope="col">Records</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ordered.map((b) => (
+            <tr key={b.id}>
+              <td>{b.bucket_start}</td>
+              <td>{formatCents(b.total_cents)}</td>
+              <td>{b.record_count}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -1017,6 +1039,13 @@ export function FinopsWorkspace() {
     { id: "intelligence", label: "Intelligence" },
   ];
 
+  const { onKeyDown: onTablistKeyDown, tabProps, panelProps } = useTablistKeyboard({
+    tabs,
+    activeId: active,
+    setActiveId: setActive,
+    idPrefix: "finops",
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4 border border-outline bg-surface-container px-4 py-3">
@@ -1046,13 +1075,14 @@ export function FinopsWorkspace() {
         </div>
       </div>
 
-      <div role="tablist" aria-label="FinOps sections" className="flex flex-wrap gap-2">
+      <div role="tablist" aria-label="FinOps sections" className="flex flex-wrap gap-2" onKeyDown={onTablistKeyDown}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             role="tab"
             aria-selected={tab.id === active}
+            {...tabProps(tab.id)}
             onClick={() => setActive(tab.id)}
             className={
               tab.id === active
@@ -1066,7 +1096,7 @@ export function FinopsWorkspace() {
       </div>
 
       {active === "overview" ? (
-        <div className="space-y-6">
+        <div {...panelProps("overview")} className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-3">
             <BrutalCard eyebrow="Actual" title="Current usage">
               <PanelBody loading={loading} error={summaryError} onRetry={() => void loadAll()} emptyTitle="No usage reported" emptyDescription="Usage appears once cost records are recorded for this tenant.">
@@ -1160,7 +1190,7 @@ export function FinopsWorkspace() {
       ) : null}
 
       {active === "usage" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("usage")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Actual" title="Usage summary">
             <PanelBody loading={loading} error={summaryError} onRetry={() => void loadAll()} emptyTitle="No usage reported" emptyDescription="Usage appears once cost records are recorded for this tenant.">
               {summary ? (
@@ -1198,7 +1228,7 @@ export function FinopsWorkspace() {
       ) : null}
 
       {active === "costs" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("costs")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Actual" title="Filters">
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-2">
@@ -1282,7 +1312,7 @@ export function FinopsWorkspace() {
       ) : null}
 
       {active === "budgets" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("budgets")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Budget" title="Budgets">
             <div className="mb-3 flex flex-wrap items-end gap-2">
               <div className="min-w-32 flex-1">
@@ -1362,7 +1392,7 @@ export function FinopsWorkspace() {
       ) : null}
 
       {active === "forecast" ? (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div {...panelProps("forecast")} className="grid gap-6 lg:grid-cols-2">
           <BrutalCard eyebrow="Forecast" title="Spend forecast">
             <p className="mb-3 text-xs text-on-surface-variant">Backend-authoritative linear-baseline forecast. No forecasting is performed in the browser. A cached response is labeled as cached.</p>
             <div className="mb-3 flex flex-wrap items-end gap-2">
@@ -1409,7 +1439,7 @@ export function FinopsWorkspace() {
       ) : null}
 
       {active === "anomalies" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("anomalies")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Anomaly" title="Detected anomalies">
             <div className="mb-3 flex flex-wrap items-end gap-2">
               <div className="min-w-28 flex-1">
@@ -1476,7 +1506,7 @@ export function FinopsWorkspace() {
       ) : null}
 
       {active === "pricing" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("pricing")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Governance" title="Pricing versions">
             <div className="mb-3 flex flex-wrap items-end gap-2">
               <div className="min-w-28 flex-1">
@@ -1550,7 +1580,7 @@ export function FinopsWorkspace() {
       ) : null}
 
       {active === "governance" ? (
-        <div className="space-y-6">
+        <div {...panelProps("governance")} className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-3">
             <BrutalCard eyebrow="Governance" title="Policies">
               <div className="mb-3 flex gap-2">
@@ -1761,7 +1791,7 @@ export function FinopsWorkspace() {
       ) : null}
 
       {active === "intelligence" ? (
-        <div className="space-y-6">
+        <div {...panelProps("intelligence")} className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
             <BrutalCard eyebrow="Intelligence" title="Model comparison">
               <p className="mb-2 text-xs text-on-surface-variant">Read-only comparison from recorded costs and effective pricing. FinOps never switches models — selection stays governed by AI Gateway policy.</p>

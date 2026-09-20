@@ -17,6 +17,7 @@ import { ApiError } from "@/lib/api-client";
 import { hasPermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/types/auth";
 import { useToastStore } from "@/stores/toast";
+import { useTablistKeyboard } from "@/lib/useTablistKeyboard";
 import type {
   WorkflowAnomaly,
   WorkflowApproval,
@@ -905,6 +906,13 @@ export function WorkflowWorkspace() {
     { id: "automation", label: "Automation" },
   ];
 
+  const { onKeyDown: onTablistKeyDown, tabProps, panelProps } = useTablistKeyboard({
+    tabs,
+    activeId: active,
+    setActiveId: setActive,
+    idPrefix: "workflow",
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4 border border-outline bg-surface-container px-4 py-3">
@@ -929,13 +937,14 @@ export function WorkflowWorkspace() {
         </div>
       </div>
 
-      <div role="tablist" aria-label="Workflow sections" className="flex flex-wrap gap-2">
+      <div role="tablist" aria-label="Workflow sections" className="flex flex-wrap gap-2" onKeyDown={onTablistKeyDown}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             role="tab"
             aria-selected={tab.id === active}
+            {...tabProps(tab.id)}
             onClick={() => setActive(tab.id)}
             className={
               tab.id === active
@@ -949,7 +958,7 @@ export function WorkflowWorkspace() {
       </div>
 
       {active === "overview" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("overview")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Execution" title="Workflow health">
             <PanelBody loading={loading} error={healthError} onRetry={() => void loadAll()} emptyTitle="No health data" emptyDescription="Health aggregates are computed server-side from tenant runs.">
               {health ? (
@@ -1004,7 +1013,7 @@ export function WorkflowWorkspace() {
       ) : null}
 
       {active === "registry" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("registry")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Registry" title="Workflows">
             <div className="mb-3 flex flex-wrap items-end gap-2">
               <div className="min-w-28 flex-1">
@@ -1091,7 +1100,7 @@ export function WorkflowWorkspace() {
       ) : null}
 
       {active === "runs" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("runs")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Execution" title="Runs">
             <p className="mb-2 font-mono text-xs text-on-surface-variant">Runs for the selected workflow, newest first. Select a workflow in the Registry tab.</p>
             <PanelBody loading={workflowRunsLoading} error={workflowRunsError} onRetry={() => selectedWorkflowId && void loadWorkflowDetail(selectedWorkflowId)} emptyTitle="No runs" emptyDescription="Runs appear here once the workflow is triggered.">
@@ -1202,7 +1211,8 @@ export function WorkflowWorkspace() {
       ) : null}
 
       {active === "approvals" ? (
-        <BrutalCard eyebrow="Execution" title="Approvals">
+        <div {...panelProps("approvals")} className="grid gap-6 lg:grid-cols-3">
+          <BrutalCard eyebrow="Execution" title="Approvals">
           <div className="mb-3 flex max-w-xs flex-wrap items-end gap-2">
             <div className="min-w-28 flex-1">
               <BrutalSelect label="Status" value={approvalStatus} onChange={(e) => setApprovalStatus(e.target.value)} options={["ALL", "PENDING", "APPROVED", "DENIED", "EXPIRED", "CANCELLED"].map((s) => ({ label: s, value: s }))} />
@@ -1240,10 +1250,12 @@ export function WorkflowWorkspace() {
             ) : null}
           </PanelBody>
         </BrutalCard>
+        </div>
       ) : null}
 
       {active === "schedules" ? (
-        <BrutalCard eyebrow="Automation" title="Schedules">
+        <div {...panelProps("schedules")} className="grid gap-6 lg:grid-cols-3">
+          <BrutalCard eyebrow="Automation" title="Schedules">
           <p className="mb-2 font-mono text-xs text-on-surface-variant">Cron, interval, one-shot and event triggers. Select the workflow in the Registry tab to scope creation.</p>
           {canWorkflowExecute ? (
             <div className="mb-3">
@@ -1270,10 +1282,11 @@ export function WorkflowWorkspace() {
             ) : null}
           </PanelBody>
         </BrutalCard>
+        </div>
       ) : null}
 
       {active === "automation" ? (
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div {...panelProps("automation")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Automation" title="Templates">
             {canWorkflowExecute ? (
               <div className="mb-3">

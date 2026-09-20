@@ -20,6 +20,7 @@ import type {
   TestGapOut,
 } from "@/types/code";
 import { ApiError } from "@/lib/api-client";
+import { useTablistKeyboard } from "@/lib/useTablistKeyboard";
 
 function sessionExpired() {
   window.location.href = "/auth/login";
@@ -87,16 +88,24 @@ export function IntelligencePanel({ repoId }: { repoId: string | null }) {
 
   const activeTab = tabs.find((t) => t.id === active) ?? tabs[0];
 
+  const { onKeyDown: onTablistKeyDown, tabProps, panelProps } = useTablistKeyboard({
+    tabs: tabs.map((t) => ({ id: t.id, label: t.label })),
+    activeId: active,
+    setActiveId: setActive,
+    idPrefix: "code-intel",
+  });
+
   return (
     <div className="flex h-full flex-col min-h-0">
       <div className="bg-surface px-1 pt-1">
-        <div role="tablist" aria-label="Code intelligence" className="flex flex-wrap gap-1">
+        <div role="tablist" aria-label="Code intelligence" className="flex flex-wrap gap-1" onKeyDown={onTablistKeyDown}>
           {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
               role="tab"
               aria-selected={tab.id === active}
+              {...tabProps(tab.id)}
               onClick={() => setActive(tab.id)}
               className={
                 tab.id === active
@@ -109,7 +118,7 @@ export function IntelligencePanel({ repoId }: { repoId: string | null }) {
           ))}
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto bg-surface-container/50 p-3">{activeTab.content}</div>
+      <div {...panelProps(active)} className="min-h-0 flex-1 overflow-y-auto bg-surface-container/50 p-3">{activeTab.content}</div>
     </div>
   );
 }

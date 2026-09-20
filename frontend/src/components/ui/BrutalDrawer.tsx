@@ -85,7 +85,7 @@ export function BrutalDrawer({
                 type="button"
                 onClick={onClose}
                 aria-label="Close panel"
-                className="border border-outline px-2 py-1 font-mono text-xs text-on-surface-variant hover:border-on-surface hover:text-on-surface"
+                className="border border-outline px-2 py-1 font-mono text-xs text-on-surface-variant hover:border-on-surface hover:text-on-surface min-h-[44px] min-w-[44px] focus-visible:outline-2 focus-visible:outline-primary-container focus-visible:outline-offset-2"
               >
                 ESC
               </button>
