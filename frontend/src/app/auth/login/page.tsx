@@ -76,7 +76,7 @@ export default function LoginPage() {
         <div className="mx-auto max-w-[1400px] px-6 lg:px-12">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="max-w-md mx-auto text-center">
             <div className="h-10 w-10 bg-primary-container flex items-center justify-center mx-auto mb-6">
-              <span className="text-black font-bold text-lg">NF</span>
+              <span className="text-on-primary font-bold text-lg">NF</span>
             </div>
             <h1 className="text-4xl font-bold text-on-surface mb-4">Welcome back</h1>
             <p className="text-body-md text-on-surface-variant mb-8">Sign in to your NovaForge account.</p>

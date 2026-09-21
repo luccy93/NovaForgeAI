@@ -39,7 +39,8 @@ describe("Dashboard command center", () => {
 
   it("renders real API data", async () => {
     render(<DashboardPage />);
-    await waitFor(() => expect(screen.getByRole("heading", { name: /command center/i })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("heading", { name: /dashboard/i })).toBeInTheDocument());
+    expect(screen.getAllByText("Command Center").length).toBeGreaterThanOrEqual(1);
     await waitFor(() => expect(screen.getByText("Current spend")).toBeInTheDocument());
     expect(screen.getByText(/2 records/)).toBeInTheDocument();
   });
@@ -52,7 +53,7 @@ describe("Dashboard command center", () => {
 
   it("handles tenant isolation - switches clear previous data", async () => {
     render(<DashboardPage />);
-    await waitFor(() => expect(screen.getByRole("heading", { name: /command center/i })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("heading", { name: /dashboard/i })).toBeInTheDocument());
     // Simulate organization switch - this dispatches tenant:switched which clears+refetches
     useTenantStore.getState().switchOrganization("org-2");
     expect(useTenantStore.getState().workspaceId).toBeNull();

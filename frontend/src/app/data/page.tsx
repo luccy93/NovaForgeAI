@@ -51,15 +51,14 @@ export default function DataPage() {
         onLogout={logout}
       >
         <div className="border-b border-outline bg-surface px-4 py-4 lg:px-6">
-          <h1 className="font-mono text-xs uppercase tracking-widest text-primary-container">
-            Data Platform
-          </h1>
+          <p className="font-mono text-[11px] uppercase tracking-widest text-on-surface-variant">Data & Knowledge</p>
+          <h1 className="text-2xl font-bold text-on-surface">Data Platform</h1>
           <p className="text-sm text-on-surface-variant">
             Datasets, pipelines, quality, lineage and catalog for this tenant
             {workspaceId ? ` · ${wsLabel}` : ""}
           </p>
         </div>
-        <div className="mx-auto flex h-[calc(100vh-8.5rem)] w-full max-w-[1600px] flex-col overflow-y-auto px-4 py-6 lg:px-6">
+        <div className="mx-auto flex h-[calc(100vh-8.5rem)] w-full max-w-[1400px] flex-col overflow-y-auto px-4 py-6 lg:px-6">
           <DataPlatformWorkspace />
         </div>
       </AppShell>

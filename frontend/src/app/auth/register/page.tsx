@@ -66,17 +66,17 @@ export default function RegisterPage() {
         <div className="mx-auto max-w-[1400px] px-6 lg:px-12">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="max-w-md mx-auto text-center">
             <div className="h-10 w-10 bg-primary-container flex items-center justify-center mx-auto mb-6">
-              <span className="text-black font-bold text-lg">NF</span>
+              <span className="text-on-primary font-bold text-lg">NF</span>
             </div>
             <h1 className="text-4xl font-bold text-on-surface mb-4">Create your account</h1>
             <p className="text-body-md text-on-surface-variant mb-8">Start building with NovaForge AI in minutes.</p>
-            <div className="border border-outline bg-surface-container p-8 text-left">
+            <div className="border border-outline bg-surface-container p-4 sm:p-8 text-left">
               <form onSubmit={onSubmit} noValidate className="space-y-4">
                 <BrutalInput label="Email" type="email" placeholder="you@company.io" value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} autoComplete="email" autoFocus required aria-required="true" />
                 <BrutalInput label="Username" placeholder="your_name" value={username} onChange={(e) => setUsername(e.target.value)} error={errors.username} autoComplete="username" required aria-required="true" />
                 <BrutalInput label="Password" type="password" placeholder="At least 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} error={errors.password} autoComplete="new-password" required aria-required="true" />
-                {serverError ? <p role="alert" className="text-sm text-error">{serverError}</p> : null}
-                {success ? <p role="status" className="text-sm text-primary-container">Account created — redirecting…</p> : null}
+                {serverError ? <p role="alert" className="break-words text-sm text-error">{serverError}</p> : null}
+                {success ? <p role="status" className="break-words text-sm text-primary-container">Account created — redirecting…</p> : null}
                 <BrutalButton variant="yellow" size="lg" fullWidth type="submit" disabled={busy}>
                   {busy ? "Creating…" : <>Create Account <ArrowRight className="h-4 w-4" /></>}
                 </BrutalButton>

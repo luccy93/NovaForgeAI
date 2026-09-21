@@ -372,9 +372,10 @@ export default function DashboardPage() {
         onLogout={logout}
       >
       <div className="border-b border-outline bg-surface">
-        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-4 lg:px-6">
+        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-4 px-4 py-4 lg:px-6">
           <div>
-            <h1 className="font-mono text-xs uppercase tracking-widest text-primary-container">Command Center</h1>
+            <p className="font-mono text-[11px] uppercase tracking-widest text-on-surface-variant">Command Center</p>
+            <h1 className="text-2xl font-bold text-on-surface">Dashboard</h1>
             <p className="text-sm text-on-surface-variant">
               {orgLabel ?? "No org"} {workspaceId ? `· ${wsLabel}` : ""} {lastUpdated ? `· Updated ${lastUpdated}` : ""}
             </p>
@@ -396,7 +397,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-[1600px] px-4 py-6 lg:px-6">
+      <div className="mx-auto w-full max-w-[1400px] px-4 py-6 lg:px-6">
         {error ? (
           <div className="mb-6">
             <BrutalErrorState title="Request failed" description={error} onRetry={() => void fetchAll()} />
