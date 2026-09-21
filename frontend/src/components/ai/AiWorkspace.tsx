@@ -7,6 +7,7 @@ import { ConversationList } from "@/components/ai/ConversationList";
 import { MessageTimeline } from "@/components/ai/MessageTimeline";
 import { Composer, type ComposerState } from "@/components/ai/Composer";
 import { ContextPanel } from "@/components/ai/ContextPanel";
+import { BrutalDrawer } from "@/components/ui/BrutalDrawer";
 import { BrutalModal } from "@/components/ui/BrutalModal";
 import { BrutalButton } from "@/components/ui/BrutalButton";
 import { BrutalErrorState } from "@/components/ui/BrutalErrorState";
@@ -46,6 +47,7 @@ export function AiWorkspace() {
   const conversationRef = useRef<string | null>(null);
   const loadingIdRef = useRef<string | null>(null);
 
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const pushToast = useToastStore((s) => s.push);
 
   const loadConversations = useCallback(async (offset = 0, append = false) => {
@@ -334,7 +336,13 @@ export function AiWorkspace() {
   const sources = useMemo(() => responseSources, [responseSources]);
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex h-full min-h-0 flex-col md:flex-row">
+      <div className="flex items-center gap-2 border-b border-outline bg-surface p-2 md:hidden">
+        <BrutalButton variant="ghost" size="sm" onClick={() => setMobileNavOpen(true)} aria-label="Open conversations">
+          Conversations
+        </BrutalButton>
+        <span className="truncate font-mono text-xs text-on-surface-variant">{activeId ? "Active conversation" : "No conversation selected"}</span>
+      </div>
       <aside className="hidden w-64 shrink-0 border-r border-outline bg-surface md:block" aria-label="Conversations">
         <ConversationList
           conversations={conversations}
@@ -352,6 +360,27 @@ export function AiWorkspace() {
           onLoadMore={loadMoreConversations}
         />
       </aside>
+      <BrutalDrawer open={mobileNavOpen} title="Conversations" onClose={() => setMobileNavOpen(false)} side="left">
+        <ConversationList
+          conversations={conversations}
+          activeId={activeId}
+          loading={conversationsLoading}
+          hasMore={hasMoreConversations}
+          onSelect={(id) => {
+            void loadConversation(id);
+            setMobileNavOpen(false);
+          }}
+          onNew={() => {
+            resetAllState();
+            setMobileNavOpen(false);
+          }}
+          onDelete={(id) => {
+            const convo = conversations.find((c) => c.id === id);
+            if (convo) setPendingDelete(convo);
+          }}
+          onLoadMore={loadMoreConversations}
+        />
+      </BrutalDrawer>
 
       <main className="relative flex min-h-0 min-w-0 flex-1 flex-col" aria-label="AI conversation">
         {conversationsError ? (

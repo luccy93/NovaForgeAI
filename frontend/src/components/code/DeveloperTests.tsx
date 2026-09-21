@@ -56,7 +56,7 @@ export function DeveloperTests({ repoId, defaultBranch }: { repoId: string; defa
               onChange={(e) => setBranch(e.target.value)}
             />
           </div>
-          <div className="min-w-40 flex-1">
+          <div className="min-w-[120px] flex-1">
             <BrutalInput
               id="dev-tests-framework"
               label="Framework (optional)"

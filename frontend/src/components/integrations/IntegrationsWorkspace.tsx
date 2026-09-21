@@ -1613,7 +1613,7 @@ export function IntegrationsWorkspace() {
         <div {...panelProps("registry")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Registry" title="Integrations">
             <div className="mb-3 flex flex-wrap gap-2">
-              <div className="min-w-32 flex-1">
+              <div className="min-w-[120px] flex-1">
                 <BrutalSelect
                   label="Status"
                   value={statusFilter}
@@ -1621,7 +1621,7 @@ export function IntegrationsWorkspace() {
                   options={[{ value: "ALL", label: "All statuses" }, ...INTEGRATION_STATUSES.map((s) => ({ value: s, label: s }))]}
                 />
               </div>
-              <div className="min-w-32 flex-1">
+              <div className="min-w-[120px] flex-1">
                 <BrutalInput label="Provider" value={providerFilter} onChange={(e) => setProviderFilter(e.target.value)} placeholder="github" />
               </div>
             </div>
@@ -1906,7 +1906,7 @@ export function IntegrationsWorkspace() {
         <div {...panelProps("oauth")} className="grid gap-6 lg:grid-cols-2">
           <BrutalCard eyebrow="OAuth" title="OAuth connections">
             <div className="mb-3 flex flex-wrap gap-2">
-              <div className="min-w-32 flex-1">
+              <div className="min-w-[120px] flex-1">
                 <BrutalSelect label="Status" value={oauthStatusFilter} onChange={(e) => setOauthStatusFilter(e.target.value)} options={["ALL", "PENDING", "ACTIVE", "NEEDS_REAUTH", "REVOKED"].map((s) => ({ value: s, label: s }))} />
               </div>
               <div className="flex items-end gap-2">
@@ -2004,7 +2004,7 @@ export function IntegrationsWorkspace() {
           <BrutalCard eyebrow="Summary" title="Health summary">
             <p className="mb-3 text-xs text-on-surface-variant">Aggregates health checks and execution outcomes for the selected integration. Window is bounded to 1–90 days.</p>
             <div className="mb-3 flex flex-wrap items-end gap-2">
-              <div className="w-32">
+              <div className="w-full sm:w-32 min-w-0">
                 <BrutalInput label="Days" value={summaryDays} onChange={(e) => setSummaryDays(e.target.value)} placeholder="7" />
               </div>
               <BrutalButton variant="ghost" size="sm" onClick={() => void loadHealthSummary()} disabled={healthSummaryLoading}>
@@ -2039,7 +2039,7 @@ export function IntegrationsWorkspace() {
         <div {...panelProps("webhooks")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Outbound" title="Webhooks">
             <div className="mb-3 flex flex-wrap gap-2">
-              <div className="min-w-32 flex-1">
+              <div className="min-w-[120px] flex-1">
                 <BrutalSelect label="Status" value={webhookStatusFilter} onChange={(e) => setWebhookStatusFilter(e.target.value)} options={[{ value: "ALL", label: "All statuses" }, ...INTEGRATION_STATUSES.map((s) => ({ value: s, label: s }))]} />
               </div>
               <div className="flex items-end gap-2">

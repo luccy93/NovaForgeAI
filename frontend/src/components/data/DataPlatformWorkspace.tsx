@@ -1849,7 +1849,7 @@ export function DataPlatformWorkspace() {
       {active === "sources" ? (
         <BrutalCard eyebrow="Source" title="Sources">
           <div className="mb-3 flex max-w-xl flex-wrap items-end gap-2">
-            <div className="min-w-32 flex-1">
+            <div className="min-w-[120px] flex-1">
               <BrutalSelect label="Connector" value={sourceConnector} onChange={(e) => setSourceConnector(e.target.value)} options={["ALL", ...DATA_CONNECTORS].map((c) => ({ label: c, value: c }))} />
             </div>
             <BrutalButton variant="ghost" size="sm" onClick={() => void loadAll()}>Apply</BrutalButton>

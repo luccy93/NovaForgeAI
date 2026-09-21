@@ -1874,10 +1874,10 @@ export function GovernanceWorkspace() {
           <div className="lg:col-span-2">
             <BrutalCard eyebrow="Evidence" title="Evidence registry">
               <div className="mb-3 flex flex-wrap items-end gap-2">
-                <div className="min-w-32 flex-1">
+                <div className="min-w-[120px] flex-1">
                   <BrutalInput label="Control key" value={evidenceControlFilter} onChange={(e) => setEvidenceControlFilter(e.target.value)} placeholder="control-key" />
                 </div>
-                <div className="min-w-32 flex-1">
+                <div className="min-w-[120px] flex-1">
                   <BrutalSelect label="Expiry" value={evidenceExpiredOnly ? "expired" : "all"} onChange={(e) => setEvidenceExpiredOnly(e.target.value === "expired")} options={[{ label: "All", value: "all" }, { label: "Expired only", value: "expired" }]} />
                 </div>
                 <BrutalButton variant="ghost" size="sm" onClick={applyEvidenceFilters}>Apply</BrutalButton>
@@ -1942,10 +1942,10 @@ export function GovernanceWorkspace() {
           }
         >
           <div className="mb-3 flex max-w-xl flex-wrap items-end gap-2">
-            <div className="min-w-32 flex-1">
+            <div className="min-w-[120px] flex-1">
               <BrutalSelect label="Status" value={driftStatusFilter} onChange={(e) => setDriftStatusFilter(e.target.value)} options={["ALL", ...GOVERNANCE_DRIFT_STATUSES].map((s) => ({ label: s, value: s }))} />
             </div>
-            <div className="min-w-32 flex-1">
+            <div className="min-w-[120px] flex-1">
               <BrutalSelect label="Severity" value={driftSeverityFilter} onChange={(e) => setDriftSeverityFilter(e.target.value)} options={["ALL", ...GOVERNANCE_DRIFT_SEVERITIES].map((s) => ({ label: s, value: s }))} />
             </div>
             <BrutalButton variant="ghost" size="sm" onClick={applyDriftFilters}>Apply</BrutalButton>

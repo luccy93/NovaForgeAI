@@ -11,6 +11,7 @@ import { RepositoryList, type RepositoryListItem } from "@/components/code/Repos
 import { SearchResults } from "@/components/code/SearchResults";
 import { SymbolDetailPanel } from "@/components/code/SymbolDetailPanel";
 import { BrutalButton } from "@/components/ui/BrutalButton";
+import { BrutalDrawer } from "@/components/ui/BrutalDrawer";
 import { api, clearToken, getToken } from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
 import type {
@@ -55,6 +56,7 @@ export function CodeWorkspace() {
   const [symbolLoading, setSymbolLoading] = useState(false);
   const [symbolError, setSymbolError] = useState<string | null>(null);
 
+  const [mobileRepoOpen, setMobileRepoOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const repoSwitchRef = useRef(0);
 
@@ -353,9 +355,15 @@ export function CodeWorkspace() {
   );
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex h-full min-h-0 flex-col lg:flex-row">
+      <div className="flex items-center gap-2 border-b border-outline bg-surface p-2 lg:hidden">
+        <BrutalButton variant="ghost" size="sm" onClick={() => setMobileRepoOpen(true)} aria-label="Open repositories">
+          Repositories
+        </BrutalButton>
+        <span className="truncate font-mono text-xs text-on-surface-variant">{activeRepo?.name ?? "No repository selected"}</span>
+      </div>
       {/* Left: repositories */}
-      <aside className="hidden w-64 shrink-0 border-r border-outline bg-surface md:block" aria-label="Repositories">
+      <aside className="hidden w-64 shrink-0 border-r border-outline bg-surface lg:block" aria-label="Repositories">
         <RepositoryList
           repositories={filteredRepos}
           loading={reposLoading}
@@ -367,6 +375,21 @@ export function CodeWorkspace() {
           onRetry={() => void loadRepositories()}
         />
       </aside>
+      <BrutalDrawer open={mobileRepoOpen} title="Repositories" onClose={() => setMobileRepoOpen(false)} side="left">
+        <RepositoryList
+          repositories={filteredRepos}
+          loading={reposLoading}
+          error={reposError}
+          activeId={activeRepoId}
+          filter={filter}
+          onFilterChange={setFilter}
+          onSelect={(id) => {
+            void selectRepository(id);
+            setMobileRepoOpen(false);
+          }}
+          onRetry={() => void loadRepositories()}
+        />
+      </BrutalDrawer>
 
       {/* Center: search + results + viewer */}
       <main className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label="Code intelligence">
@@ -437,7 +460,7 @@ export function CodeWorkspace() {
 
       {/* Right: intelligence */}
       {activeRepoId ? (
-        <aside className="hidden w-80 shrink-0 border-l border-outline bg-surface lg:block" aria-label="Intelligence">
+        <aside className="w-full shrink-0 border-t border-outline bg-surface lg:w-80 lg:border-l lg:border-t-0" aria-label="Intelligence">
           <IntelligencePanel key={activeRepoId} repoId={activeRepoId} />
         </aside>
       ) : null}

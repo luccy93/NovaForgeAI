@@ -1315,7 +1315,7 @@ export function FinopsWorkspace() {
         <div {...panelProps("budgets")} className="grid gap-6 lg:grid-cols-3">
           <BrutalCard eyebrow="Budget" title="Budgets">
             <div className="mb-3 flex flex-wrap items-end gap-2">
-              <div className="min-w-32 flex-1">
+              <div className="min-w-[120px] flex-1">
                 <BrutalSelect label="Status" value={budgetStatusFilter} onChange={(e) => setBudgetStatusFilter(e.target.value)} options={[{ value: "ALL", label: "All statuses" }, ...BUDGET_STATUSES.map((s) => ({ value: s, label: s }))]} />
               </div>
               <BrutalButton variant="ghost" size="sm" onClick={() => void loadAll()}>Apply</BrutalButton>
@@ -1396,7 +1396,7 @@ export function FinopsWorkspace() {
           <BrutalCard eyebrow="Forecast" title="Spend forecast">
             <p className="mb-3 text-xs text-on-surface-variant">Backend-authoritative linear-baseline forecast. No forecasting is performed in the browser. A cached response is labeled as cached.</p>
             <div className="mb-3 flex flex-wrap items-end gap-2">
-              <div className="w-32">
+              <div className="w-full sm:w-32 min-w-0">
                 <BrutalInput label="Horizon days (1–90)" value={horizonDays} onChange={(e) => setHorizonDays(e.target.value)} />
               </div>
               <BrutalButton variant="ghost" size="sm" onClick={() => void loadAll()}>Regenerate</BrutalButton>
@@ -1796,7 +1796,7 @@ export function FinopsWorkspace() {
             <BrutalCard eyebrow="Intelligence" title="Model comparison">
               <p className="mb-2 text-xs text-on-surface-variant">Read-only comparison from recorded costs and effective pricing. FinOps never switches models — selection stays governed by AI Gateway policy.</p>
               <div className="mb-3 flex flex-wrap items-end gap-2">
-                <div className="min-w-32 flex-1">
+                <div className="min-w-[120px] flex-1">
                   <BrutalInput label="Provider" value={compareProvider} onChange={(e) => setCompareProvider(e.target.value)} />
                 </div>
                 <BrutalButton variant="ghost" size="sm" onClick={() => void loadAll()}>Apply</BrutalButton>
@@ -1862,7 +1862,7 @@ export function FinopsWorkspace() {
               <p className="mb-2 text-xs text-on-surface-variant">Server-side z-score detection over the lookback window (7–60 days). Detections are deduplicated per dimension-day — no alert storms. Admin only.</p>
               {canAdmin ? (
                 <div className="flex flex-wrap items-end gap-2">
-                  <div className="w-32">
+                  <div className="w-full sm:w-32 min-w-0">
                     <BrutalInput label="Lookback days" value={lookbackDays} onChange={(e) => setLookbackDays(e.target.value)} />
                   </div>
                   <BrutalButton variant="ghost" size="sm" onClick={() => void handleAnomalyDetect()} disabled={detecting}>
