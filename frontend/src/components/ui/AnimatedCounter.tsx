@@ -1,6 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+
+function subscribeReducedMotion(onChange: () => void) {
+  const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+
+function getReducedMotionSnapshot() {
+  return typeof window === "undefined" ? false : window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 interface AnimatedCounterProps {
   from: number;
@@ -9,11 +19,18 @@ interface AnimatedCounterProps {
 }
 
 export function AnimatedCounter({ from, to, duration = 2 }: AnimatedCounterProps) {
+  const reducedMotion = useSyncExternalStore(subscribeReducedMotion, getReducedMotionSnapshot, () => false);
   const [value, setValue] = useState(from);
   const ref = useRef<HTMLSpanElement>(null);
   const hasAnimated = useRef(false);
 
+  const displayValue = reducedMotion ? to : value;
+
   useEffect(() => {
+    if (reducedMotion) {
+      hasAnimated.current = true;
+      return;
+    }
     const el = ref.current;
     if (!el || hasAnimated.current) return;
 
@@ -36,7 +53,7 @@ export function AnimatedCounter({ from, to, duration = 2 }: AnimatedCounterProps
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [from, to, duration]);
+  }, [from, to, duration, reducedMotion]);
 
-  return <span ref={ref}>{value < 1 ? value.toFixed(1) : Math.round(value)}</span>;
+  return <span ref={ref}>{displayValue < 1 ? displayValue.toFixed(1) : Math.round(displayValue)}</span>;
 }

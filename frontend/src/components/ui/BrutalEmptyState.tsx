@@ -12,10 +12,10 @@ export function BrutalEmptyState({
   actions?: ReactNode;
 }) {
   return (
-    <div className="border border-outline bg-surface p-8 text-center">
+    <div className="border border-outline bg-surface p-6 sm:p-8 text-center">
       <p className="font-bold text-on-surface">{title}</p>
-      {description ? <p className="mt-2 text-sm text-on-surface-variant">{description}</p> : null}
-      {actions ? <div className="mt-4 flex justify-center gap-3">{actions}</div> : null}
+      {description ? <p className="mt-2 break-words text-sm text-on-surface-variant">{description}</p> : null}
+      {actions ? <div className="mt-4 flex flex-wrap justify-center gap-3">{actions}</div> : null}
     </div>
   );
 }

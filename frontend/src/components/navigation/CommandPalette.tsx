@@ -487,7 +487,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             >
               {sections.map((section) => (
                 <li key={section.id} aria-label={section.label} role="presentation">
-                  <p className="px-3 pb-1 pt-2 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
+                  <p className="px-3 pb-1 pt-2 font-mono text-[11px] uppercase tracking-widest text-on-surface-variant">
                     {section.label}
                   </p>
                   <ul role="presentation">

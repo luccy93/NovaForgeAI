@@ -9,7 +9,7 @@ export interface BrutalInputProps extends InputHTMLAttributes<HTMLInputElement> 
 }
 
 const inputCls =
-  "w-full border border-outline bg-surface px-4 py-3 text-body-md text-on-surface placeholder:text-on-surface-variant/70 outline-none focus:border-primary-container focus-visible:outline-2 focus-visible:outline-primary-container focus-visible:outline-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed";
+  "w-full min-h-[44px] border border-outline bg-surface px-4 py-3 text-body-md text-on-surface placeholder:text-on-surface-variant/70 outline-none hover:border-outline-variant focus:border-primary-container focus-visible:outline-2 focus-visible:outline-primary-container focus-visible:outline-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed";
 
 export const BrutalInput = forwardRef<HTMLInputElement, BrutalInputProps>(
   function BrutalInput({ label, error, id, className, ...rest }, ref) {

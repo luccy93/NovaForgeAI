@@ -7,7 +7,7 @@ export function BrutalSkeleton({ className, label = "Loading" }: { className?: s
     <div
       role="status"
       aria-label={label}
-      className={cn("animate-pulse border border-outline bg-surface-container-high", className)}
+      className={cn("border border-outline bg-surface-container-high motion-safe:animate-pulse", className)}
     >
       <span className="sr-only">{label}…</span>
     </div>

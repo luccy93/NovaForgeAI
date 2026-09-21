@@ -24,11 +24,11 @@ const sizes: Record<Size, string> = {
 };
 const variants: Record<Variant, string> = {
   primary:
-    "bg-black text-primary-container border border-primary-container hover:bg-primary-container hover:text-black",
+    "bg-surface text-primary-container border border-primary-container hover:bg-primary-container hover:text-on-primary",
   ghost:
     "bg-transparent text-on-surface border border-outline hover:border-on-surface hover:text-on-surface",
   yellow:
-    "bg-primary-container text-black hover:bg-black hover:text-primary-container border border-primary-container",
+    "bg-primary-container text-on-primary hover:bg-surface hover:text-primary-container border border-primary-container",
   default:
     "bg-surface-container text-on-surface border border-outline hover:border-primary-container hover:text-primary-container",
 };

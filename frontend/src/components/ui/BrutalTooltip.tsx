@@ -19,7 +19,7 @@ export function BrutalTooltip({ label, children }: { label: string; children: Re
         <span
           id={id}
           role="tooltip"
-          className="absolute bottom-full left-1/2 z-[80] mb-2 -translate-x-1/2 border border-outline bg-black px-2 py-1 font-mono text-[11px] whitespace-nowrap text-on-surface"
+          className="absolute bottom-full left-1/2 z-[80] mb-2 -translate-x-1/2 border border-outline bg-surface-container px-2 py-1 font-mono text-[11px] whitespace-nowrap text-on-surface"
         >
           {label}
         </span>

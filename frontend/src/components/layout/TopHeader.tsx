@@ -32,7 +32,7 @@ export function TopHeader({
         <Menu className="h-4 w-4" />
       </button>
       <Link href={email ? "/dashboard" : "/"} aria-label="NovaForge home" className="flex min-w-0 items-center gap-2">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center bg-primary-container font-bold text-black">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center bg-primary-container font-bold text-on-primary">
           NF
         </span>
         <span className="hidden font-bold tracking-widest text-on-surface sm:block truncate">NOVAFORGE</span>
@@ -68,7 +68,7 @@ export function TopHeader({
       ) : (
         <Link
           href="/auth/login"
-          className="shrink-0 border border-primary-container bg-primary-container px-4 py-2 text-xs font-bold uppercase tracking-widest text-black hover:bg-black hover:text-primary-container"
+          className="shrink-0 border border-primary-container bg-primary-container px-4 py-2 text-xs font-bold uppercase tracking-widest text-on-primary hover:bg-surface hover:text-primary-container"
         >
           Sign in
         </Link>

@@ -26,7 +26,7 @@ export function BrutalTable<T>({
     return (
       <div
         role="status"
-        className={cn("border border-outline bg-surface p-8 text-center", className)}
+        className={cn("border border-outline bg-surface p-6 sm:p-8 text-center", className)}
       >
         <p className="text-sm text-on-surface-variant">{emptyMessage}</p>
       </div>
@@ -58,7 +58,7 @@ export function BrutalTable<T>({
           {rows.map((row, i) => (
             <tr
               key={(row as unknown as { id?: string | number }).id ?? i}
-              className="border-b border-outline-variant bg-surface-container last:border-b-0"
+              className="border-b border-outline bg-surface-container last:border-b-0 hover:bg-surface-container-high"
             >
               {columns.map((col) => (
                 <td key={col.key} className="break-words px-3 py-3 text-on-surface sm:px-4">

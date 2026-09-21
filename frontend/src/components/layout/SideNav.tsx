@@ -29,7 +29,7 @@ export function SideNav({ authenticated, onNavigate }: { authenticated: boolean;
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "block border-l-2 px-3 py-2 text-sm transition-colors",
+                      "block border-l-2 px-3 py-2.5 text-sm transition-colors min-h-[36px] flex items-center",
                       active
                         ? "border-primary-container bg-surface-container-high text-on-surface"
                         : "border-transparent text-on-surface-variant hover:border-outline hover:text-on-surface",

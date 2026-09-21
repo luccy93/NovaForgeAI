@@ -24,7 +24,7 @@ export function BrutalPanel({ children, className, highlight, style }: BrutalPan
       ref={ref}
       style={{ opacity, ...style }}
       className={cn(
-        "border",
+        "border p-4 sm:p-6",
         highlight ? "border-primary-container bg-surface-container" : "border-outline bg-surface-container-low",
         className
       )}

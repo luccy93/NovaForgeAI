@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 type BadgeTone = "yellow" | "default" | "error" | "muted";
 
 const tones: Record<BadgeTone, string> = {
-  yellow: "bg-primary-container text-black border-primary-container",
+  yellow: "bg-primary-container text-on-primary border-primary-container",
   default: "bg-surface-container text-on-surface border-outline",
   error: "bg-error-container text-error-on-container border-error",
   muted: "bg-transparent text-on-surface-variant border-outline",
