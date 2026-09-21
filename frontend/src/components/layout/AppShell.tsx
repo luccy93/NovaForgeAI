@@ -27,7 +27,7 @@ export function AppShell({
         onMenu={() => setNavOpen(true)}
         onLogout={onLogout}
       />
-      <div className="flex flex-1">
+      <div className="flex flex-1 min-w-0">
         <aside className="hidden w-60 shrink-0 border-r border-outline bg-surface p-4 lg:block" aria-label="Primary navigation">
           <SideNav authenticated={authenticated} />
         </aside>

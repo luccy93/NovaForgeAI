@@ -85,7 +85,7 @@ export function OrgSwitcher() {
       value={organizationId ?? ""}
       onChange={handleChange}
       disabled={loading}
-      className="hidden md:block border border-outline bg-surface px-2 py-1 font-mono text-xs uppercase tracking-widest text-on-surface outline-none focus:border-primary-container disabled:opacity-50"
+      className="block w-full min-w-0 max-w-[140px] truncate border border-outline bg-surface px-2 py-1 font-mono text-xs uppercase tracking-widest text-on-surface outline-none focus:border-primary-container disabled:opacity-50 sm:w-auto sm:max-w-[180px]"
     >
       <option value="">Select org</option>
       {organizations.map((org) => (

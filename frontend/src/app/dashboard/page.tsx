@@ -471,13 +471,13 @@ export default function DashboardPage() {
             <div className="border border-outline bg-surface-container p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <label htmlFor="activity-type" className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">Type</label>
-                <BrutalInput id="activity-type" aria-label="Filter activity by type" placeholder="event type" value={activityType} onChange={(e) => setActivityType(e.target.value)} className="w-40" />
+                <BrutalInput id="activity-type" aria-label="Filter activity by type" placeholder="event type" value={activityType} onChange={(e) => setActivityType(e.target.value)} className="w-full min-w-0 sm:w-40" />
                 <label htmlFor="activity-source" className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">Source</label>
-                <BrutalInput id="activity-source" aria-label="Filter activity by source" placeholder="source" value={activitySource} onChange={(e) => setActivitySource(e.target.value)} className="w-32" />
+                <BrutalInput id="activity-source" aria-label="Filter activity by source" placeholder="source" value={activitySource} onChange={(e) => setActivitySource(e.target.value)} className="w-full min-w-0 sm:w-32" />
                 <label htmlFor="activity-start" className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">From</label>
-                <BrutalInput id="activity-start" aria-label="Activity start" type="datetime-local" value={activityStart} onChange={(e) => setActivityStart(e.target.value)} className="w-44" />
+                <BrutalInput id="activity-start" aria-label="Activity start" type="datetime-local" value={activityStart} onChange={(e) => setActivityStart(e.target.value)} className="w-full min-w-0 sm:w-44" />
                 <label htmlFor="activity-end" className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">To</label>
-                <BrutalInput id="activity-end" aria-label="Activity end" type="datetime-local" value={activityEnd} onChange={(e) => setActivityEnd(e.target.value)} className="w-44" />
+                <BrutalInput id="activity-end" aria-label="Activity end" type="datetime-local" value={activityEnd} onChange={(e) => setActivityEnd(e.target.value)} className="w-full min-w-0 sm:w-44" />
                 <BrutalButton variant="yellow" size="sm" onClick={() => void fetchActivity()}>Apply</BrutalButton>
               </div>
               <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Filters apply server-side to the analytics event feed.</p>

@@ -447,7 +447,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       <AnimatePresence>
         {open ? (
           <motion.div
-            className="fixed inset-0 z-[80] bg-black/70 p-4 pt-24"
+            className="fixed inset-0 z-[80] bg-black/70 p-3 pt-20 sm:p-4 sm:pt-24"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -460,7 +460,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
               role="dialog"
               aria-modal="true"
               aria-label="Command palette"
-              className="mx-auto max-w-xl border border-outline bg-surface-container"
+              className="mx-auto w-full max-w-[calc(100vw-16px)] sm:max-w-xl border border-outline bg-surface-container"
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
@@ -520,8 +520,8 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                                 : "text-on-surface hover:bg-surface-container-high"
                           }`}
                         >
-                          <p className={`text-sm font-bold ${item.disabled ? "font-normal" : ""}`}>{item.label}</p>
-                          <p className="text-xs text-on-surface-variant">{item.hint}</p>
+                          <p className={`break-words text-sm font-bold ${item.disabled ? "font-normal" : ""}`}>{item.label}</p>
+                          <p className="break-words text-xs text-on-surface-variant">{item.hint}</p>
                         </button>
                       </li>
                     ))}

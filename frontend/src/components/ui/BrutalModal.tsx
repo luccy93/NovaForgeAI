@@ -59,7 +59,7 @@ export function BrutalModal({
     <AnimatePresence>
       {open ? (
         <motion.div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-3 sm:p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -73,26 +73,28 @@ export function BrutalModal({
             aria-modal="true"
             aria-labelledby={titleId}
             tabIndex={-1}
-            className="w-full max-w-lg border border-outline bg-surface-container p-6 outline-none"
+            className="w-full max-w-[calc(100vw-16px)] sm:max-w-lg max-h-[85vh] overflow-y-auto border border-outline bg-surface-container p-4 sm:p-6 outline-none"
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 16 }}
             transition={{ duration: 0.15 }}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <h2 id={titleId} className="text-xl font-bold text-on-surface">{title}</h2>
+            <div className="mb-4 flex items-start justify-between gap-3 sm:gap-4">
+              <h2 id={titleId} className="min-w-0 break-words text-lg font-bold text-on-surface sm:text-xl">{title}</h2>
               <button
                 type="button"
                 onClick={onClose}
                 aria-label="Close dialog"
-                className="border border-outline px-2 py-1 font-mono text-xs text-on-surface-variant hover:border-on-surface hover:text-on-surface min-h-[44px] min-w-[44px] focus-visible:outline-2 focus-visible:outline-primary-container focus-visible:outline-offset-2"
+                className="shrink-0 border border-outline px-2 py-1 font-mono text-xs text-on-surface-variant hover:border-on-surface hover:text-on-surface min-h-[44px] min-w-[44px] focus-visible:outline-2 focus-visible:outline-primary-container focus-visible:outline-offset-2"
               >
                 ESC
               </button>
             </div>
-            {children}
-            {actions ? <div className="mt-6 flex justify-end gap-3">{actions}</div> : null}
+            <div className="min-w-0 break-words">
+              {children}
+            </div>
+            {actions ? <div className="mt-6 flex flex-wrap justify-end gap-2 sm:gap-3">{actions}</div> : null}
           </motion.div>
         </motion.div>
       ) : null}

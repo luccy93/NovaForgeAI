@@ -80,7 +80,7 @@ export default function LoginPage() {
             </div>
             <h1 className="text-4xl font-bold text-on-surface mb-4">Welcome back</h1>
             <p className="text-body-md text-on-surface-variant mb-8">Sign in to your NovaForge account.</p>
-            <div className="border border-outline bg-surface-container p-8 text-left">
+            <div className="border border-outline bg-surface-container p-4 sm:p-8 text-left">
               <form onSubmit={onSubmit} noValidate className="space-y-4">
                 <BrutalInput
                   label="Email"
@@ -106,7 +106,7 @@ export default function LoginPage() {
                   aria-required="true"
                 />
                 {serverError ? (
-                  <p role="alert" className="text-sm text-error">
+                  <p role="alert" className="break-words text-sm text-error">
                     {serverError}
                   </p>
                 ) : null}

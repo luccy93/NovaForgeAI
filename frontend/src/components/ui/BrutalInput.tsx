@@ -34,7 +34,7 @@ export const BrutalInput = forwardRef<HTMLInputElement, BrutalInputProps>(
           {...rest}
         />
         {error ? (
-          <p id={`${inputId}-error`} role="alert" className="mt-2 text-sm text-error">
+          <p id={`${inputId}-error`} role="alert" className="mt-2 break-words text-sm text-error">
             {error}
           </p>
         ) : null}

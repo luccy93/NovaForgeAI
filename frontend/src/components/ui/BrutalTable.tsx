@@ -37,9 +37,9 @@ export function BrutalTable<T>({
       role="region"
       aria-label={title ?? "Data table"}
       tabIndex={0}
-      className={cn("overflow-x-auto border border-outline focus-visible:outline-2 focus-visible:outline-primary-container focus-visible:outline-offset-2", className)}
+      className={cn("w-full min-w-0 overflow-x-auto border border-outline focus-visible:outline-2 focus-visible:outline-primary-container focus-visible:outline-offset-2", className)}
     >
-      <table className="w-full border-collapse text-left text-sm">
+      <table className="w-full min-w-[640px] border-collapse text-left text-sm">
         {title ? <caption className="sr-only">{title}</caption> : null}
         <thead>
           <tr className="border-b border-outline bg-surface">
@@ -47,7 +47,7 @@ export function BrutalTable<T>({
               <th
                 key={col.key}
                 scope="col"
-                className="px-4 py-3 font-mono text-[11px] uppercase tracking-widest text-on-surface-variant"
+                className="whitespace-nowrap px-3 py-3 font-mono text-[11px] uppercase tracking-widest text-on-surface-variant sm:px-4"
               >
                 {col.header}
               </th>
@@ -61,7 +61,7 @@ export function BrutalTable<T>({
               className="border-b border-outline-variant bg-surface-container last:border-b-0"
             >
               {columns.map((col) => (
-                <td key={col.key} className="px-4 py-3 text-on-surface">
+                <td key={col.key} className="break-words px-3 py-3 text-on-surface sm:px-4">
                   {col.render(row)}
                 </td>
               ))}

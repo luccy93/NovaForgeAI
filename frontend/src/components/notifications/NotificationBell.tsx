@@ -60,7 +60,7 @@ export function NotificationBell() {
       href="/notifications"
       aria-label={unread ? `Notifications (${unread} unread)` : "Notifications"}
       title={unread ? `Notifications (${unread} unread)` : "Notifications"}
-      className="relative hidden border border-outline p-2 text-on-surface-variant hover:border-primary-container hover:text-on-surface sm:block"
+      className="relative flex min-h-[44px] min-w-[44px] items-center justify-center border border-outline p-2 text-on-surface-variant hover:border-primary-container hover:text-on-surface"
     >
       <Bell className="h-4 w-4" />
       {unread ? (

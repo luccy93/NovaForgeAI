@@ -13,7 +13,7 @@ export function WorkspaceSwitcher() {
   if (!organizationId) return null;
   if (workspaces.length === 0) {
     return (
-      <span className="hidden md:block border border-outline px-2 py-1 font-mono text-[11px] uppercase tracking-widest text-on-surface-variant">
+      <span className="block max-w-[140px] truncate border border-outline px-2 py-1 font-mono text-[11px] uppercase tracking-widest text-on-surface-variant sm:max-w-[180px]">
         No workspaces
       </span>
     );
@@ -31,7 +31,7 @@ export function WorkspaceSwitcher() {
       aria-label="Workspace"
       value={workspaceId ?? ""}
       onChange={handleChange}
-      className="hidden md:block border border-outline bg-surface px-2 py-1 font-mono text-xs uppercase tracking-widest text-on-surface outline-none focus:border-primary-container"
+      className="block w-full min-w-0 max-w-[140px] truncate border border-outline bg-surface px-2 py-1 font-mono text-xs uppercase tracking-widest text-on-surface outline-none focus:border-primary-container sm:w-auto sm:max-w-[180px]"
     >
       <option value="">Select workspace</option>
       {workspaces.map((ws) => (
