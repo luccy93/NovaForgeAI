@@ -7,6 +7,8 @@ import { useTenantStore } from "@/stores/tenant";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/ai",
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 function conversationAvatar(id: string, title: string, count = 2) {

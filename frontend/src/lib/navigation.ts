@@ -73,6 +73,7 @@ export function isSafeNotificationTarget(href: string | null | undefined): boole
   if (href[0] !== "/" || href.startsWith("//")) return false;
   if (href.includes("://")) return false;
   if (href.startsWith("/settings/")) return true;
+  if (href.startsWith("/knowledge/document/")) return true;
   return NAV_ITEMS.some((item) => item.href === href) || EXTRA_ROUTES.includes(href);
 }
 
@@ -99,9 +100,46 @@ export interface NavCrumb {
 /** Derive a breadcrumb trail for a pathname from the navigation model. */
 export function crumbsForPathname(pathname: string): Array<NavCrumb> {
   const item = NAV_ITEMS.find((candidate) => candidate.href === pathname);
-  if (!item) return [];
-  return [
-    { label: "Home", href: "/dashboard" },
-    { label: item.label },
-  ];
+  if (item) {
+    return [
+      { label: "Home", href: "/dashboard" },
+      { label: item.label },
+    ];
+  }
+  if (pathname.startsWith("/settings/")) {
+    const segment = pathname.split("/")[2] ?? "";
+    const label = segment ? segment.charAt(0).toUpperCase() + segment.slice(1) : "Settings";
+    // Map known segments to proper labels where possible
+    const labelMap: Record<string, string> = {
+      workspaces: "Workspaces",
+      members: "Members",
+      roles: "Roles",
+      security: "Security",
+      profile: "Profile",
+      organization: "Administration",
+      preferences: "Preferences",
+      identity: "Identity & Access",
+    };
+    const pretty = labelMap[segment] ?? label;
+    return [
+      { label: "Home", href: "/dashboard" },
+      { label: "Settings", href: "/settings" },
+      { label: pretty },
+    ];
+  }
+  if (pathname.startsWith("/knowledge/document/")) {
+    return [
+      { label: "Home", href: "/dashboard" },
+      { label: "Knowledge", href: "/knowledge" },
+      { label: "Document" },
+    ];
+  }
+  if (pathname === "/knowledge/graph") {
+    return [
+      { label: "Home", href: "/dashboard" },
+      { label: "Knowledge", href: "/knowledge" },
+      { label: "Graph" },
+    ];
+  }
+  return [];
 }

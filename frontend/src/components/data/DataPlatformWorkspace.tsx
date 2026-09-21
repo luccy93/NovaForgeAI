@@ -17,6 +17,7 @@ import { ApiError } from "@/lib/api-client";
 import { hasPermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/types/auth";
 import { useToastStore } from "@/stores/toast";
+import { buildHandoff } from "@/lib/crossDomain";
 import type {
   AccessAnomaly,
   DataJobRow,
@@ -2556,7 +2557,7 @@ export function DataPlatformWorkspace() {
                 <div className="mt-3 border-t border-outline pt-2">
                   <StatRow label="Selected" value={selectedDataset.name} />
                   <div className="pt-2">
-                    <BrutalButton variant="ghost" size="sm" href="/knowledge">Analyze dataset in Knowledge</BrutalButton>
+                    <BrutalButton variant="ghost" size="sm" href={buildHandoff("/knowledge", { q: selectedDataset.name })}>Analyze dataset in Knowledge</BrutalButton>
                   </div>
                 </div>
               ) : null}
