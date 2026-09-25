@@ -8,7 +8,8 @@ import { KnowledgeResultDetail } from "@/components/knowledge/KnowledgeResultDet
 import { KnowledgeResults } from "@/components/knowledge/KnowledgeResults";
 import { KnowledgeSearchBar } from "@/components/knowledge/KnowledgeSearchBar";
 import { KnowledgeSourcesPanel } from "@/components/knowledge/KnowledgeSourcesPanel";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
+import { handleSessionExpired } from "@/stores/auth";
 import { ApiError } from "@/lib/api-client";
 import type {
   KnowledgeDocument,
@@ -23,8 +24,7 @@ import type {
 const PAGE_SIZE = 20;
 
 function sessionExpired() {
-  clearToken();
-  window.location.href = "/auth/login";
+  handleSessionExpired();
 }
 
 interface SearchState {

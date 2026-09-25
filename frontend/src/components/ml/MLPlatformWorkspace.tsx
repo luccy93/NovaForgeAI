@@ -12,7 +12,8 @@ import { BrutalInput } from "@/components/ui/BrutalInput";
 import { BrutalModal } from "@/components/ui/BrutalModal";
 import { BrutalSelect } from "@/components/ui/BrutalSelect";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
+import { handleSessionExpired } from "@/stores/auth";
 import { ApiError } from "@/lib/api-client";
 import { hasAnyPermission, hasPermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/types/auth";
@@ -37,8 +38,7 @@ import type {
 import { ML_SEVERITIES, RISK_SCORE_CAVEAT } from "@/types/ml";
 
 function sessionExpired() {
-  clearToken();
-  window.location.href = "/auth/login";
+  handleSessionExpired();
 }
 
 function formatDateTime(value: unknown): string {

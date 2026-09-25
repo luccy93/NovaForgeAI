@@ -97,6 +97,18 @@ export interface NavCrumb {
   href?: string;
 }
 
+/**
+ * Validate a post-login `?next=` redirect target. Only same-origin absolute
+ * paths pass; protocol-relative, scheme-bearing and non-path values fall back
+ * to /dashboard. Prevents open-redirect via the login flow.
+ */
+export function safeNext(value: string | null): string {
+  if (!value) return "/dashboard";
+  if (!value.startsWith("/") || value.startsWith("//")) return "/dashboard";
+  if (value.includes("://")) return "/dashboard";
+  return value;
+}
+
 /** Derive a breadcrumb trail for a pathname from the navigation model. */
 export function crumbsForPathname(pathname: string): Array<NavCrumb> {
   const item = NAV_ITEMS.find((candidate) => candidate.href === pathname);

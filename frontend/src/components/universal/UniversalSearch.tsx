@@ -6,7 +6,8 @@ import { BrutalEmptyState } from "@/components/ui/BrutalEmptyState";
 import { BrutalInput } from "@/components/ui/BrutalInput";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
 import { BrutalBadge } from "@/components/ui/BrutalBadge";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
+import { handleSessionExpired } from "@/stores/auth";
 import { ApiError } from "@/lib/api-client";
 import type { KnowledgeSearchItem } from "@/types/knowledge";
 import type { CatalogHit, UniversalDomain, UniversalDomainId } from "@/types/universal";
@@ -38,8 +39,7 @@ const NOT_SEARCHABLE: Array<UniversalDomain> = [
 ];
 
 function sessionExpired() {
-  clearToken();
-  window.location.href = "/auth/login";
+  handleSessionExpired();
 }
 
 export function UniversalSearch() {

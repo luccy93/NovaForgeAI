@@ -12,9 +12,11 @@ import { BrutalInput } from "@/components/ui/BrutalInput";
 import { BrutalModal } from "@/components/ui/BrutalModal";
 import { BrutalSelect } from "@/components/ui/BrutalSelect";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
+import { handleSessionExpired } from "@/stores/auth";
 import { ApiError } from "@/lib/api-client";
 import { hasPermission } from "@/lib/permissions";
+import { safeExternalUrl } from "@/lib/crossDomain";
 import { PERMISSIONS } from "@/types/auth";
 import { useToastStore } from "@/stores/toast";
 import { useTablistKeyboard } from "@/lib/useTablistKeyboard";
@@ -36,8 +38,7 @@ import type {
 import { CAPABILITIES_BY_TYPE, INTEGRATION_STATUSES, INTEGRATION_TYPES, POLICY_ACTIONS } from "@/types/integrations";
 
 function sessionExpired() {
-  clearToken();
-  window.location.href = "/auth/login";
+  handleSessionExpired();
 }
 
 function formatDateTime(value: string | null | undefined): string {
@@ -1960,7 +1961,11 @@ export function IntegrationsWorkspace() {
                 <StatRow label="OAuth ID" value={oauthStartResult.id} />
                 <p className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">Authorize URL</p>
                 <p className="break-all font-mono text-xs text-on-surface">{oauthStartResult.authorize_url}</p>
-                <a href={oauthStartResult.authorize_url} target="_blank" rel="noopener noreferrer" className="inline-block border border-outline px-3 py-1 font-mono text-xs uppercase tracking-widest hover:border-primary-container">Open provider authorization</a>
+                {safeExternalUrl(oauthStartResult.authorize_url) ? (
+                  <a href={safeExternalUrl(oauthStartResult.authorize_url) ?? undefined} target="_blank" rel="noopener noreferrer" className="inline-block border border-outline px-3 py-1 font-mono text-xs uppercase tracking-widest hover:border-primary-container">Open provider authorization</a>
+                ) : (
+                  <p role="alert" className="font-mono text-xs uppercase tracking-widest text-error">Provider URL blocked — unexpected scheme</p>
+                )}
               </div>
             ) : (
               <BrutalEmptyState title="No flow started" description="Use Start flow to generate a provider authorization URL." />

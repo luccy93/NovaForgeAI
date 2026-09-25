@@ -26,6 +26,7 @@ import type { KnowledgeSearchItem } from "@/types/knowledge";
 import { ApiError } from "@/lib/api-client";
 import { useToastStore } from "@/stores/toast";
 import { useTenantStore } from "@/stores/tenant";
+import { handleSessionExpired } from "@/stores/auth";
 import { useDashboardRealtime } from "@/lib/use-dashboard-realtime";
 
 export default function DashboardPage() {
@@ -92,12 +93,7 @@ export default function DashboardPage() {
   const [knowledgeCountLoading, setKnowledgeCountLoading] = useState(true);
 
   function sessionExpired() {
-    clearToken();
-    try {
-      const tenant = useTenantStore.getState();
-      tenant.clear();
-    } catch {}
-    window.location.href = "/auth/login";
+    handleSessionExpired();
   }
 
   const fetchAll = useCallback(async () => {

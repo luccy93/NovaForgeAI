@@ -9,7 +9,8 @@ import { BrutalEmptyState } from "@/components/ui/BrutalEmptyState";
 import { BrutalErrorState } from "@/components/ui/BrutalErrorState";
 import { BrutalSelect } from "@/components/ui/BrutalSelect";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
+import { handleSessionExpired } from "@/stores/auth";
 import { ApiError } from "@/lib/api-client";
 import type { KnowledgeEntity, KnowledgeEntityDetail } from "@/types/knowledge";
 
@@ -28,8 +29,7 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 function sessionExpired() {
-  clearToken();
-  window.location.href = "/auth/login";
+  handleSessionExpired();
 }
 
 interface Edge {

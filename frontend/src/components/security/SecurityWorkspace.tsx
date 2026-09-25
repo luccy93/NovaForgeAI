@@ -11,7 +11,8 @@ import { BrutalErrorState } from "@/components/ui/BrutalErrorState";
 import { BrutalModal } from "@/components/ui/BrutalModal";
 import { BrutalSelect } from "@/components/ui/BrutalSelect";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
+import { handleSessionExpired } from "@/stores/auth";
 import { ApiError } from "@/lib/api-client";
 import { hasPermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/types/auth";
@@ -28,8 +29,7 @@ import type {
 import { SECOPS_ALERT_STATUSES, SECOPS_FINDING_STATUSES } from "@/types/security";
 
 function sessionExpired() {
-  clearToken();
-  window.location.href = "/auth/login";
+  handleSessionExpired();
 }
 
 function formatDateTime(value: string | null | undefined): string {

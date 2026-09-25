@@ -48,7 +48,9 @@ export default function RegisterPage() {
       setTimeout(() => router.push("/dashboard"), 800);
     } catch (err) {
       if (err instanceof ApiError) {
-        if (err.status === 409) setServerError("An account with that email or username already exists");
+        // 409 is intentionally generic: confirming account existence would
+        // create an enumeration oracle. The status is preserved internally.
+        if (err.status === 409) setServerError("Unable to create the account. Please verify your information and try again.");
         else if (err.status === 422) setServerError(err.message || "Please check your details");
         else if (err.status === 429) setServerError("Too many attempts. Try again later.");
         else setServerError(err.message);

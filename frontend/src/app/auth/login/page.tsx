@@ -10,12 +10,7 @@ import { BrutalInput } from "@/components/ui/BrutalInput";
 import { ArrowRight } from "lucide-react";
 import { useAuthStore } from "@/stores/auth";
 import { ApiError } from "@/lib/api-client";
-
-function safeNext(value: string | null): string {
-  if (!value) return "/dashboard";
-  if (!value.startsWith("/") || value.startsWith("//")) return "/dashboard";
-  return value;
-}
+import { safeNext } from "@/lib/navigation";
 
 export default function LoginPage() {
   const router = useRouter();

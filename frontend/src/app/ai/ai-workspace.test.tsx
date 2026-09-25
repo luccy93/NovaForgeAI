@@ -27,6 +27,7 @@ vi.mock("@/lib/api", async () => {
     ...actual,
     getToken: vi.fn().mockReturnValue("test-token"),
     clearToken: vi.fn(),
+    clearAllTokens: vi.fn(),
     api: {
       ...actual.api,
       me: vi.fn().mockResolvedValue({ id: "u1", email: "a@b.io", username: "ab", is_active: true }),
@@ -221,7 +222,7 @@ describe("AI Workspace", () => {
     try {
       render(<AiWorkspace />);
       await waitFor(() => expect(navigated).toBe("/auth/login"));
-      expect(apiModule.clearToken).toHaveBeenCalled();
+      expect(apiModule.clearAllTokens).toHaveBeenCalled();
     } finally {
       if (original) Object.defineProperty(window, "location", original);
     }

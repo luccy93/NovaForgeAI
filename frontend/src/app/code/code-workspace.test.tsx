@@ -17,6 +17,7 @@ vi.mock("@/lib/api", async () => {
     ...actual,
     getToken: vi.fn().mockReturnValue("test-token"),
     clearToken: vi.fn(),
+    clearAllTokens: vi.fn(),
     api: { ...actual.api },
   };
 });
@@ -371,7 +372,7 @@ describe("Code Workspace", () => {
       render(<CodeWorkspace />);
       await waitFor(() => expect(screen.getByText("novaforge")).toBeInTheDocument());
       fireEvent.click(screen.getByRole("button", { name: /novaforge/i }));
-      await waitFor(() => expect(apiModule.clearToken).toHaveBeenCalled());
+      await waitFor(() => expect(apiModule.clearAllTokens).toHaveBeenCalled());
       expect(fakeLocation.href).toBe("/auth/login");
     } finally {
       if (original) Object.defineProperty(window, "location", original);

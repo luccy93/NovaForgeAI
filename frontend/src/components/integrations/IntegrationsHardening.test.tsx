@@ -2,13 +2,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IntegrationsWorkspace } from "@/components/integrations/IntegrationsWorkspace";
 import { PlatformExtensionsOverview } from "@/components/integrations/PlatformExtensionsOverview";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, clearAllTokens, clearToken, getToken } from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
 import { useToastStore } from "@/stores/toast";
 
 vi.mock("@/lib/api", () => ({
   getToken: vi.fn(() => "test-token"),
   clearToken: vi.fn(),
+  clearAllTokens: vi.fn(),
   api: {
     whoami: vi.fn(),
     integrationsFiltered: vi.fn(),
@@ -111,6 +112,7 @@ describe("IntegrationsWorkspace hardening", () => {
     installApiMock();
     vi.mocked(getToken).mockReturnValue("test-token");
     vi.mocked(clearToken).mockClear();
+    vi.mocked(clearAllTokens).mockClear();
     useToastStore.setState({ toasts: [] });
   });
 
@@ -124,7 +126,7 @@ describe("IntegrationsWorkspace hardening", () => {
     });
     const location = forgetLocation();
     render(<IntegrationsWorkspace />);
-    await waitFor(() => expect(clearToken).toHaveBeenCalled());
+    await waitFor(() => expect(clearAllTokens).toHaveBeenCalled());
     await waitFor(() => expect(location.read()).toBe("/auth/login"));
     location.restore();
   });

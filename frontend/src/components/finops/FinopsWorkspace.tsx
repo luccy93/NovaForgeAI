@@ -14,7 +14,8 @@ import { BrutalSelect } from "@/components/ui/BrutalSelect";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
 import { BrutalTable } from "@/components/ui/BrutalTable";
 import { useTablistKeyboard } from "@/lib/useTablistKeyboard";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
+import { handleSessionExpired } from "@/stores/auth";
 import { ApiError } from "@/lib/api-client";
 import { hasPermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/types/auth";
@@ -51,8 +52,7 @@ import {
 } from "@/types/finops";
 
 function sessionExpired() {
-  clearToken();
-  window.location.href = "/auth/login";
+  handleSessionExpired();
 }
 
 function formatDateTime(value: string | null | undefined): string {

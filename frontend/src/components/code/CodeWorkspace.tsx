@@ -12,7 +12,8 @@ import { SearchResults } from "@/components/code/SearchResults";
 import { SymbolDetailPanel } from "@/components/code/SymbolDetailPanel";
 import { BrutalButton } from "@/components/ui/BrutalButton";
 import { BrutalDrawer } from "@/components/ui/BrutalDrawer";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
+import { handleSessionExpired } from "@/stores/auth";
 import { ApiError } from "@/lib/api-client";
 import type {
   CodeIndexOut,
@@ -25,8 +26,7 @@ import type {
 import type { IndexState } from "@/components/code/IndexStatusBadge";
 
 function sessionExpired() {
-  clearToken();
-  window.location.href = "/auth/login";
+  handleSessionExpired();
 }
 
 export function CodeWorkspace() {

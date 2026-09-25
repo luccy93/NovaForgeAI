@@ -60,9 +60,10 @@ describe("cross-domain C1 — buildHandoff helper", () => {
     expect(buildHandoff("/ai", { ref: "notif-123", topic: "security:alert" })).toBe("/ai?ref=notif-123&topic=security%3Aalert");
   });
 
-  it("blocks unsafe href", () => {
-    expect(buildHandoff("https://evil.com", { q: "test" })).toBe("https://evil.com");
-    expect(buildHandoff("//evil.com/path", { q: "x" })).toBe("//evil.com/path");
+  it("fail-closed: unsafe href falls back to /dashboard without params", () => {
+    expect(buildHandoff("https://evil.com", { q: "test" })).toBe("/dashboard");
+    expect(buildHandoff("//evil.com/path", { q: "x" })).toBe("/dashboard");
+    expect(buildHandoff("javascript:alert(1)")).toBe("/dashboard");
   });
 
   it("ignores undefined/null/empty params", () => {

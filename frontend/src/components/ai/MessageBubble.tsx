@@ -15,6 +15,25 @@ function formatTime(iso?: string): string {
   }
 }
 
+const ALLOWED_MARKDOWN_SCHEMES = ["http:", "https:", "mailto:"];
+
+/**
+ * Explicit allowlist for AI-generated Markdown link destinations.
+ * Relative links (no scheme) stay in-app and are safe; only http/https/mailto
+ * schemes pass. javascript:, data:, vbscript: and other schemes become ""
+ * (inert anchor) instead of relying on the renderer's built-in default.
+ */
+export function safeMarkdownUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) return url;
+  try {
+    const scheme = new URL(trimmed).protocol.toLowerCase();
+    return (ALLOWED_MARKDOWN_SCHEMES as string[]).includes(scheme) ? url : "";
+  } catch {
+    return "";
+  }
+}
+
 function SourcesBlock({ sources }: { sources: ChatSource[] }) {
   if (!sources.length) return null;
   return (
@@ -89,7 +108,7 @@ export const MessageBubble = memo(function MessageBubble({
           <p className="whitespace-pre-wrap">{message.content}</p>
         ) : (
           <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-pre:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
-            <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
+            <Markdown remarkPlugins={[remarkGfm]} urlTransform={safeMarkdownUrl}>{message.content}</Markdown>
           </div>
         )}
         {!isUser && sources && <SourcesBlock sources={sources} />}

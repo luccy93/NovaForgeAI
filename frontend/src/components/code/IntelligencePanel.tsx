@@ -21,9 +21,10 @@ import type {
 } from "@/types/code";
 import { ApiError } from "@/lib/api-client";
 import { useTablistKeyboard } from "@/lib/useTablistKeyboard";
+import { handleSessionExpired } from "@/stores/auth";
 
 function sessionExpired() {
-  window.location.href = "/auth/login";
+  handleSessionExpired();
 }
 
 type TabId = "impact" | "security" | "quality" | "tests" | "ownership" | "history";

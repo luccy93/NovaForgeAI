@@ -6,16 +6,7 @@ import { BrutalEmptyState } from "@/components/ui/BrutalEmptyState";
 import { BrutalErrorState } from "@/components/ui/BrutalErrorState";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
 import type { KnowledgeDocument, KnowledgeSearchItem } from "@/types/knowledge";
-
-function safeExternalUrl(url: string | null | undefined): string | null {
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === "http:" || parsed.protocol === "https:" ? url : null;
-  } catch {
-    return null;
-  }
-}
+import { safeExternalUrl } from "@/lib/crossDomain";
 
 export function KnowledgeResultDetail({
   hit,

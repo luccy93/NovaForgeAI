@@ -112,3 +112,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   clearMfa: () => set({ mfaChallengeToken: null, status: "unauthenticated" }),
 }));
+
+/**
+ * Canonical session-expiry handler for 401 responses.
+ * Clears ALL tokens (access + refresh), wipes tenant/workspace state and
+ * caches, marks the store expired (so the login hint renders), then redirects
+ * to the fixed login route. Use this instead of ad-hoc clearToken() calls so
+ * no stale credential or tenant context survives expiry.
+ */
+export function handleSessionExpired(redirectTo = "/auth/login"): void {
+  try {
+    useAuthStore.getState().markExpired();
+  } catch {
+    // Store unavailable (e.g. isolated unit context) — still clear tokens.
+    clearAllTokens();
+  }
+  if (typeof window !== "undefined") window.location.href = redirectTo;
+}

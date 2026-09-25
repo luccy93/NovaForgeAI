@@ -1,9 +1,10 @@
 "use client";
 
 import { ApiError } from "@/lib/api-client";
+import { handleSessionExpired } from "@/stores/auth";
 
 export function sessionExpired() {
-  window.location.href = "/auth/login";
+  handleSessionExpired();
 }
 
 // Returns a friendly error message, or "" when the session expired (the caller

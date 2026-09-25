@@ -15,6 +15,7 @@ vi.mock("@/lib/api", async () => {
     ...actual,
     getToken: vi.fn().mockReturnValue("test-token"),
     clearToken: vi.fn(),
+    clearAllTokens: vi.fn(),
     api: { ...actual.api },
   };
 });
@@ -196,7 +197,7 @@ describe("Knowledge Graph", () => {
       const api = apiModule.api as unknown as Record<string, ReturnType<typeof vi.fn>>;
       api.knowledgeListEntities.mockRejectedValue(new ApiError("unauthorized", 401, "expired"));
       render(<KnowledgeGraph />);
-      await waitFor(() => expect(apiModule.clearToken).toHaveBeenCalled());
+      await waitFor(() => expect(apiModule.clearAllTokens).toHaveBeenCalled());
       expect(fakeLocation.href).toBe("/auth/login");
     } finally {
       if (original) Object.defineProperty(window, "location", original);

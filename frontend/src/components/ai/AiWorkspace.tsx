@@ -11,14 +11,14 @@ import { BrutalDrawer } from "@/components/ui/BrutalDrawer";
 import { BrutalModal } from "@/components/ui/BrutalModal";
 import { BrutalButton } from "@/components/ui/BrutalButton";
 import { BrutalErrorState } from "@/components/ui/BrutalErrorState";
-import { api, clearToken, getToken, streamChatResponse } from "@/lib/api";
+import { api, getToken, streamChatResponse } from "@/lib/api";
+import { handleSessionExpired } from "@/stores/auth";
 import type { ChatMessage, ChatSource, ConversationDetail, ConversationSummary } from "@/types/api";
 import { ApiError } from "@/lib/api-client";
 import { useToastStore } from "@/stores/toast";
 
 function sessionExpired() {
-  clearToken();
-  window.location.href = "/auth/login";
+  handleSessionExpired();
 }
 
 export function AiWorkspace() {

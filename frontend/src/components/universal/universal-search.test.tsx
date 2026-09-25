@@ -15,6 +15,7 @@ vi.mock("@/lib/api", async () => {
     ...actual,
     getToken: vi.fn().mockReturnValue("test-token"),
     clearToken: vi.fn(),
+    clearAllTokens: vi.fn(),
     api: { ...actual.api },
   };
 });
@@ -184,7 +185,7 @@ describe("Universal Search", () => {
       render(<UniversalSearch />);
       fireEvent.change(screen.getByLabelText("Universal search"), { target: { value: "hello" } });
       fireEvent.click(screen.getByRole("button", { name: "Search" }));
-      await waitFor(() => expect(apiModule.clearToken).toHaveBeenCalled());
+      await waitFor(() => expect(apiModule.clearAllTokens).toHaveBeenCalled());
       expect(fakeLocation.href).toBe("/auth/login");
     } finally {
       if (original) Object.defineProperty(window, "location", original);

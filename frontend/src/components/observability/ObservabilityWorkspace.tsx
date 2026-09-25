@@ -10,7 +10,8 @@ import { BrutalEmptyState } from "@/components/ui/BrutalEmptyState";
 import { BrutalErrorState } from "@/components/ui/BrutalErrorState";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
 import { OperationsIntelligence } from "@/components/observability/OperationsIntelligence";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
+import { handleSessionExpired } from "@/stores/auth";
 import { ApiError } from "@/lib/api-client";
 import type { ObservabilityDashboard } from "@/types/api";
 import type {
@@ -24,8 +25,7 @@ import type {
 } from "@/types/observability";
 
 function sessionExpired() {
-  clearToken();
-  window.location.href = "/auth/login";
+  handleSessionExpired();
 }
 
 const STATUS_ORDER = ["operational", "degraded", "partial_outage", "major_outage"];

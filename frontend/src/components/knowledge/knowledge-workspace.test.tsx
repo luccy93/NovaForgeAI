@@ -16,6 +16,7 @@ vi.mock("@/lib/api", async () => {
     ...actual,
     getToken: vi.fn().mockReturnValue("test-token"),
     clearToken: vi.fn(),
+    clearAllTokens: vi.fn(),
     api: { ...actual.api },
   };
 });
@@ -376,7 +377,7 @@ describe("Knowledge Workspace", () => {
       render(<KnowledgeWorkspace />);
       await searchHello();
       fireEvent.click(screen.getByRole("button", { name: /Payment auth guide/ }));
-      await waitFor(() => expect(apiModule.clearToken).toHaveBeenCalled());
+      await waitFor(() => expect(apiModule.clearAllTokens).toHaveBeenCalled());
       expect(fakeLocation.href).toBe("/auth/login");
     } finally {
       if (original) Object.defineProperty(window, "location", original);
