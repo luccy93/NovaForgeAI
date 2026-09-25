@@ -8,9 +8,10 @@ import { BrutalEmptyState } from "@/components/ui/BrutalEmptyState";
 import { BrutalErrorState } from "@/components/ui/BrutalErrorState";
 import { BrutalInput } from "@/components/ui/BrutalInput";
 import { NAV_GROUPS, NAV_ITEMS, filterNavByPermission } from "@/lib/navigation";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
 import { useTenantStore } from "@/stores/tenant";
+import { handleSessionExpired } from "@/stores/auth";
 import type { KnowledgeSearchItem } from "@/types/knowledge";
 import type { CatalogHit } from "@/types/universal";
 
@@ -39,8 +40,7 @@ export function CommandCenter() {
   const workspaceId = useTenantStore((s) => s.workspaceId);
 
   const sessionExpired = useCallback(() => {
-    clearToken();
-    window.location.href = "/auth/login";
+    handleSessionExpired();
   }, []);
 
   useEffect(() => {

@@ -49,6 +49,7 @@ export function AiWorkspace() {
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const pushToast = useToastStore((s) => s.push);
+  const convoSeqRef = useRef(0);
 
   const loadConversations = useCallback(async (offset = 0, append = false) => {
     const token = getToken();
@@ -56,11 +57,16 @@ export function AiWorkspace() {
       window.location.href = "/auth/login";
       return;
     }
+    // Sequence guard: a response from a previous tenant/workspace context
+    // must never overwrite the current context's conversation list.
+    convoSeqRef.current += 1;
+    const seq = convoSeqRef.current;
     setConversationsLoading(true);
     setConversationsError(null);
     try {
       const PAGE_SIZE = 50;
       const res = await api.listConversations(token, PAGE_SIZE, offset);
+      if (seq !== convoSeqRef.current) return;
       const items = Array.isArray(res) ? res : [];
       if (append) {
         setConversations((prev) => [...prev, ...items]);
@@ -70,12 +76,14 @@ export function AiWorkspace() {
       setConversationsOffset(offset + items.length);
       setHasMoreConversations(items.length >= PAGE_SIZE);
     } catch (e) {
+      if (seq !== convoSeqRef.current) return;
       if (e instanceof ApiError && e.kind === "unauthorized") {
         sessionExpired();
         return;
       }
       setConversationsError(e instanceof Error ? e.message : "Failed to load conversations");
     } finally {
+      if (seq !== convoSeqRef.current) return;
       setConversationsLoading(false);
     }
   }, []);

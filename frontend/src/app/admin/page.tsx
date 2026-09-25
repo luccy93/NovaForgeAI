@@ -5,10 +5,11 @@ import { Protected } from "@/components/auth/Protected";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageFrame } from "@/components/layout/PageFrame";
 import { AdminControlPlane } from "@/components/admin/AdminControlPlane";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 import type { ApiUser } from "@/types/api";
 import { ApiError } from "@/lib/api-client";
 import { useTenantStore } from "@/stores/tenant";
+import { handleSessionExpired, useAuthStore } from "@/stores/auth";
 import { PERMISSIONS } from "@/types/auth";
 
 export default function AdminPage() {
@@ -27,8 +28,7 @@ export default function AdminPage() {
       })
       .catch((e) => {
         if (e instanceof ApiError && e.kind === "unauthorized") {
-          clearToken();
-          window.location.href = "/auth/login";
+          handleSessionExpired();
         }
       });
     return () => {
@@ -37,7 +37,7 @@ export default function AdminPage() {
   }, []);
 
   function logout() {
-    clearToken();
+    useAuthStore.getState().logout();
     window.location.href = "/";
   }
 

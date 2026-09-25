@@ -5,10 +5,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { NAV_ITEMS, filterNavByPermission } from "@/lib/navigation";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
 import { hasPermission } from "@/lib/permissions";
-import { useAuthStore } from "@/stores/auth";
+import { handleSessionExpired, useAuthStore } from "@/stores/auth";
 import { useToastStore } from "@/stores/toast";
 import { PERMISSIONS } from "@/types/auth";
 import type { AccessRequestItem } from "@/types/security";
@@ -253,8 +253,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         .catch((e) => {
           if (seq !== seqRef.current) return;
           if (e instanceof ApiError && e.kind === "unauthorized") {
-            clearToken();
-            window.location.href = "/auth/login";
+            handleSessionExpired();
             return;
           }
           setHits([]);

@@ -435,18 +435,22 @@ export function DataPlatformWorkspace() {
       sessionExpired();
       return;
     }
+    const seq = seqRef.current;
     setDatasetDetailLoading(true);
     setDatasetDetailError(null);
     try {
       const detail = await api.dataDataset(token, datasetId);
+      if (seq !== seqRef.current) return;
       setDatasetDetail(detail);
     } catch (e) {
+      if (seq !== seqRef.current) return;
       if (e instanceof ApiError && e.kind === "unauthorized") {
         sessionExpired();
         return;
       }
       setDatasetDetailError(e instanceof Error ? e.message : "Dataset unavailable");
     } finally {
+      if (seq !== seqRef.current) return;
       setDatasetDetailLoading(false);
     }
   }, []);
@@ -457,18 +461,22 @@ export function DataPlatformWorkspace() {
       sessionExpired();
       return;
     }
+    const seq = seqRef.current;
     setJobsLoading(true);
     setJobsError(null);
     try {
       const res = await api.dataJobs(token, { pipeline_id: pipelineId ?? undefined, limit: 20 });
+      if (seq !== seqRef.current) return;
       setJobs(res.items ?? []);
     } catch (e) {
+      if (seq !== seqRef.current) return;
       if (e instanceof ApiError && e.kind === "unauthorized") {
         sessionExpired();
         return;
       }
       setJobsError(e instanceof Error ? e.message : "Runs unavailable");
     } finally {
+      if (seq !== seqRef.current) return;
       setJobsLoading(false);
     }
   }, []);
@@ -484,18 +492,22 @@ export function DataPlatformWorkspace() {
       sessionExpired();
       return;
     }
+    const seq = seqRef.current;
     setQualityLoading(true);
     setQualityError(null);
     try {
       const res = await api.dataQualityResults(token, datasetId);
+      if (seq !== seqRef.current) return;
       setQualityResults(res.items ?? []);
     } catch (e) {
+      if (seq !== seqRef.current) return;
       if (e instanceof ApiError && e.kind === "unauthorized") {
         sessionExpired();
         return;
       }
       setQualityError(e instanceof Error ? e.message : "Quality results unavailable");
     } finally {
+      if (seq !== seqRef.current) return;
       setQualityLoading(false);
     }
   }, [qualityDatasetId, pushToast]);
@@ -512,18 +524,22 @@ export function DataPlatformWorkspace() {
       return;
     }
     const depth = Math.min(Math.max(Number(lineageDepth) || 3, 1), 10);
+    const seq = seqRef.current;
     setLineageLoading(true);
     setLineageError(null);
     try {
       const graph = await api.dataLineageGraph(token, node, depth);
+      if (seq !== seqRef.current) return;
       setLineageGraph(graph);
     } catch (e) {
+      if (seq !== seqRef.current) return;
       if (e instanceof ApiError && e.kind === "unauthorized") {
         sessionExpired();
         return;
       }
       setLineageError(e instanceof Error ? e.message : "Lineage unavailable");
     } finally {
+      if (seq !== seqRef.current) return;
       setLineageLoading(false);
     }
   }, [lineageNode, lineageDepth, pushToast]);
@@ -534,6 +550,7 @@ export function DataPlatformWorkspace() {
       sessionExpired();
       return;
     }
+    const seq = seqRef.current;
     setCatalogLoading(true);
     setCatalogError(null);
     try {
@@ -545,15 +562,18 @@ export function DataPlatformWorkspace() {
         semantic: catalogSemantic,
         offline: catalogOffline,
       });
+      if (seq !== seqRef.current) return;
       setCatalogHits(res.items ?? []);
       setCatalogMeta({ total: res.total, source: res.source, stale: res.stale, warning: res.warning ?? res.error ?? null });
     } catch (e) {
+      if (seq !== seqRef.current) return;
       if (e instanceof ApiError && e.kind === "unauthorized") {
         sessionExpired();
         return;
       }
       setCatalogError(e instanceof Error ? e.message : "Catalog search unavailable");
     } finally {
+      if (seq !== seqRef.current) return;
       setCatalogLoading(false);
     }
   }, [catalogQuery, catalogOwner, catalogClassification, catalogSemantic, catalogOffline]);
@@ -569,18 +589,22 @@ export function DataPlatformWorkspace() {
       sessionExpired();
       return;
     }
+    const seq = seqRef.current;
     setLakehouseLoading(true);
     setLakehouseError(null);
     try {
       const res = await api.dataLakehouseStats(token, datasetId);
+      if (seq !== seqRef.current) return;
       setLakehouseStats(res);
     } catch (e) {
+      if (seq !== seqRef.current) return;
       if (e instanceof ApiError && e.kind === "unauthorized") {
         sessionExpired();
         return;
       }
       setLakehouseError(e instanceof Error ? e.message : "Lakehouse stats unavailable");
     } finally {
+      if (seq !== seqRef.current) return;
       setLakehouseLoading(false);
     }
   }, [selectedDatasetId, pushToast]);
@@ -1283,14 +1307,17 @@ export function DataPlatformWorkspace() {
       sessionExpired();
       return;
     }
+    const seq = seqRef.current;
     setProductsError(null);
     try {
       const res = await api.dataProducts(token, {
         status: productStatus !== "ALL" ? productStatus : undefined,
         limit: 20,
       });
+      if (seq !== seqRef.current) return;
       setProducts(res.items ?? []);
     } catch (e) {
+      if (seq !== seqRef.current) return;
       if (e instanceof ApiError && e.kind === "unauthorized") {
         sessionExpired();
         return;
@@ -1312,11 +1339,14 @@ export function DataPlatformWorkspace() {
       sessionExpired();
       return;
     }
+    const seq = seqRef.current;
     setAnomaliesError(null);
     try {
       const res = await api.dataAccessAnomalies(token, 20);
+      if (seq !== seqRef.current) return;
       setAnomalies(res.items ?? []);
     } catch (e) {
+      if (seq !== seqRef.current) return;
       if (e instanceof ApiError && e.kind === "unauthorized") {
         sessionExpired();
         return;

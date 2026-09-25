@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { Protected } from "@/components/auth/Protected";
 import { AppShell } from "@/components/layout/AppShell";
 import { BrutalSkeleton } from "@/components/ui/BrutalSkeleton";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 
 const KnowledgeGraph = dynamic(
   () => import("@/components/knowledge/KnowledgeGraph").then((m) => m.KnowledgeGraph),
@@ -21,6 +21,7 @@ const KnowledgeGraph = dynamic(
 );
 import { ApiError } from "@/lib/api-client";
 import { useTenantStore } from "@/stores/tenant";
+import { handleSessionExpired, useAuthStore } from "@/stores/auth";
 import type { ApiUser } from "@/types/api";
 
 export default function KnowledgeGraphPage() {
@@ -39,8 +40,7 @@ export default function KnowledgeGraphPage() {
       })
       .catch((e) => {
         if (e instanceof ApiError && e.kind === "unauthorized") {
-          clearToken();
-          window.location.href = "/auth/login";
+          handleSessionExpired();
         }
       });
     return () => {
@@ -49,7 +49,7 @@ export default function KnowledgeGraphPage() {
   }, []);
 
   function logout() {
-    clearToken();
+    useAuthStore.getState().logout();
     window.location.href = "/";
   }
 

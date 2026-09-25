@@ -20,13 +20,13 @@ import { GovernancePanel } from "@/components/dashboard/GovernancePanel";
 import { IntegrationsPanel } from "@/components/dashboard/IntegrationsPanel";
 import { RecentActivityPanel } from "@/components/dashboard/RecentActivityPanel";
 import { QuickActions } from "@/components/dashboard/QuickActions";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 import type { ApiUser, FinOpsSummary, HealthDependencies, WorkflowHealth, WorkflowRun, AiUsageItem, IntegrationItem, RecentActivityItem } from "@/types/api";
 import type { KnowledgeSearchItem } from "@/types/knowledge";
 import { ApiError } from "@/lib/api-client";
 import { useToastStore } from "@/stores/toast";
 import { useTenantStore } from "@/stores/tenant";
-import { handleSessionExpired } from "@/stores/auth";
+import { handleSessionExpired, useAuthStore } from "@/stores/auth";
 import { useDashboardRealtime } from "@/lib/use-dashboard-realtime";
 
 export default function DashboardPage() {
@@ -349,10 +349,7 @@ export default function DashboardPage() {
   }
 
   function logout() {
-    clearToken();
-    try {
-      useTenantStore.getState().clear();
-    } catch {}
+    useAuthStore.getState().logout();
     window.location.href = "/";
   }
 

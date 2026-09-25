@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { Protected } from "@/components/auth/Protected";
 import { AppShell } from "@/components/layout/AppShell";
 import { ObservabilityWorkspace } from "@/components/observability/ObservabilityWorkspace";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 import type { ApiUser } from "@/types/api";
 import { ApiError } from "@/lib/api-client";
 import { useTenantStore } from "@/stores/tenant";
+import { handleSessionExpired, useAuthStore } from "@/stores/auth";
 
 export default function ObservabilityPage() {
   const [user, setUser] = useState<ApiUser | null>(null);
@@ -25,8 +26,7 @@ export default function ObservabilityPage() {
       })
       .catch((e) => {
         if (e instanceof ApiError && e.kind === "unauthorized") {
-          clearToken();
-          window.location.href = "/auth/login";
+          handleSessionExpired();
         }
       });
     return () => {
@@ -35,7 +35,7 @@ export default function ObservabilityPage() {
   }, []);
 
   function logout() {
-    clearToken();
+    useAuthStore.getState().logout();
     window.location.href = "/";
   }
 

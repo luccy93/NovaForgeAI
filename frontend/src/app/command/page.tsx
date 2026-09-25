@@ -5,10 +5,11 @@ import { Protected } from "@/components/auth/Protected";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageFrame } from "@/components/layout/PageFrame";
 import { CommandCenter } from "@/components/command/CommandCenter";
-import { api, clearToken, getToken } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 import type { ApiUser } from "@/types/api";
 import { ApiError } from "@/lib/api-client";
 import { useTenantStore } from "@/stores/tenant";
+import { handleSessionExpired, useAuthStore } from "@/stores/auth";
 
 export default function CommandPage() {
   const [user, setUser] = useState<ApiUser | null>(null);
@@ -26,8 +27,7 @@ export default function CommandPage() {
       })
       .catch((e) => {
         if (e instanceof ApiError && e.kind === "unauthorized") {
-          clearToken();
-          window.location.href = "/auth/login";
+          handleSessionExpired();
         }
       });
     return () => {
@@ -36,7 +36,7 @@ export default function CommandPage() {
   }, []);
 
   function logout() {
-    clearToken();
+    useAuthStore.getState().logout();
     window.location.href = "/";
   }
 
