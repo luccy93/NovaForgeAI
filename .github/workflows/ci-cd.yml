@@ -44,9 +44,17 @@ jobs:
         working-directory: frontend
         run: npm ci --frozen-lockfile
 
+      - name: Typecheck frontend
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: Test frontend
+        working-directory: frontend
+        run: npm run test -- --poolOptions.threads.maxThreads=1
+
       - name: Lint frontend
         working-directory: frontend
-        run: npm run lint 2>/dev/null || echo "No frontend linter configured"
+        run: npm run lint
 
   # ─── Tests ─────────────────────────────────────────────────────
   test:
