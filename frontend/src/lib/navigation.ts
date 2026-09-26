@@ -72,9 +72,12 @@ export function isSafeNotificationTarget(href: string | null | undefined): boole
   if (typeof href !== "string" || href === "") return false;
   if (href[0] !== "/" || href.startsWith("//")) return false;
   if (href.includes("://")) return false;
-  if (href.startsWith("/settings/")) return true;
-  if (href.startsWith("/knowledge/document/")) return true;
-  return NAV_ITEMS.some((item) => item.href === href) || EXTRA_ROUTES.includes(href);
+  // Match on the path only so legitimate query/hash context (?q=, #anchor)
+  // keeps working; all scheme/host rejections above still apply.
+  const path = href.split(/[?#]/)[0];
+  if (path.startsWith("/settings/")) return true;
+  if (path.startsWith("/knowledge/document/")) return true;
+  return NAV_ITEMS.some((item) => item.href === path) || EXTRA_ROUTES.includes(path);
 }
 
 /**
