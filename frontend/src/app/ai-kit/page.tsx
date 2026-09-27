@@ -115,11 +115,8 @@ export default function AIKitPage() {
               Orchestrate, customize, and deploy AI-powered code workflows.
             </p>
             <div className="mt-8 flex gap-4">
-              <BrutalButton href="#" variant="yellow" size="lg">
+              <BrutalButton href="/auth/register" variant="yellow" size="lg">
                 Get Started <ArrowRight className="h-4 w-4" />
-              </BrutalButton>
-              <BrutalButton href="#" variant="ghost" size="lg">
-                View on GitHub
               </BrutalButton>
             </div>
           </motion.div>

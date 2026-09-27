@@ -135,7 +135,7 @@ export function HeroSection() {
 
           <div className="flex items-center gap-8 mb-12">
             <a
-              href="#"
+              href="/auth/register"
               className="inline-flex items-center gap-3 bg-primary-container text-black px-7 py-3.5 text-sm font-bold tracking-[0.1em] uppercase hover:bg-white transition-colors group"
             >
               Get Started <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />

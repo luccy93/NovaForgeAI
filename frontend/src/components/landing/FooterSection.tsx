@@ -1,6 +1,6 @@
 "use client";
 
-import { Globe, MessageCircle, Briefcase, Mail, ArrowUp } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 
 const footerGroups = [
   { label: "Product", links: ["Features", "Pricing", "Documentation", "Changelog", "API Reference"] },
@@ -9,12 +9,13 @@ const footerGroups = [
   { label: "Resources", links: ["Help Center", "Community", "Status", "Tutorials", "Integrations"] },
 ];
 
-const socialLinks = [
-  { icon: Globe, href: "#" },
-  { icon: MessageCircle, href: "#" },
-  { icon: Briefcase, href: "#" },
-  { icon: Mail, href: "#" },
-];
+// Only destinations with a verified existing route (or verified external URL)
+// may be links. Everything else renders as non-interactive text — never
+// href="#" and never an invented route.
+const KNOWN_ROUTES: Record<string, string> = {
+  Documentation: "/docs",
+  Integrations: "/integrations",
+};
 
 export function FooterSection() {
   const scrollToTop = () => { window.scrollTo({ top: 0, behavior: "smooth" }); };
@@ -36,30 +37,27 @@ export function FooterSection() {
             <p className="mt-6 text-sm text-white/50 leading-relaxed max-w-xs font-mono">
               Navigate your codebase in 3D space. Understand architecture visually. Ship faster with AI agents.
             </p>
-            <div className="flex gap-3 mt-8">
-              {socialLinks.map((s, i) => (
-                <a
-                  key={i}
-                  href={s.href}
-                  className="h-10 w-10 border border-white/20 flex items-center justify-center hover:bg-primary-container hover:text-black hover:border-primary-container transition-colors duration-200"
-                >
-                  <s.icon className="h-4 w-4 text-white hover:text-black" />
-                </a>
-              ))}
-            </div>
           </div>
           
           {footerGroups.map((group) => (
             <div key={group.label} className="pt-2">
               <h4 className="font-mono text-xs font-bold text-white uppercase tracking-widest mb-6">{group.label}</h4>
               <ul className="space-y-4">
-                {group.links.map((link) => (
-                  <li key={link}>
-                    <a href="#" className="text-sm text-white/60 hover:text-primary-container transition-colors">
-                      {link}
-                    </a>
-                  </li>
-                ))}
+                {group.links.map((link) =>
+                  KNOWN_ROUTES[link] ? (
+                    <li key={link}>
+                      <a href={KNOWN_ROUTES[link]} className="text-sm text-white/60 hover:text-primary-container transition-colors">
+                        {link}
+                      </a>
+                    </li>
+                  ) : (
+                    <li key={link}>
+                      <span aria-disabled="true" className="text-sm text-white/30 cursor-default">
+                        {link}
+                      </span>
+                    </li>
+                  ),
+                )}
               </ul>
             </div>
           ))}
