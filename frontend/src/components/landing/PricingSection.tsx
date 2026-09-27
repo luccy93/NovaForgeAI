@@ -117,6 +117,13 @@ export function PricingSection() {
                   >
                     {plan.cta} <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                   </a>
+                ) : plan.href === "#" ? (
+                  <span
+                    aria-disabled="true"
+                    className="flex items-center justify-center gap-3 border border-white/20 bg-[#151515] text-white/40 px-8 py-4 text-sm font-bold tracking-widest uppercase w-full cursor-default"
+                  >
+                    {plan.cta} <ArrowRight className="h-4 w-4 -ml-7" />
+                  </span>
                 ) : (
                   <a
                     href={plan.href}

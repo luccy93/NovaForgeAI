@@ -77,6 +77,7 @@ export function FooterSection() {
       {/* Back to top */}
       <button
         onClick={scrollToTop}
+        aria-label="Back to top"
         className="fixed bottom-8 right-8 h-12 w-12 border border-white/20 bg-[#151515] flex items-center justify-center hover:bg-primary-container hover:text-black hover:border-primary-container transition-colors duration-200 z-50 shadow-2xl group"
       >
         <ArrowUp className="h-5 w-5 text-white group-hover:text-black transition-colors" />
