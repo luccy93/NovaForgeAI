@@ -286,7 +286,7 @@ POST   /automation/ai/generate                  ?prompt=&org_id=
 POST   /automation/webhook/{path}               HMAC-signed (?timestamp=&signature=)
 POST   /automation/tick
 GET    /automation/health
-```
+```.......
 
 ### Behavior
 
