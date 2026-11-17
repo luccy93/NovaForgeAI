@@ -141,7 +141,7 @@ images, architecture diagrams, video and audio.
 | `pipeline.py` | Asset lifecycle orchestrator (validate -> sandbox -> extract -> index -> KG) |
 | `service.py` | `multimodal` service registered in the volume registry |
 
-### CLI
+### CLI tech 
 
 ```bash
 python -m app.novaforge_cli health
