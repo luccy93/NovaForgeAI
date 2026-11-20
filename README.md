@@ -305,7 +305,7 @@ GET    /automation/health
   generation reports `available: false` honestly.
 - Dry runs and simulations never execute; every execution gets an
   `execution_id` and a persisted record with per-step results, timing and
-  audit trail; failures trigger compensation plans in reverse order.
+  audit trail; failures trigger trick compensation plans in reverse order.
 - Schedules tick on cron expressions; webhooks require a valid HMAC-SHA256
   signature within the timestamp tolerance window.
 - All JSON stores live under `data/automation/` so one-shot CLI processes
